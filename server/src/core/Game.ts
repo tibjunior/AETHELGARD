@@ -1,6 +1,21 @@
 import { Server, Socket } from 'socket.io';
-import { PlayerData, Position, MapData, ItemData } from '../../../shared/types';
-import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline } from './database';
+import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
+import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB } from './database';
+import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
+
+export const ITEM_WEIGHTS: Record<string, number> = {
+    'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
+    'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
+    'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1,
+    'Iron Ore': 8, 'Wood Log': 6, 'Medicinal Herb': 2, 'Gold Coin': 0.1
+};
+
+export const ITEM_EMOJIS: Record<string, string> = {
+    'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
+    'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Blueberry': '🍇',
+    'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+    'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿'
+};
 
 export class Game {
   private io: Server;
@@ -12,10 +27,15 @@ export class Game {
   private lastUpdate: number = Date.now();
   private ticks: number = 0;
   private isNight: boolean = false; 
+  private resourceNodes: Map<string, ResourceNode> = new Map();
+  private activeGatherings: Map<string, NodeJS.Timeout> = new Map();
+  private craftingStations: Map<string, CraftingStation> = new Map();
 
   constructor(io: Server) {
     this.io = io;
     this.setupMap();
+    this.setupResourceNodes();
+    this.setupCraftingStations();
     this.setupNetwork();
     
     // Auto-save no DB a cada 10 segundos
@@ -230,13 +250,14 @@ export class Game {
       // Envia os dados iniciais do jogador para o cliente
       socket.emit('init', newPlayer);
 
-      // Envia os dados do mapa (Paredes e Itens)
       const mapData: MapData = {
         walls: Array.from(this.walls).map(w => {
           const [x, y] = w.split(',');
           return { x: parseInt(x), y: parseInt(y) };
         }),
-        itemsOnFloor: Array.from(this.itemsOnFloor.values())
+        itemsOnFloor: Array.from(this.itemsOnFloor.values()),
+        resourceNodes: Array.from(this.resourceNodes.values()),
+        craftingStations: Array.from(this.craftingStations.values())
       };
       socket.emit('mapData', mapData);
       
@@ -255,6 +276,7 @@ export class Game {
         const player = this.players.get(socket.id);
         if (player) {
           if (player.isDead) return;
+          this.cancelGathering(socket.id);
           const { position: targetPosition, facing } = data;
           
           player.facing = facing; // Atualiza a direção que ele está olhando
@@ -293,13 +315,7 @@ export class Game {
                      socket.emit('itemPickedUp', item); 
                      this.io.emit('itemRemoved', item.id);
                  } else if (player.backpack) {
-                     // Tabela de pesos
-                     const itemWeights: Record<string, number> = {
-                         'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
-                         'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
-                         'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1
-                     };
-                     const weight = itemWeights[item.name] || 5;
+                     const weight = ITEM_WEIGHTS[item.name] || 5;
                      
                      if (player.weight + weight <= (player.maxWeight || 250)) {
                          const added = this.addItemToBackpack(player, item.name);
@@ -367,6 +383,7 @@ export class Game {
         const player = this.players.get(socket.id);
         if (player) {
            if (player.isDead) return;
+           this.cancelGathering(socket.id);
            player.targetId = targetId; // Marca quem o jogador quer atacar
         }
       });
@@ -384,6 +401,7 @@ export class Game {
                  // Dano massivo mágico
                  const damage = Math.floor(Math.random() * 20) + 30; // 30-50 dano
                  target.health -= damage;
+                 this.cancelGathering(target.id);
                  
                  // Emite efeito visual mágico
                  this.io.emit('spellCast', { casterId: player.id, targetId: target.id, spell: 'exori vis' });
@@ -402,6 +420,8 @@ export class Game {
       socket.on('dash', () => {
           const player = this.players.get(socket.id);
           if (player && player.facing) {
+              if (player.isDead) return;
+              this.cancelGathering(socket.id);
               // Pula até 3 tiles na direção do facing
               let dx = 0, dy = 0;
               if (player.facing === 'up') dy = -1;
@@ -446,6 +466,7 @@ export class Game {
       socket.on('skillshot', (data?: { targetId?: string }) => {
           const player = this.players.get(socket.id);
           if (!player || player.isDead) return;
+          this.cancelGathering(socket.id);
 
           // 1. Checa SP
           const spCost = 10;
@@ -516,6 +537,7 @@ export class Game {
       socket.on('castAoE', (data?: { targetId?: string }) => {
           const player = this.players.get(socket.id);
           if (!player || player.isDead) return;
+          this.cancelGathering(socket.id);
 
           // 1. Checa SP
           const spCost = 20;
@@ -556,6 +578,7 @@ export class Game {
               if (dx <= 2 && dy <= 2) { // Raio de 2 SQMs
                   const damage = Math.floor(Math.random() * 20) + 15; // 15-35 dano
                   target.health -= damage;
+                  this.cancelGathering(target.id);
                   this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage });
                   this.checkDeath(player, target);
                   hitCount++;
@@ -575,8 +598,13 @@ export class Game {
       socket.on('useItem', (index: number) => {
           const player = this.players.get(socket.id);
           if (player && player.backpack[index]) {
+              if (player.isDead) return;
+              this.cancelGathering(socket.id);
               const item = player.backpack[index];
-              const [itemName, countStr] = item.split(':');
+              const parsed = this.parseItem(item);
+              if (!parsed) return;
+              const itemName = parsed.name;
+              const countStr = item.includes(':') ? item.split(':')[1] : '1';
               const count = parseInt(countStr) || 1;
               let consumed = false;
 
@@ -614,8 +642,8 @@ export class Game {
                   if (player.equipment && player.equipment.rightHand) {
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
-                  if (player.equipment) player.equipment.rightHand = 'Steel Sword';
-                  player.attack = 15;
+                  if (player.equipment) player.equipment.rightHand = item;
+                  this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Wood Sword') {
@@ -623,37 +651,41 @@ export class Game {
                   if (player.equipment && player.equipment.rightHand) {
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
-                  if (player.equipment) player.equipment.rightHand = 'Wood Sword';
-                  player.attack = 8;
+                  if (player.equipment) player.equipment.rightHand = item;
+                  this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Torch') {
                   if (player.equipment && player.equipment.leftHand) {
                       this.addItemToBackpack(player, player.equipment.leftHand);
                   }
-                  if (player.equipment) player.equipment.leftHand = 'Torch';
+                  if (player.equipment) player.equipment.leftHand = item;
+                  this.recalculateStats(player);
                   this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Light!', color: '#ffaa00' });
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Helmet') {
                   if (player.equipment && player.equipment.head) this.addItemToBackpack(player, player.equipment.head);
-                  if (player.equipment) player.equipment.head = 'Helmet';
+                  if (player.equipment) player.equipment.head = item;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Armor') {
                   if (player.equipment && player.equipment.body) this.addItemToBackpack(player, player.equipment.body);
-                  if (player.equipment) player.equipment.body = 'Armor';
+                  if (player.equipment) player.equipment.body = item;
+                  this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Pants') {
                   if (player.equipment && player.equipment.legs) this.addItemToBackpack(player, player.equipment.legs);
-                  if (player.equipment) player.equipment.legs = 'Pants';
+                  if (player.equipment) player.equipment.legs = item;
+                  this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Leather Boots') {
                   if (player.equipment && player.equipment.boots) this.addItemToBackpack(player, player.equipment.boots);
-                  if (player.equipment) player.equipment.boots = 'Leather Boots';
+                  if (player.equipment) player.equipment.boots = item;
+                  this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Gold Coin') {
@@ -706,12 +738,7 @@ export class Game {
           const cost = prices[itemName];
           
           if (cost && player.gold >= cost) {
-              const itemWeights: Record<string, number> = {
-                  'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
-                  'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
-                  'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1
-              };
-              const itemWeight = itemWeights[itemName] || 5;
+              const itemWeight = ITEM_WEIGHTS[itemName] || 5;
               if (player.weight + itemWeight > (player.maxWeight || 250)) {
                   socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
                   return;
@@ -837,6 +864,7 @@ export class Game {
       socket.on('useConsumable', (type: 'hp' | 'mp') => {
           const player = this.players.get(socket.id);
           if (!player || player.isDead || !player.backpack) return;
+          this.cancelGathering(socket.id);
           
           // Mapeia tipo pra lista de consumíveis em ordem de prioridade
           const hpItems = ['Health Potion', 'Cheese', 'Apple'];
@@ -898,7 +926,380 @@ export class Game {
           }
       });
 
+      // --- SISTEMA DE CRAFTING E LEILÕES ---
+      
+      // 1. Criar Item (Craft)
+      socket.on('craftItem', (data: { recipeId: string }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead) return;
+          
+          const recipe = CRAFTING_RECIPES.find(r => r.id === data.recipeId);
+          if (!recipe) return;
+          
+          // Valida proximidade da estação (2 tiles)
+          let nearStation = false;
+          for (const station of this.craftingStations.values()) {
+              if (station.type === recipe.stationType) {
+                  const dist = Math.abs(player.x - station.x) + Math.abs(player.y - station.y);
+                  if (dist <= 2) { nearStation = true; break; }
+              }
+          }
+          
+          if (!nearStation) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too far from station!', color: '#ff5555' });
+              return;
+          }
+          
+          // Valida nível requerido
+          let playerProfLvl = 1;
+          let xpField: 'professionSmithingXp' | 'professionAlchemyXp' | 'professionTanningXp' = 'professionSmithingXp';
+          let lvlField: 'professionSmithingLevel' | 'professionAlchemyLevel' | 'professionTanningLevel' = 'professionSmithingLevel';
+          
+          if (recipe.profession === 'smithing') {
+              playerProfLvl = player.professionSmithingLevel ?? 1;
+              xpField = 'professionSmithingXp';
+              lvlField = 'professionSmithingLevel';
+          } else if (recipe.profession === 'alchemy') {
+              playerProfLvl = player.professionAlchemyLevel ?? 1;
+              xpField = 'professionAlchemyXp';
+              lvlField = 'professionAlchemyLevel';
+          } else if (recipe.profession === 'tanning') {
+              playerProfLvl = player.professionTanningLevel ?? 1;
+              xpField = 'professionTanningXp';
+              lvlField = 'professionTanningLevel';
+          }
+          
+          if (playerProfLvl < recipe.levelRequired) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Level too low!', color: '#ff5555' });
+              return;
+          }
+
+          // Valida aprendizado (se level >= 2)
+          if (recipe.levelRequired >= 2) {
+              const isLearned = player.learnedRecipes && player.learnedRecipes.includes(recipe.id);
+              if (!isLearned) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Recipe not learned!', color: '#ff5555' });
+                  return;
+              }
+          }
+          
+          // Valida ingredientes
+          let hasIngredients = true;
+          recipe.ingredients.forEach(ing => {
+              if (this.countItemInBackpack(player, ing.itemName) < ing.count) {
+                  hasIngredients = false;
+              }
+          });
+          
+          if (!hasIngredients) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Missing materials!', color: '#ff5555' });
+              return;
+          }
+          
+          // Remove ingredientes
+          recipe.ingredients.forEach(ing => {
+              this.removeItemFromBackpack(player, ing.itemName, ing.count);
+          });
+          
+          // Sucesso rate:
+          const levelDiff = playerProfLvl - recipe.levelRequired;
+          const successChance = Math.min(100, 85 + levelDiff * 5);
+          const isSuccess = (Math.random() * 100) <= successChance;
+          
+          if (isSuccess) {
+              // RNG Rolagem de Qualidade
+              const luck = player.stats?.SOR || 5;
+              const rareChance = 5 + (luck / 2);
+              const epicChance = 1 + (luck / 5);
+              const roll = Math.random() * 100;
+              
+              let quality: 'comum' | 'raro' | 'epico' = 'comum';
+              let extraStats: any = {};
+              
+              if (roll <= epicChance) {
+                  quality = 'epico';
+                  // Bônus Épico (+3 a +6)
+                  const statsPool = ['FOR', 'AGI', 'VIT', 'INT', 'DES', 'SOR'];
+                  const chosenStat = statsPool[Math.floor(Math.random() * statsPool.length)];
+                  extraStats[chosenStat] = Math.floor(Math.random() * 4) + 3; // 3-6
+              } else if (roll <= epicChance + rareChance) {
+                  quality = 'raro';
+                  // Bônus Raro (+1 a +3)
+                  const statsPool = ['FOR', 'AGI', 'VIT', 'INT', 'DES', 'SOR'];
+                  const chosenStat = statsPool[Math.floor(Math.random() * statsPool.length)];
+                  extraStats[chosenStat] = Math.floor(Math.random() * 3) + 1; // 1-3
+              }
+              
+              // Criação do item com durabilidade inicial 100
+              const isEquipable = ['Steel Sword', 'Wood Sword', 'Helmet', 'Armor', 'Pants', 'Leather Boots', 'Torch'].includes(recipe.resultItem);
+              let itemToAdd: string;
+              if (isEquipable) {
+                  const itemDataObj = {
+                      name: recipe.resultItem,
+                      quality,
+                      stats: extraStats,
+                      durability: 100,
+                      maxDurability: 100
+                  };
+                  itemToAdd = JSON.stringify(itemDataObj);
+              } else {
+                  itemToAdd = recipe.resultItem;
+              }
+              
+              this.addItemToBackpack(player, itemToAdd);
+              
+              // Concede XP da profissão
+              const xpGain = recipe.levelRequired * 25;
+              let newXp = (player[xpField] || 0) + xpGain;
+              let newLvl = player[lvlField] || 1;
+              const nextLvlReq = newLvl * 100;
+              
+              if (newXp >= nextLvlReq) {
+                  newXp -= nextLvlReq;
+                  newLvl++;
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: `Profession Lvl UP!`, color: '#fbbf24' });
+              }
+              
+              player[xpField] = newXp;
+              player[lvlField] = newLvl;
+              
+              this.recalculateWeight(player);
+              
+              // Avisa os clientes próximos para desenharem partículas
+              this.io.emit('craftEffect', {
+                  x: player.x,
+                  y: player.y,
+                  stationType: recipe.stationType,
+                  itemName: recipe.resultItem,
+                  quality
+              });
+              
+              if (quality === 'epico') {
+                  // Mensagem Global para item Épico
+                  this.io.emit('playerSpoke', { id: player.id, message: `Forjei um item ÉPICO: ${recipe.resultItem}! 🔥` });
+              }
+              
+              socket.emit('inventoryUpdate', player.backpack);
+              socket.emit('statsUpdate', {
+                  id: player.id,
+                  weight: player.weight,
+                  maxWeight: player.maxWeight,
+                  [xpField]: player[xpField],
+                  [lvlField]: player[lvlField]
+              });
+          } else {
+              // Falha: materiais consumidos
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Crafting Failed! materials lost', color: '#ef4444' });
+              socket.emit('inventoryUpdate', player.backpack);
+          }
+      });
+      
+      // 2. Desmontar Item (Salvage)
+      socket.on('salvageItem', (recipeId: string) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead || !player.backpack) return;
+          
+          const recipe = CRAFTING_RECIPES.find(r => r.id === recipeId);
+          if (!recipe) return;
+          
+          // Procura o item na mochila
+          const idx = player.backpack.findIndex(slot => {
+              const parsed = this.parseItem(slot);
+              return parsed && parsed.name === recipe.resultItem;
+          });
+          
+          if (idx === -1) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Item not found!', color: '#ff5555' });
+              return;
+          }
+          
+          player.backpack.splice(idx, 1);
+          
+          // Reembolsa 20-50% dos materiais de volta
+          const refunded: string[] = [];
+          recipe.ingredients.forEach(ing => {
+              const pct = 0.2 + Math.random() * 0.3; // 20% a 50%
+              const qty = Math.max(1, Math.floor(ing.count * pct));
+              for (let i = 0; i < qty; i++) {
+                  this.addItemToBackpack(player, ing.itemName);
+              }
+              refunded.push(`${qty}x ${ing.itemName}`);
+          });
+          
+          this.recalculateWeight(player);
+          this.recalculateStats(player);
+          
+          socket.emit('inventoryUpdate', player.backpack);
+          socket.emit('statsUpdate', { 
+              id: player.id, 
+              weight: player.weight, 
+              maxWeight: player.maxWeight 
+          });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Salvaged!', color: '#3b82f6' });
+          socket.emit('playerSpoke', { id: player.id, message: `Desmontei ${recipe.resultItem} e recuperei ${refunded.join(', ')}!` });
+      });
+
+      // 3. Consertar Equipamentos (Repair All)
+      socket.on('repairAllItems', () => {
+          const player = this.players.get(socket.id);
+          const merchant = this.players.get('npc_merchant');
+          if (!player || !merchant) return;
+          
+          const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
+          if (dist > 2) return;
+          
+          let totalCost = 0;
+          const slots = ['head', 'body', 'legs', 'boots', 'rightHand', 'leftHand'] as const;
+          const itemsToRepair: { slot: typeof slots[number], parsed: any }[] = [];
+          
+          slots.forEach(slot => {
+              const eqStr = player.equipment?.[slot];
+              if (!eqStr) return;
+              const parsed = this.parseItem(eqStr);
+              if (parsed && parsed.durability !== undefined && parsed.maxDurability !== undefined) {
+                  const diff = parsed.maxDurability - parsed.durability;
+                  if (diff > 0) {
+                      totalCost += diff;
+                      itemsToRepair.push({ slot, parsed });
+                  }
+              }
+          });
+          
+          if (totalCost === 0) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'All items repaired!', color: '#00ff00' });
+              return;
+          }
+          
+          if ((player.gold || 0) >= totalCost) {
+              player.gold = (player.gold || 0) - totalCost;
+              itemsToRepair.forEach(({ slot, parsed }) => {
+                  parsed.durability = parsed.maxDurability;
+                  player.equipment![slot] = JSON.stringify(parsed);
+              });
+              
+              this.recalculateStats(player);
+              socket.emit('statsUpdate', { 
+                  id: player.id, 
+                  gold: player.gold,
+                  def: player.def,
+                  mdef: player.mdef,
+                  attack: player.attack,
+                  health: player.health,
+                  maxHealth: player.maxHealth
+              });
+              socket.emit('equipmentUpdate', player.equipment);
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Repaired! -${totalCost}G`, color: '#00ff00' });
+          } else {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Need ${totalCost} Gold!`, color: '#ff5555' });
+          }
+      });
+
+      // 4. Anunciar no Leilão
+      socket.on('createAuction', (data: { backpackIndex: number, price: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead || !player.backpack) return;
+          
+          const index = data.backpackIndex;
+          const price = Math.floor(data.price);
+          if (price <= 0) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Invalid Price!', color: '#ff5555' });
+              return;
+          }
+          
+          const itemStr = player.backpack[index];
+          if (!itemStr) return;
+          
+          player.backpack.splice(index, 1);
+          this.recalculateWeight(player);
+          
+          createAuctionInDB(player.name, itemStr, price).then(() => {
+              socket.emit('inventoryUpdate', player.backpack);
+              socket.emit('statsUpdate', { id: player.id, weight: player.weight, maxWeight: player.maxWeight });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Listed!', color: '#00ff00' });
+              this.broadcastAuctions();
+          }).catch(err => {
+              console.error(err);
+              player.backpack.push(itemStr);
+              socket.emit('inventoryUpdate', player.backpack);
+          });
+      });
+
+      // 5. Comprar do Leilão
+      socket.on('buyAuction', (auctionId: number) => {
+          const buyer = this.players.get(socket.id);
+          if (!buyer || buyer.isDead || !buyer.backpack) return;
+          
+          getAuctionByIdFromDB(auctionId).then((auc) => {
+              if (!auc) {
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Not found!', color: '#ff5555' });
+                  return;
+              }
+              
+              if ((buyer.gold || 0) < auc.price) {
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'No Gold!', color: '#ff5555' });
+                  return;
+              }
+              
+              const itemStr = typeof auc.itemData === 'string' ? auc.itemData : JSON.stringify(auc.itemData);
+              const parsedItem = this.parseItem(itemStr)!;
+              const weight = ITEM_WEIGHTS[parsedItem.name] || 5;
+              if (buyer.weight + weight > (buyer.maxWeight || 250)) {
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Too Heavy!', color: '#ff5555' });
+                  return;
+              }
+              
+              buyer.gold = (buyer.gold || 0) - auc.price;
+              buyer.backpack.push(itemStr);
+              this.recalculateWeight(buyer);
+              this.recalculateStats(buyer);
+              
+              removeAuctionFromDB(auctionId).then(() => {
+                  let sellerPlayer: PlayerData | null = null;
+                  for (const p of this.players.values()) {
+                      if (p.name === auc.sellerName) {
+                          sellerPlayer = p;
+                          break;
+                      }
+                  }
+                  
+                  if (sellerPlayer) {
+                      sellerPlayer.gold = (sellerPlayer.gold || 0) + auc.price;
+                      const sellerSocket = this.io.sockets.sockets.get(sellerPlayer.id);
+                      if (sellerSocket) {
+                          sellerSocket.emit('statsUpdate', { id: sellerPlayer.id, gold: sellerPlayer.gold });
+                          sellerSocket.emit('textEffect', { x: sellerPlayer.x, y: sellerPlayer.y, message: `Sold! +${auc.price}G`, color: '#00ff00' });
+                      }
+                  } else {
+                      incrementGoldOffline(auc.sellerName, auc.price).catch(console.error);
+                  }
+                  
+                  socket.emit('statsUpdate', { 
+                      id: buyer.id, 
+                      gold: buyer.gold, 
+                      weight: buyer.weight, 
+                      maxWeight: buyer.maxWeight 
+                  });
+                  socket.emit('inventoryUpdate', buyer.backpack);
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Purchased!', color: '#00ff00' });
+                  
+                  this.broadcastAuctions();
+              }).catch(err => {
+                  console.error(err);
+              });
+          }).catch(err => {
+              console.error(err);
+          });
+      });
+
+      // 6. Listar Leilões
+      socket.on('getAuctions', () => {
+          getAuctionsFromDB().then((list) => {
+              socket.emit('auctionList', list);
+          }).catch(console.error);
+      });
+
       socket.on('disconnect', async () => {
+        this.cancelGathering(socket.id);
         if ((socket as any).sessionTransferred) {
             return; // Sessão transferida, não salva para evitar race condition
         }
@@ -929,6 +1330,19 @@ export class Game {
     const dt = now - this.lastUpdate;
     this.lastUpdate = now;
     this.ticks++;
+
+    // Respawn dos nós de recursos esgotados a cada 20 ticks (1 segundo)
+    if (this.ticks % 20 === 0) {
+        const nowMs = Date.now();
+        this.resourceNodes.forEach(node => {
+            if (node.state === 'depleted' && node.respawnTime && nowMs >= node.respawnTime) {
+                node.state = 'rich';
+                node.charges = node.maxCharges;
+                node.respawnTime = undefined;
+                this.io.emit('resourceNodeUpdated', node);
+            }
+        });
+    }
 
     // Atualiza a rede 20 vezes por segundo
     this.io.emit('update', Array.from(this.players.values()));
@@ -1074,7 +1488,11 @@ export class Game {
                         hit = true;
                         const damage = 25;
                         entity.health -= damage;
+                        this.cancelGathering(entity.id);
                         this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: damage });
+                        if (!entity.isMonster) {
+                            this.reduceArmorDurability(entity);
+                        }
                         
                         const caster = this.players.get(p.casterId);
                         if (caster) this.checkDeath(caster, entity);
@@ -1120,12 +1538,17 @@ export class Game {
                           // Fórmula de Ataque Físico: (Poder Base da Arma) + (FOR * 2) + Math.floor(SOR / 3)
                           // Como o player.attack já guarda o base da arma ou 5 se desarmado:
                           damage = player.attack || 5;
+                          this.reduceWeaponDurability(player);
                       }
                       
                       target.health -= damage;
+                      this.cancelGathering(target.id);
 
                       // Avisa que tomou dano com a quantidade para o Hit Splat
                       this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage });
+                      if (!target.isMonster) {
+                          this.reduceArmorDurability(target);
+                      }
 
                       this.checkDeath(player, target);
                    }
@@ -1235,15 +1658,8 @@ export class Game {
                 else itemName = 'Gold Coin';                      // 35%
             }
             
-            const emojis: Record<string, string> = {
-                'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
-                'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰',
-                'Torch': '🔦', 'Blueberry': '🍇',
-                'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
-            };
-            
             const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
-            const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: emojis[itemName] || '📦' };
+            const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
             this.itemsOnFloor.set(dropId, dropItem);
             this.io.emit('itemDropped', dropItem);
             
@@ -1257,12 +1673,7 @@ export class Game {
                         this.io.to(p.id).emit('itemPickedUp', dropItem);
                         this.io.emit('itemRemoved', dropId);
                     } else if (p.backpack) {
-                        const itemWeights: Record<string, number> = {
-                            'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
-                            'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
-                            'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1
-                        };
-                        const weight = itemWeights[dropItem.name] || 5;
+                        const weight = ITEM_WEIGHTS[dropItem.name] || 5;
                         if (p.weight + weight <= (p.maxWeight || 250)) {
                             const added = this.addItemToBackpack(p, dropItem.name);
                             if (added) {
@@ -1306,12 +1717,6 @@ export class Game {
             // Lógica de perder itens do inventário (30% de chance de perder cada slot de item)
             const lostItems: string[] = [];
             if (target.backpack && target.backpack.length > 0) {
-                const emojis: Record<string, string> = {
-                    'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                    'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                    'Health Potion': '🧪', 'Mana Potion': '💙', 'Apple': '🍎',
-                    'Cheese': '🧀', 'Blueberry': '🍇'
-                };
                 for (let i = target.backpack.length - 1; i >= 0; i--) {
                     if (Math.random() < 0.30) { // 30% de chance de perder o slot
                         const itemString = target.backpack[i];
@@ -1320,7 +1725,7 @@ export class Game {
                         
                         // Spawna no chão onde o jogador morreu
                         const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
-                        const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: emojis[itemName] || '📦' };
+                        const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
                         this.itemsOnFloor.set(dropId, dropItem);
                         this.io.emit('itemDropped', dropItem);
                         
@@ -1385,16 +1790,10 @@ export class Game {
           player.weight = 0;
           return;
       }
-      const itemWeights: Record<string, number> = {
-          'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
-          'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
-          'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1
-      };
-      
       const currentWeight = player.backpack.reduce((sum, slot) => {
           const [name, countStr] = slot.split(':');
           const count = parseInt(countStr) || 1;
-          return sum + (itemWeights[name] || 5) * count;
+          return sum + (ITEM_WEIGHTS[name] || 5) * count;
       }, 0);
       player.weight = currentWeight;
   }
@@ -1405,47 +1804,92 @@ export class Game {
       const { FOR, AGI, VIT, INT, DES, SOR } = player.stats;
       const level = player.level;
       
+      let baseWeaponAtk = 5; // Punhos
+      let baseWeaponMAtk = 5;
+      let baseArmorDef = 0;
+      let baseArmorMDef = 0;
+      
+      let bonusFOR = 0;
+      let bonusAGI = 0;
+      let bonusVIT = 0;
+      let bonusINT = 0;
+      let bonusDES = 0;
+      let bonusSOR = 0;
+      
+      const eqSlots = ['head', 'body', 'legs', 'boots', 'rightHand', 'leftHand'] as const;
+      eqSlots.forEach(slot => {
+          const eqStr = player.equipment?.[slot];
+          if (!eqStr) return;
+          const parsed = this.parseItem(eqStr);
+          if (!parsed) return;
+          
+          // Se o item tem durabilidade, e ela for <= 0, o item está quebrado e não concede nenhum benefício
+          if (parsed.durability !== undefined && parsed.durability <= 0) {
+              return;
+          }
+          
+          // Adiciona atributos extras do item
+          if (parsed.stats) {
+              if (parsed.stats.FOR) bonusFOR += parsed.stats.FOR;
+              if (parsed.stats.AGI) bonusAGI += parsed.stats.AGI;
+              if (parsed.stats.VIT) bonusVIT += parsed.stats.VIT;
+              if (parsed.stats.INT) bonusINT += parsed.stats.INT;
+              if (parsed.stats.DES) bonusDES += parsed.stats.DES;
+              if (parsed.stats.SOR) bonusSOR += parsed.stats.SOR;
+          }
+          
+          // Adiciona atributos base baseados no nome do item
+          const itemName = parsed.name;
+          if (slot === 'rightHand') {
+              if (itemName === 'Steel Sword') baseWeaponAtk = 15;
+              else if (itemName === 'Wood Sword') baseWeaponAtk = 8;
+          } else if (slot === 'body') {
+              if (itemName === 'Armor') baseArmorDef += 10;
+          } else if (slot === 'head') {
+              if (itemName === 'Helmet') baseArmorDef += 5;
+          } else if (slot === 'legs') {
+              if (itemName === 'Pants') baseArmorDef += 4;
+          } else if (slot === 'boots') {
+              if (itemName === 'Leather Boots') baseArmorDef += 2;
+          }
+      });
+      
+      const totalFOR = FOR + bonusFOR;
+      const totalAGI = AGI + bonusAGI;
+      const totalVIT = VIT + bonusVIT;
+      const totalINT = INT + bonusINT;
+      const totalDES = DES + bonusDES;
+      const totalSOR = SOR + bonusSOR;
+      
       // HP e SP
-      player.maxHealth = 100 + (VIT * 10) + (level * 5);
-      player.maxSp = 20 + (INT * 5) + (level * 2);
+      player.maxHealth = 100 + (totalVIT * 10) + (level * 5);
+      player.maxSp = 20 + (totalINT * 5) + (level * 2);
       
       // Se tiver menos SP que o Max, ajusta, ou garante que SP seja válido
       if (player.sp === undefined) player.sp = player.maxSp;
       else if (player.sp > player.maxSp) player.sp = player.maxSp;
       
       // Velocidade de Movimento (Speed invertida, menor = mais rápido)
-      player.speed = Math.max(50, 200 - (AGI * 3));
-      
-      // Armas e Equipamentos Base
-      let baseWeaponAtk = 5; // Punhos
-      let baseWeaponMAtk = 5;
-      
-      if (player.equipment?.rightHand === 'Steel Sword') baseWeaponAtk = 15;
-      else if (player.equipment?.rightHand === 'Wood Sword') baseWeaponAtk = 8;
+      player.speed = Math.max(50, 200 - (totalAGI * 3));
       
       // Dano Físico e Mágico
-      player.attack = baseWeaponAtk + (FOR * 2) + Math.floor(DES / 5) + Math.floor(SOR / 3);
-      player.matk = baseWeaponMAtk + (INT * 2) + Math.floor(SOR / 3);
-      
-      let baseArmorDef = 0;
-      let baseArmorMDef = 0;
-      if (player.equipment?.body === 'Armor') baseArmorDef = 10;
-      if (player.equipment?.head === 'Helmet') baseArmorDef += 5;
+      player.attack = baseWeaponAtk + (totalFOR * 2) + Math.floor(totalDES / 5) + Math.floor(totalSOR / 3);
+      player.matk = baseWeaponMAtk + (totalINT * 2) + Math.floor(totalSOR / 3);
       
       // Defesas
-      player.def = baseArmorDef + Math.floor(VIT / 2) + Math.floor(AGI / 5);
-      player.mdef = baseArmorMDef + Math.floor(INT / 2);
+      player.def = baseArmorDef + Math.floor(totalVIT / 2) + Math.floor(totalAGI / 5);
+      player.mdef = baseArmorMDef + Math.floor(totalINT / 2);
       
       // Precisão, Esquiva e Crítico
-      player.hit = 100 + DES + Math.floor(SOR / 3) + level;
-      player.dodge = AGI + Math.floor(SOR / 3) + level;
-      player.crit = Math.floor(SOR / 3) + 1;
+      player.hit = 100 + totalDES + Math.floor(totalSOR / 3) + level;
+      player.dodge = totalAGI + Math.floor(totalSOR / 3) + level;
+      player.crit = Math.floor(totalSOR / 3) + 1;
       
       // Attack Speed (ASPD) - Reduz o Cooldown Base de 1500ms
-      player.aspd = Math.max(200, 1500 - (AGI * 10) - Math.floor(DES * 2.5));
+      player.aspd = Math.max(200, 1500 - (totalAGI * 10) - Math.floor(totalDES * 2.5));
       
       // Capacidade de Carga (Max Weight)
-      player.maxWeight = 100 + (FOR * 30);
+      player.maxWeight = 100 + (totalFOR * 30);
   }
 
   private registerAdminEvents(socket: any) {
@@ -1635,17 +2079,313 @@ export class Game {
            }
 
            const dropId = `item_gm_${Math.random().toString(36).substring(2, 7)}`;
-           const emojis: Record<string, string> = {
-               'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-               'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-               'Health Potion': '🧪', 'Mana Potion': '💙', 'Apple': '🍎', 
-               'Cheese': '🧀', 'Blueberry': '🍇', 'Gold Coin': '💰'
-           };
-           const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: emojis[data.name] || '📦' };
+           const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: ITEM_EMOJIS[data.name] || '📦' };
            this.itemsOnFloor.set(dropId, dropItem);
            this.io.emit('itemDropped', dropItem);
        });
 
+        socket.on('startGathering', (data: { nodeId: string }) => {
+            const player = this.players.get(socket.id);
+            if (!player || player.isDead) return;
+
+            // Cancela qualquer coleta ativa primeiro
+            this.cancelGathering(socket.id);
+
+            const node = this.resourceNodes.get(data.nodeId);
+            if (!node || node.state === 'depleted') {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Resource depleted!', color: '#ff5555' });
+                return;
+            }
+
+            // Verifica distância (máximo 1.5 de distância Manhattan ou Chebyshev)
+            const dx = Math.abs(node.x - player.x);
+            const dy = Math.abs(node.y - player.y);
+            if (dx > 1 || dy > 1) {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too far!', color: '#ff5555' });
+                return;
+            }
+
+            // Inicia a canalização (tempo base: 2.5s)
+            const duration = 2500;
+            socket.emit('gatheringStarted', { duration, nodeType: node.type });
+
+            const timeout = setTimeout(() => {
+                this.activeGatherings.delete(socket.id);
+                this.completeGathering(socket, node);
+            }, duration);
+
+            this.activeGatherings.set(socket.id, timeout);
+        });
+
+  }
+
+  private setupResourceNodes() {
+      const types: Array<{ type: 'ore' | 'tree' | 'herb'; name: string; emoji: string }> = [
+          { type: 'ore', name: 'Iron Ore', emoji: '🪨' },
+          { type: 'tree', name: 'Wood Log', emoji: '🪵' },
+          { type: 'herb', name: 'Medicinal Herb', emoji: '🌿' }
+      ];
+
+      // Spawn 8 nós de cada tipo
+      for (const t of types) {
+          for (let i = 0; i < 8; i++) {
+              let attempts = 0;
+              while (attempts < 100) {
+                  const rx = Math.floor(Math.random() * 38) + 1;
+                  const ry = Math.floor(Math.random() * 38) + 1;
+                  
+                  const coordKey = `${rx},${ry}`;
+                  const isWall = this.walls.has(coordKey);
+                  const isNodeHere = Array.from(this.resourceNodes.values()).some(n => n.x === rx && n.y === ry);
+                  const isMerchantHere = rx === 10 && ry === 8;
+                  
+                  if (!isWall && !isNodeHere && !isMerchantHere) {
+                      const id = `node_${t.type}_${Math.random().toString(36).substring(2, 9)}`;
+                      this.resourceNodes.set(id, {
+                          id,
+                          type: t.type,
+                          name: t.name,
+                          emoji: t.emoji,
+                          x: rx,
+                          y: ry,
+                          charges: 3,
+                          maxCharges: 3,
+                          state: 'rich'
+                      });
+                      break;
+                  }
+                  attempts++;
+              }
+          }
+      }
+  }
+
+  private cancelGathering(socketId: string) {
+      const timeout = this.activeGatherings.get(socketId);
+      if (timeout) {
+          clearTimeout(timeout);
+          this.activeGatherings.delete(socketId);
+          this.io.to(socketId).emit('gatheringCancelled');
+      }
+  }
+
+  private completeGathering(socket: Socket, node: ResourceNode) {
+      const player = this.players.get(socket.id);
+      if (!player || player.isDead) return;
+
+      const dx = Math.abs(node.x - player.x);
+      const dy = Math.abs(node.y - player.y);
+      if (dx > 1 || dy > 1 || node.state === 'depleted') {
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Gathering failed!', color: '#ff5555' });
+          return;
+      }
+
+      let itemName = '';
+      let xpField: 'gatheringMiningXp' | 'gatheringHerbalismXp' | 'gatheringWoodcuttingXp' | null = null;
+      let lvlField: 'gatheringMiningLevel' | 'gatheringHerbalismLevel' | 'gatheringWoodcuttingLevel' | null = null;
+
+      if (node.type === 'ore') {
+          itemName = 'Iron Ore';
+          xpField = 'gatheringMiningXp';
+          lvlField = 'gatheringMiningLevel';
+      } else if (node.type === 'tree') {
+          itemName = 'Wood Log';
+          xpField = 'gatheringWoodcuttingXp';
+          lvlField = 'gatheringWoodcuttingLevel';
+      } else if (node.type === 'herb') {
+          itemName = 'Medicinal Herb';
+          xpField = 'gatheringHerbalismXp';
+          lvlField = 'gatheringHerbalismLevel';
+      }
+
+      if (!itemName) return;
+
+      const itemWeight = ITEM_WEIGHTS[itemName] || 5;
+      if (player.weight + itemWeight > (player.maxWeight || 250)) {
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
+          return;
+      }
+
+      const added = this.addItemToBackpack(player, itemName);
+      if (!added) {
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+          return;
+      }
+
+      node.charges--;
+      if (node.charges <= 0) {
+          node.state = 'depleted';
+          node.respawnTime = Date.now() + 30000; // 30s respawn
+          this.io.emit('resourceNodeUpdated', node);
+      }
+
+      if (xpField && lvlField) {
+          const currentLvl = player[lvlField] || 1;
+          const currentXp = player[xpField] || 0;
+          const xpGained = 15;
+          const nextLvlXp = currentLvl * 100;
+          
+          let newXp = currentXp + xpGained;
+          let newLvl = currentLvl;
+          if (newXp >= nextLvlXp) {
+              newXp -= nextLvlXp;
+              newLvl++;
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Lvl UP ${node.type === 'ore' ? 'Mining' : node.type === 'tree' ? 'Woodcutting' : 'Herbalism'}!`, color: '#eab308' });
+          }
+
+          player[xpField] = newXp;
+          player[lvlField] = newLvl;
+      }
+
+      this.recalculateWeight(player);
+
+      socket.emit('textEffect', { x: player.x, y: player.y, message: `+1 ${itemName}`, color: '#10b981' });
+      socket.emit('inventoryUpdate', player.backpack);
+      socket.emit('statsUpdate', { 
+          id: player.id, 
+          weight: player.weight, 
+          maxWeight: player.maxWeight,
+          gatheringMiningLevel: player.gatheringMiningLevel,
+          gatheringMiningXp: player.gatheringMiningXp,
+          gatheringHerbalismLevel: player.gatheringHerbalismLevel,
+          gatheringHerbalismXp: player.gatheringHerbalismXp,
+          gatheringWoodcuttingLevel: player.gatheringWoodcuttingLevel,
+          gatheringWoodcuttingXp: player.gatheringWoodcuttingXp
+      });
+  }
+
+  private setupCraftingStations() {
+      const stations: CraftingStation[] = [
+          { id: 'station_forge', type: 'forge', name: 'Forja', emoji: '⚒️', x: 8, y: 8 },
+          { id: 'station_alchemy', type: 'alchemy', name: 'Mesa de Alquimia', emoji: '🧪', x: 12, y: 8 },
+          { id: 'station_tanning', type: 'tanning', name: 'Bancada de Alfaiataria', emoji: '🧵', x: 10, y: 6 }
+      ];
+      stations.forEach(s => {
+          this.craftingStations.set(s.id, s);
+          // Bloqueia a posição para não andarem em cima
+          this.walls.add(`${s.x},${s.y}`);
+      });
+  }
+
+  private parseItem(itemStr: string): { name: string, quality?: string, stats?: any, durability?: number, maxDurability?: number } | null {
+      if (!itemStr) return null;
+      if (itemStr.startsWith('{')) {
+          try {
+              return JSON.parse(itemStr);
+          } catch (e) {
+              console.error('Error parsing item JSON:', e);
+              return null;
+          }
+      }
+      const [name] = itemStr.split(':');
+      return { name };
+  }
+
+  private countItemInBackpack(player: PlayerData, itemName: string): number {
+      if (!player.backpack) return 0;
+      let total = 0;
+      player.backpack.forEach(slot => {
+          const parsed = this.parseItem(slot);
+          if (parsed && parsed.name === itemName) {
+              if (slot.includes(':')) {
+                  const count = parseInt(slot.split(':')[1]) || 1;
+                  total += count;
+              } else {
+                  total += 1;
+              }
+          }
+      });
+      return total;
+  }
+
+  private removeItemFromBackpack(player: PlayerData, itemName: string, countToRemove: number): void {
+      if (!player.backpack) return;
+      let remaining = countToRemove;
+      
+      for (let i = player.backpack.length - 1; i >= 0; i--) {
+          if (remaining <= 0) break;
+          
+          const slot = player.backpack[i];
+          const parsed = this.parseItem(slot);
+          if (parsed && parsed.name === itemName) {
+              if (slot.includes(':')) {
+                  const [name, countStr] = slot.split(':');
+                  const qty = parseInt(countStr) || 1;
+                  if (qty > remaining) {
+                      player.backpack[i] = `${name}:${qty - remaining}`;
+                      remaining = 0;
+                  } else {
+                      player.backpack.splice(i, 1);
+                      remaining -= qty;
+                  }
+              } else {
+                  player.backpack.splice(i, 1);
+                  remaining -= 1;
+              }
+          }
+      }
+  }
+
+  private broadcastAuctions(): void {
+      getAuctionsFromDB().then((list) => {
+          this.io.emit('auctionList', list);
+      }).catch(console.error);
+  }
+
+  private reduceWeaponDurability(player: PlayerData) {
+      if (!player.equipment || !player.equipment.rightHand) return;
+      const eqStr = player.equipment.rightHand;
+      const parsed = this.parseItem(eqStr);
+      if (parsed && parsed.durability !== undefined) {
+          parsed.durability = Math.max(0, parsed.durability - 1);
+          player.equipment.rightHand = JSON.stringify(parsed);
+          
+          const socket = this.io.sockets.sockets.get(player.id);
+          if (socket) {
+              socket.emit('equipmentUpdate', player.equipment);
+              this.recalculateStats(player);
+              socket.emit('statsUpdate', { 
+                  id: player.id, 
+                  attack: player.attack,
+                  aspd: player.aspd
+              });
+          }
+      }
+  }
+
+  private reduceArmorDurability(player: PlayerData) {
+      if (!player.equipment) return;
+      
+      const armorSlots = ['head', 'body', 'legs', 'boots'] as const;
+      const filledSlots = armorSlots.filter(slot => {
+          const eqStr = player.equipment?.[slot];
+          if (!eqStr) return false;
+          const parsed = this.parseItem(eqStr);
+          return parsed && parsed.durability !== undefined;
+      });
+      
+      if (filledSlots.length === 0) return;
+      
+      const randomSlot = filledSlots[Math.floor(Math.random() * filledSlots.length)];
+      const eqStr = player.equipment[randomSlot]!;
+      const parsed = this.parseItem(eqStr);
+      if (parsed && parsed.durability !== undefined) {
+          parsed.durability = Math.max(0, parsed.durability - 1);
+          player.equipment[randomSlot] = JSON.stringify(parsed);
+          
+          const socket = this.io.sockets.sockets.get(player.id);
+          if (socket) {
+              socket.emit('equipmentUpdate', player.equipment);
+              this.recalculateStats(player);
+              socket.emit('statsUpdate', { 
+                  id: player.id,
+                  def: player.def,
+                  mdef: player.mdef,
+                  health: player.health,
+                  maxHealth: player.maxHealth
+              });
+          }
+      }
   }
 
 }

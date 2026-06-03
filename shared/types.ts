@@ -45,6 +45,23 @@ export interface PlayerData {
   aspd?: number;
   weight?: number;
   maxWeight?: number;
+
+  // Habilidades de Coleta e Profissões
+  gatheringMiningLevel?: number;
+  gatheringMiningXp?: number;
+  gatheringHerbalismLevel?: number;
+  gatheringHerbalismXp?: number;
+  gatheringSkinningLevel?: number;
+  gatheringSkinningXp?: number;
+  gatheringWoodcuttingLevel?: number;
+  gatheringWoodcuttingXp?: number;
+  professionSmithingLevel?: number;
+  professionSmithingXp?: number;
+  professionAlchemyLevel?: number;
+  professionAlchemyXp?: number;
+  professionTanningLevel?: number;
+  professionTanningXp?: number;
+  learnedRecipes?: string[];
 }
 
 export interface Equipment {
@@ -56,9 +73,20 @@ export interface Equipment {
   rightHand?: string;
 }
 
+export interface CraftingStation {
+  id: string;
+  type: 'forge' | 'alchemy' | 'tanning';
+  name: string;
+  emoji: string;
+  x: number;
+  y: number;
+}
+
 export interface MapData {
   walls: Position[];
   itemsOnFloor: ItemData[];
+  resourceNodes: ResourceNode[];
+  craftingStations: CraftingStation[];
 }
 
 export interface ItemData {
@@ -68,6 +96,19 @@ export interface ItemData {
   x: number;
   y: number;
   weight?: number;
+}
+
+export interface ResourceNode {
+  id: string;
+  type: 'ore' | 'tree' | 'herb';
+  name: string;
+  emoji: string;
+  x: number;
+  y: number;
+  charges: number;
+  maxCharges: number;
+  state: 'rich' | 'depleted';
+  respawnTime?: number;
 }
 
 

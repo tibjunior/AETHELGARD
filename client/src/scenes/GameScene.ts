@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager';
-import { PlayerData, Position } from '../../../shared/types';
+import { PlayerData, Position, ResourceNode, CraftingStation } from '../../../shared/types';
+import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 
 export class GameScene extends Phaser.Scene {
   private socketManager!: SocketManager;
@@ -9,6 +10,22 @@ export class GameScene extends Phaser.Scene {
   private localPlayerSprite?: Phaser.GameObjects.Sprite;
   private wallsGroup!: Phaser.GameObjects.Group;
   private floorItems: Map<string, Phaser.GameObjects.Text> = new Map();
+  
+  // Habilidades de Coleta e Recursos do Mapa
+  private resourceNodesMap: Map<string, { sprite: any, label: Phaser.GameObjects.Text, data: ResourceNode }> = new Map();
+  private craftingStationsMap: Map<string, { sprite: any, label: Phaser.GameObjects.Text, data: any }> = new Map();
+  private gatheringProgressBar?: Phaser.GameObjects.Graphics;
+  private gatheringProgressText?: Phaser.GameObjects.Text;
+  private gatheringTimerEvent?: Phaser.Time.TimerEvent;
+
+  // Profissões de Criação e Receitas do Jogador
+  private professionSmithingLevel: number = 1;
+  private professionSmithingXp: number = 0;
+  private professionAlchemyLevel: number = 1;
+  private professionAlchemyXp: number = 0;
+  private professionTanningLevel: number = 1;
+  private professionTanningXp: number = 0;
+  private learnedRecipes: string[] = [];
   
   // Interface e Status
   private hpBars: Map<string, Phaser.GameObjects.Graphics> = new Map();
@@ -178,7 +195,21 @@ export class GameScene extends Phaser.Scene {
     this.onStatsUpdate(data);
   }
 
-  public onMapData(data: { walls: Position[], itemsOnFloor: any[] }) {
+  public onMapData(data: { walls: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
+    // Limpa nós de recursos existentes se houver
+    this.resourceNodesMap.forEach(n => {
+        n.sprite.destroy();
+        n.label.destroy();
+    });
+    this.resourceNodesMap.clear();
+
+    // Limpa estações de trabalho existentes se houver
+    this.craftingStationsMap.forEach(s => {
+        s.sprite.destroy();
+        s.label.destroy();
+    });
+    this.craftingStationsMap.clear();
+
     data.walls.forEach(wall => {
       const sprite = this.add.sprite(wall.x * this.TILE_SIZE, wall.y * this.TILE_SIZE, 'tile-wall');
       sprite.setDepth(5);
@@ -190,6 +221,16 @@ export class GameScene extends Phaser.Scene {
     
     // Desenha os itens iniciais
     data.itemsOnFloor.forEach(item => this.onItemDropped(item));
+
+    // Desenha os nós de recursos
+    if (data.resourceNodes) {
+        data.resourceNodes.forEach(node => this.drawResourceNode(node));
+    }
+
+    // Desenha as estações de trabalho
+    if (data.craftingStations) {
+        data.craftingStations.forEach(station => this.drawCraftingStation(station));
+    }
   }
 
   public onCurrentPlayers(players: PlayerData[]) {
@@ -920,6 +961,15 @@ export class GameScene extends Phaser.Scene {
           if (text) text.innerText = `Cap: ${data.weight}/${data.maxWeight}`;
           if (fill) fill.style.background = pct > 90 ? '#ef4444' : '#d97706';
       }
+
+      // Update local professions & learned recipes
+      if (data.professionSmithingLevel !== undefined) this.professionSmithingLevel = data.professionSmithingLevel;
+      if (data.professionSmithingXp !== undefined) this.professionSmithingXp = data.professionSmithingXp;
+      if (data.professionAlchemyLevel !== undefined) this.professionAlchemyLevel = data.professionAlchemyLevel;
+      if (data.professionAlchemyXp !== undefined) this.professionAlchemyXp = data.professionAlchemyXp;
+      if (data.professionTanningLevel !== undefined) this.professionTanningLevel = data.professionTanningLevel;
+      if (data.professionTanningXp !== undefined) this.professionTanningXp = data.professionTanningXp;
+      if (data.learnedRecipes !== undefined) this.learnedRecipes = data.learnedRecipes;
   }
 
   public onLevelUp(data: { id: string, level: number }) {
@@ -1822,5 +1872,418 @@ export class GameScene extends Phaser.Scene {
           }
       });
       return nearest;
+  }
+
+  public drawResourceNode(node: ResourceNode) {
+      const existing = this.resourceNodesMap.get(node.id);
+      if (existing) {
+          existing.sprite.destroy();
+          existing.label.destroy();
+      }
+
+      const emoji = node.state === 'depleted' ? '🕳️' : node.emoji;
+      const sprite = this.add.text(node.x * this.TILE_SIZE, node.y * this.TILE_SIZE, emoji, {
+          fontSize: '24px'
+      }).setOrigin(0.5).setDepth(4) as any;
+
+      const chargesInfo = node.state === 'depleted' ? '(Esgotado)' : `(${node.charges}/${node.maxCharges})`;
+      const label = this.add.text(node.x * this.TILE_SIZE, node.y * this.TILE_SIZE - 20, `${node.name} ${chargesInfo}`, {
+          fontSize: '9px',
+          color: node.state === 'depleted' ? '#888' : '#10b981',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          padding: { x: 3, y: 1 }
+      }).setOrigin(0.5).setDepth(4);
+
+      sprite.setInteractive({ useHandCursor: true });
+      sprite.on('pointerdown', () => {
+          if (node.state === 'depleted') {
+              this.onTextEffect(node.x, node.y, 'Esgotado!', '#ff5555');
+              return;
+          }
+          this.socketManager.socket.emit('startGathering', node.id);
+      });
+
+      this.resourceNodesMap.set(node.id, { sprite, label, data: node });
+  }
+
+  public drawCraftingStation(station: CraftingStation) {
+      const existing = this.craftingStationsMap.get(station.id);
+      if (existing) {
+          existing.sprite.destroy();
+          existing.label.destroy();
+      }
+
+      const sprite = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE, station.emoji, {
+          fontSize: '28px'
+      }).setOrigin(0.5).setDepth(4) as any;
+
+      const label = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE - 20, station.name, {
+          fontSize: '10px',
+          color: '#fbbf24',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          padding: { x: 3, y: 1 }
+      }).setOrigin(0.5).setDepth(4);
+
+      sprite.setInteractive({ useHandCursor: true });
+      sprite.on('pointerdown', () => {
+          this.openCraftingUI(station);
+      });
+
+      this.craftingStationsMap.set(station.id, { sprite, label, data: station });
+  }
+
+  public onResourceNodeUpdated(data: any) {
+      this.drawResourceNode(data);
+  }
+
+  public onGatheringStarted(duration: number, nodeType: string) {
+      this.onGatheringCancelled();
+      
+      if (!this.localPlayerSprite) return;
+      
+      const width = 60;
+      const height = 8;
+      
+      this.gatheringProgressBar = this.add.graphics();
+      this.gatheringProgressBar.setDepth(15);
+      
+      const labelText = nodeType === 'ore' ? 'Minerando...' : nodeType === 'tree' ? 'Cortando...' : 'Colhendo...';
+      this.gatheringProgressText = this.add.text(this.localPlayerSprite.x, this.localPlayerSprite.y - 45, labelText, {
+          fontSize: '8px',
+          color: '#10b981',
+          fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(15);
+
+      const startTime = Date.now();
+      
+      this.gatheringTimerEvent = this.time.addEvent({
+          delay: 50,
+          loop: true,
+          callback: () => {
+              if (!this.localPlayerSprite || !this.gatheringProgressBar) return;
+              
+              const elapsed = Date.now() - startTime;
+              const pct = Math.min(elapsed / duration, 1.0);
+              
+              this.gatheringProgressBar.clear();
+              this.gatheringProgressBar.fillStyle(0x000000, 0.7);
+              this.gatheringProgressBar.fillRect(this.localPlayerSprite.x - width / 2, this.localPlayerSprite.y - 35, width, height);
+              
+              this.gatheringProgressBar.fillStyle(0x10b981, 1.0);
+              this.gatheringProgressBar.fillRect(this.localPlayerSprite.x - width / 2 + 1, this.localPlayerSprite.y - 34, (width - 2) * pct, height - 2);
+              
+              if (this.gatheringProgressText) {
+                  this.gatheringProgressText.x = this.localPlayerSprite.x;
+                  this.gatheringProgressText.y = this.localPlayerSprite.y - 45;
+              }
+              
+              if (pct >= 1.0) {
+                  this.onGatheringCancelled();
+              }
+          }
+      });
+  }
+
+  public onGatheringCancelled() {
+      if (this.gatheringTimerEvent) {
+          this.gatheringTimerEvent.destroy();
+          this.gatheringTimerEvent = undefined;
+      }
+      if (this.gatheringProgressBar) {
+          this.gatheringProgressBar.destroy();
+          this.gatheringProgressBar = undefined;
+      }
+      if (this.gatheringProgressText) {
+          this.gatheringProgressText.destroy();
+          this.gatheringProgressText = undefined;
+      }
+  }
+
+  public openCraftingUI(station: CraftingStation) {
+      const ui = document.getElementById('crafting-ui');
+      if (!ui) return;
+
+      ui.style.display = 'flex';
+      
+      const titleEl = document.getElementById('crafting-title');
+      if (titleEl) titleEl.innerText = `⚒️ ${station.name}`;
+
+      const closeBtn = document.getElementById('close-crafting');
+      if (closeBtn) closeBtn.onclick = () => ui.style.display = 'none';
+
+      const profNameEl = document.getElementById('crafting-prof-name');
+      const profLvlEl = document.getElementById('crafting-prof-level');
+
+      let profName = 'Smithing';
+      let profLvl = this.professionSmithingLevel;
+      let profXp = this.professionSmithingXp;
+
+      if (station.type === 'alchemy') {
+          profName = 'Alchemy';
+          profLvl = this.professionAlchemyLevel;
+          profXp = this.professionAlchemyXp;
+      } else if (station.type === 'tanning') {
+          profName = 'Tanning';
+          profLvl = this.professionTanningLevel;
+          profXp = this.professionTanningXp;
+      }
+
+      if (profNameEl) profNameEl.innerText = profName;
+      if (profLvlEl) profLvlEl.innerText = `Lvl ${profLvl} (${profXp}/${profLvl * 100} XP)`;
+
+      const listEl = document.getElementById('crafting-recipe-list');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      const recipes = CRAFTING_RECIPES.filter(r => r.stationType === station.type);
+
+      recipes.forEach(recipe => {
+          const div = document.createElement('div');
+          div.style.padding = '8px';
+          div.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+          div.style.cursor = 'pointer';
+          div.style.fontSize = '11px';
+          
+          const isLvlReqMet = profLvl >= recipe.levelRequired;
+          const isLearned = recipe.levelRequired < 2 || this.learnedRecipes.includes(recipe.id);
+          
+          let statusText = '';
+          if (!isLvlReqMet) {
+              statusText = ` (Lvl ${recipe.levelRequired})`;
+              div.style.color = '#ef4444';
+          } else if (!isLearned) {
+              statusText = ' (Bloqueada)';
+              div.style.color = '#a8a29e';
+          } else {
+              div.style.color = '#e2e8f0';
+          }
+
+          div.innerText = `⚒️ ${recipe.resultItem}${statusText}`;
+          
+          div.onclick = () => {
+              Array.from(listEl.children).forEach(child => (child as HTMLElement).style.background = 'transparent');
+              div.style.background = 'rgba(16, 185, 129, 0.2)';
+              
+              this.showRecipeDetails(recipe, isLvlReqMet && isLearned);
+          };
+
+          listEl.appendChild(div);
+      });
+  }
+
+  private showRecipeDetails(recipe: Recipe, canCraft: boolean) {
+      const detailsEl = document.getElementById('crafting-recipe-details');
+      if (!detailsEl) return;
+
+      const emojis: Record<string, string> = { 
+          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
+      };
+
+      const resultEmoji = emojis[recipe.resultItem] || '📦';
+      
+      let ingredsHtml = '';
+      recipe.ingredients.forEach(ing => {
+          const countInBackpack = this.countItemInBackpackClient(ing.itemName);
+          const color = countInBackpack >= ing.count ? '#22c55e' : '#ef4444';
+          const ingEmoji = emojis[ing.itemName] || '📦';
+          ingredsHtml += `
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:11px; color:${color};">
+                  <span>${ingEmoji} ${ing.itemName}</span>
+                  <span>${countInBackpack}/${ing.count}</span>
+              </div>
+          `;
+      });
+
+      const profLvl = recipe.profession === 'smithing' ? this.professionSmithingLevel 
+                    : recipe.profession === 'alchemy' ? this.professionAlchemyLevel 
+                    : this.professionTanningLevel;
+      const successChance = Math.min(100, 85 + (profLvl - recipe.levelRequired) * 5);
+
+      detailsEl.innerHTML = `
+          <div style="text-align:center; margin-bottom:12px;">
+              <span style="font-size:32px; display:block;">${resultEmoji}</span>
+              <span style="font-weight:bold; font-size:14px; color:#fbbf24;">${recipe.resultItem}</span>
+              <span style="font-size:10px; color:#94a3b8; display:block; margin-top:2px;">Chance de Sucesso: ${successChance}%</span>
+          </div>
+
+          <div style="background:rgba(0,0,0,0.2); padding:8px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); margin-bottom:12px;">
+              <div style="font-size:10px; color:#94a3b8; margin-bottom:6px; font-weight:bold;">Ingredientes:</div>
+              ${ingredsHtml}
+          </div>
+
+          <div style="display:flex; gap:8px;">
+              <button id="btn-craft-action" ${canCraft ? '' : 'disabled'} style="flex:1; background:#10b981; color:white; border:none; padding:8px; border-radius:6px; cursor:${canCraft ? 'pointer' : 'not-allowed'}; font-weight:bold; opacity:${canCraft ? 1 : 0.5}; font-family:monospace; font-size:11px;">
+                  Criar Item ⚒️
+              </button>
+              <button id="btn-salvage-action" style="background:#ef4444; color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-weight:bold; font-family:monospace; font-size:11px;">
+                  Desmontar ♻️
+              </button>
+          </div>
+      `;
+
+      if (canCraft) {
+          document.getElementById('btn-craft-action')!.onclick = () => {
+              this.socketManager.socket.emit('craftItem', { recipeId: recipe.id });
+          };
+      }
+
+      document.getElementById('btn-salvage-action')!.onclick = () => {
+          this.socketManager.socket.emit('salvageItem', recipe.id);
+      };
+  }
+
+  private countItemInBackpackClient(itemName: string): number {
+      if (!this.backpackData) return 0;
+      let total = 0;
+      this.backpackData.forEach(slot => {
+          if (!slot) return;
+          let name = slot;
+          let count = 1;
+          
+          if (slot.startsWith('{')) {
+              try {
+                  const parsed = JSON.parse(slot);
+                  name = parsed.name;
+              } catch (e) {}
+          } else if (slot.includes(':')) {
+              [name, count] = slot.split(':') as any;
+              count = parseInt(count as any) || 1;
+          }
+          
+          if (name === itemName) {
+              total += count;
+          }
+      });
+      return total;
+  }
+
+  public renderAuctionList(list: any[]) {
+      const content = document.getElementById('shop-content');
+      if (!content) return;
+
+      const emojis: Record<string, string> = { 
+          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
+      };
+
+      let html = '<div style="display:flex; flex-direction:column; gap:10px; font-family:monospace;">';
+
+      html += '<div style="font-weight:bold; border-bottom:1px solid #444; padding-bottom:5px; color:#fbbf24;">Ofertas Ativas:</div>';
+      if (list.length === 0) {
+          html += '<div style="color:#888; text-align:center; padding:10px;">Nenhum item à venda no leilão.</div>';
+      } else {
+          list.forEach(auc => {
+              let itemName = '';
+              let itemEmoji = '📦';
+              
+              if (typeof auc.itemData === 'string') {
+                  if (auc.itemData.startsWith('{')) {
+                      try {
+                          const parsed = JSON.parse(auc.itemData);
+                          itemName = parsed.name;
+                          if (parsed.quality && parsed.quality !== 'comum') {
+                              itemName += ` (${parsed.quality})`;
+                          }
+                      } catch (e) {
+                          itemName = auc.itemData;
+                      }
+                  } else {
+                      itemName = auc.itemData;
+                  }
+              } else if (auc.itemData && typeof auc.itemData === 'object') {
+                  itemName = auc.itemData.name;
+                  if (auc.itemData.quality && auc.itemData.quality !== 'comum') {
+                      itemName += ` (${auc.itemData.quality})`;
+                  }
+              }
+              
+              const baseName = itemName.split(' (')[0];
+              itemEmoji = emojis[baseName] || '📦';
+              
+              html += `
+                  <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:6px; border-radius:4px; border: 1px solid rgba(255,255,255,0.05);">
+                      <div style="display:flex; flex-direction:column;">
+                          <span style="font-weight:bold; color:#fbbf24;">${itemEmoji} ${itemName}</span>
+                          <span style="font-size:10px; color:#888;">Vendedor: ${auc.sellerName}</span>
+                      </div>
+                      <button class="btn-buy-auction" data-id="${auc.id}" style="background:#10b981; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">
+                          Comprar (${auc.price}G)
+                      </button>
+                  </div>
+              `;
+          });
+      }
+
+      html += '<div style="font-weight:bold; border-bottom:1px solid #444; padding-bottom:5px; margin-top:15px; color:#fbbf24;">Vender no Leilão:</div>';
+      
+      let hasItems = false;
+      this.backpackData.forEach((itemString, index) => {
+          if (itemString && itemString !== '') {
+              hasItems = true;
+              let itemName = '';
+              let itemEmoji = '📦';
+              
+              if (itemString.startsWith('{')) {
+                  try {
+                      const parsed = JSON.parse(itemString);
+                      itemName = parsed.name;
+                      if (parsed.quality && parsed.quality !== 'comum') {
+                          itemName += ` (${parsed.quality})`;
+                      }
+                  } catch (e) {
+                      itemName = itemString;
+                  }
+              } else {
+                  [itemName] = itemString.split(':');
+              }
+              
+              const baseName = itemName.split(' (')[0];
+              itemEmoji = emojis[baseName] || '📦';
+              
+              html += `
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px dashed #333;">
+                      <span>${itemEmoji} ${itemName}</span>
+                      <div style="display:flex; gap:5px; align-items:center;">
+                          <input type="number" id="auc-price-${index}" placeholder="Preço" min="1" style="width:60px; background:#1e293b; color:white; border:1px solid #444; border-radius:4px; padding:3px; font-family:monospace; text-align:center;" />
+                          <button class="btn-create-auction" data-index="${index}" style="background:#fbbf24; color:black; border:none; padding:4px 8px; border-radius:4px; cursor:pointer; font-weight:bold;">
+                              Vender
+                          </button>
+                      </div>
+                  </div>
+              `;
+          }
+      });
+
+      if (!hasItems) {
+          html += '<div style="color:#888; text-align:center; padding:10px;">Sua mochila está vazia.</div>';
+      }
+
+      html += '</div>';
+      content.innerHTML = html;
+
+      content.querySelectorAll('.btn-buy-auction').forEach(btn => {
+          (btn as HTMLElement).onclick = (e) => {
+              const id = parseInt((e.currentTarget as HTMLElement).getAttribute('data-id') || '0');
+              if (id > 0) {
+                  this.socketManager.socket.emit('buyAuction', id);
+              }
+          };
+      });
+
+      content.querySelectorAll('.btn-create-auction').forEach(btn => {
+          (btn as HTMLElement).onclick = (e) => {
+              const index = parseInt((e.currentTarget as HTMLElement).getAttribute('data-index') || '0');
+              const priceInput = document.getElementById(`auc-price-${index}`) as HTMLInputElement;
+              const price = parseInt(priceInput?.value || '0');
+              if (price > 0) {
+                  this.socketManager.socket.emit('createAuction', { backpackIndex: index, price });
+              } else {
+                  alert('Insira um preço válido maior que zero.');
+              }
+          };
+      });
   }
 }

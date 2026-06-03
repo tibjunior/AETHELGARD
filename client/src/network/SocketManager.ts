@@ -140,6 +140,18 @@ export class SocketManager {
       }
     });
 
+    this.socket.on('resourceNodeUpdated', (data: any) => {
+      this.scene.onResourceNodeUpdated(data);
+    });
+
+    this.socket.on('gatheringStarted', (data: { duration: number, nodeType: string }) => {
+      this.scene.onGatheringStarted(data.duration, data.nodeType);
+    });
+
+    this.socket.on('gatheringCancelled', () => {
+      this.scene.onGatheringCancelled();
+    });
+
     this.socket.on('equipmentUpdate', (eq: any) => {
         this.scene.onEquipmentUpdate(eq);
     });
@@ -160,6 +172,10 @@ export class SocketManager {
 
     this.socket.on('textEffect', (data: { x: number, y: number, text?: string, message?: string, color: string }) => {
       this.scene.onTextEffect(data.x, data.y, data.text || data.message || '', data.color);
+    });
+
+    this.socket.on('auctionList', (list: any[]) => {
+      this.scene.renderAuctionList(list);
     });
   }
 
@@ -217,18 +233,62 @@ export class SocketManager {
           
           document.getElementById('close-shop')!.onclick = () => ui.style.display = 'none';
           
+          const resetTabs = () => {
+              ['tab-buy', 'tab-sell', 'tab-repair', 'tab-auction'].forEach(id => {
+                  const el = document.getElementById(id);
+                  if (el) el.style.background = '#222';
+              });
+          };
+
           document.getElementById('tab-buy')!.onclick = () => {
+              resetTabs();
               document.getElementById('tab-buy')!.style.background = '#333';
-              document.getElementById('tab-sell')!.style.background = '#222';
               this.renderShopBuy();
           };
           
           document.getElementById('tab-sell')!.onclick = () => {
-              document.getElementById('tab-buy')!.style.background = '#222';
+              resetTabs();
               document.getElementById('tab-sell')!.style.background = '#333';
               this.scene.renderShopSell();
           };
+
+          const tabRepair = document.getElementById('tab-repair');
+          if (tabRepair) {
+              tabRepair.onclick = () => {
+                  resetTabs();
+                  tabRepair.style.background = '#333';
+                  this.renderShopRepair();
+              };
+          }
+
+          const tabAuction = document.getElementById('tab-auction');
+          if (tabAuction) {
+              tabAuction.onclick = () => {
+                  resetTabs();
+                  tabAuction.style.background = '#333';
+                  this.socket.emit('getAuctions');
+              };
+          }
       }
+  }
+
+  private renderShopRepair() {
+      const content = document.getElementById('shop-content');
+      if (!content) return;
+      
+      content.innerHTML = `
+          <div style="text-align: center; padding: 20px; font-family: monospace;">
+              <p>O Ferreiro Mercador pode consertar todos os seus equipamentos equipados de uma só vez.</p>
+              <p style="color: #fbbf24; font-size: 11px; margin-bottom: 15px;">Custo: 1 Gold por ponto de durabilidade perdido.</p>
+              <button id="btn-repair-all-action" style="background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: monospace;">
+                  Consertar Tudo 🛠️
+              </button>
+          </div>
+      `;
+      
+      document.getElementById('btn-repair-all-action')!.onclick = () => {
+          this.socket.emit('repairAllItems');
+      };
   }
 
   private renderShopBuy() {
