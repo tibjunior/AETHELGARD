@@ -311,7 +311,10 @@ export class SocketManager {
           { name: 'Torch', emoji: '🔦', price: 5 },
           { name: 'Health Potion', emoji: '🧪', price: 15 },
           { name: 'Mana Potion', emoji: '💙', price: 20 },
-          { name: 'Steel Sword', emoji: '🗡️', price: 100 }
+          { name: 'Steel Sword', emoji: '🗡️', price: 100 },
+          { name: 'Leather Backpack', emoji: '🎒', price: 500 },
+          { name: 'Wooden Backpack', emoji: '💼', price: 1500 },
+          { name: 'Iron Backpack', emoji: '🧳', price: 4000 }
       ];
       
       content.innerHTML = '';

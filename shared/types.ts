@@ -71,6 +71,7 @@ export interface Equipment {
   boots?: string;
   leftHand?: string;
   rightHand?: string;
+  backpack?: string;
 }
 
 export interface CraftingStation {

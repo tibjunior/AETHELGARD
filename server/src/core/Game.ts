@@ -7,14 +7,17 @@ export const ITEM_WEIGHTS: Record<string, number> = {
     'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
     'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
     'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1,
-    'Iron Ore': 8, 'Wood Log': 6, 'Medicinal Herb': 2, 'Gold Coin': 0.1
+    'Iron Ore': 8, 'Wood Log': 6, 'Medicinal Herb': 2, 'Gold Coin': 0.1,
+    'Leather Hide': 4,
+    'Leather Backpack': 10, 'Wooden Backpack': 15, 'Iron Backpack': 25
 };
 
 export const ITEM_EMOJIS: Record<string, string> = {
     'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
     'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Blueberry': '🍇',
     'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-    'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿'
+    'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+    'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
 };
 
 export const ITEM_NAMES_PT: Record<string, string> = {
@@ -34,7 +37,10 @@ export const ITEM_NAMES_PT: Record<string, string> = {
     'Armor': 'Armadura de Placas',
     'Pants': 'Calças de Couro',
     'Leather Boots': 'Botas de Couro',
-    'Gold Coin': 'Moeda de Ouro'
+    'Gold Coin': 'Moeda de Ouro',
+    'Leather Backpack': 'Mochila de Couro',
+    'Wooden Backpack': 'Mochila de Madeira',
+    'Iron Backpack': 'Mochila de Ferro'
 };
 
 export class Game {
@@ -464,9 +470,9 @@ export class Game {
               const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
               let backpackUpdated = false;
               for (const item of itemsAtCoord) {
-                  if (player.backpack.length < 12) {
+                  const added = this.addItemToBackpack(player, item.name);
+                  if (added) {
                       this.itemsOnFloor.delete(item.id);
-                      player.backpack.push(item.name);
                       socket.emit('itemPickedUp', item);
                       this.io.emit('itemRemoved', item.id);
                       backpackUpdated = true;
@@ -709,6 +715,15 @@ export class Game {
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
+              } else if (itemName === 'Leather Backpack' || itemName === 'Wooden Backpack' || itemName === 'Iron Backpack') {
+                  if (!player.equipment) player.equipment = {};
+                  if (player.equipment && player.equipment.backpack) {
+                      this.addItemToBackpack(player, player.equipment.backpack);
+                  }
+                  player.equipment.backpack = item;
+                  this.recalculateStats(player);
+                  socket.emit('equipmentUpdate', player.equipment);
+                  consumed = true;
               } else if (itemName === 'Gold Coin') {
                   player.gold = (player.gold || 0) + 1;
                   socket.emit('statsUpdate', { id: player.id, level: player.level, experience: player.experience, gold: player.gold, health: player.health, maxHealth: player.maxHealth });
@@ -754,7 +769,8 @@ export class Game {
           
           // Preços
           const prices: Record<string, number> = {
-              'Torch': 5, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100
+              'Torch': 5, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100,
+              'Leather Backpack': 500, 'Wooden Backpack': 1500, 'Iron Backpack': 4000
           };
           const cost = prices[itemName];
           
@@ -801,6 +817,12 @@ export class Game {
           const itemString = player.backpack[invIndex];
           if (!itemString) return;
           
+          let baseName = itemString.startsWith('{') ? JSON.parse(itemString).name : itemString.split(':')[0];
+          if (baseName === 'Leather Backpack' || baseName === 'Wooden Backpack' || baseName === 'Iron Backpack') {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Não pode ser vendido!', color: '#ff5555' });
+              return;
+          }
+          
           const [itemName, countStr] = itemString.split(':');
           const count = parseInt(countStr) || 1;
           
@@ -834,7 +856,7 @@ export class Game {
           const player = this.players.get(socket.id);
           if (!player || !player.equipment || !player.backpack) return;
           
-          const validSlots = ['head', 'body', 'legs', 'boots', 'leftHand', 'rightHand'] as const;
+          const validSlots = ['head', 'body', 'legs', 'boots', 'leftHand', 'rightHand', 'backpack'] as const;
           type EquipSlot = typeof validSlots[number];
           
           if (validSlots.includes(slot as EquipSlot)) {
@@ -1232,6 +1254,12 @@ export class Game {
           
           const itemStr = player.backpack[index];
           if (!itemStr) return;
+          
+          let baseName = itemStr.startsWith('{') ? JSON.parse(itemStr).name : itemStr.split(':')[0];
+          if (baseName === 'Leather Backpack' || baseName === 'Wooden Backpack' || baseName === 'Iron Backpack') {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Item não negociável!', color: '#ff5555' });
+              return;
+          }
           
           player.backpack.splice(index, 1);
           this.recalculateWeight(player);
@@ -1776,11 +1804,28 @@ export class Game {
      }
   }
 
+  private getMaxBackpackSlots(player: PlayerData): number {
+      if (!player.equipment || !player.equipment.backpack) {
+          return 8;
+      }
+      const bp = player.equipment.backpack;
+      let name = bp;
+      if (bp.startsWith('{')) {
+          try {
+              name = JSON.parse(bp).name;
+          } catch(e){}
+      }
+      if (name === 'Leather Backpack') return 16;
+      if (name === 'Wooden Backpack') return 24;
+      if (name === 'Iron Backpack') return 32;
+      return 8;
+  }
+
   private addItemToBackpack(player: PlayerData, itemName: string): boolean {
       if (!player.backpack) player.backpack = [];
       
       // Define quais itens são empilháveis (até 20 stacks, exceto armas, roupas, tochas)
-      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry'];
+      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide'];
       
       if (stackableItems.includes(itemName)) {
           // Procura por um slot existente do mesmo item com espaço (menor que 20)
@@ -1797,7 +1842,8 @@ export class Game {
       }
       
       // Se não empilhou, tenta adicionar em um novo slot
-      if (player.backpack.length < 12) {
+      const maxSlots = this.getMaxBackpackSlots(player);
+      if (player.backpack.length < maxSlots) {
           if (stackableItems.includes(itemName)) {
               player.backpack.push(`${itemName}:1`);
           } else {

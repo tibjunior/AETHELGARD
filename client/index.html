@@ -132,7 +132,7 @@
           ". head ."
           "left body right"
           ". legs ."
-          ". boots .";
+          "boots bag .";
         gap: 8px;
         justify-content: center;
       }
@@ -156,6 +156,7 @@
       .slot-boots { grid-area: boots; }
       .slot-left { grid-area: left; }
       .slot-right { grid-area: right; }
+      .slot-bag { grid-area: bag; }
       .btn-stat-add {
           background: #eab308;
           color: #000;
@@ -187,6 +188,7 @@
         grid-template-columns: repeat(4, 1fr);
         grid-auto-rows: 48px;
         gap: 5px;
+        max-height: 240px;
         overflow-y: auto;
       }
       #login-screen {
@@ -601,6 +603,7 @@
             <div class="slot slot-right" id="slot-right">R-Hand</div>
             <div class="slot slot-legs" id="slot-legs">Legs</div>
             <div class="slot slot-boots" id="slot-boots">Boots</div>
+            <div class="slot slot-bag" id="slot-backpack">Bolsa</div>
           </div>
         </div>
       </div>

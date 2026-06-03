@@ -122,5 +122,45 @@ export const CRAFTING_RECIPES: Recipe[] = [
     ],
     resultItem: 'Mana Potion',
     craftTimeMs: 2000
+  },
+  {
+    id: 'recipe_leather_backpack',
+    name: 'Mochila de Couro',
+    profession: 'tanning',
+    stationType: 'tanning',
+    levelRequired: 2,
+    ingredients: [
+      { itemName: 'Leather Hide', count: 8 },
+      { itemName: 'Wood Log', count: 2 }
+    ],
+    resultItem: 'Leather Backpack',
+    craftTimeMs: 3000
+  },
+  {
+    id: 'recipe_wooden_backpack',
+    name: 'Mochila de Madeira',
+    profession: 'tanning',
+    stationType: 'tanning',
+    levelRequired: 3,
+    ingredients: [
+      { itemName: 'Wood Log', count: 15 },
+      { itemName: 'Leather Hide', count: 4 }
+    ],
+    resultItem: 'Wooden Backpack',
+    craftTimeMs: 3000
+  },
+  {
+    id: 'recipe_iron_backpack',
+    name: 'Mochila de Ferro',
+    profession: 'smithing',
+    stationType: 'forge',
+    levelRequired: 4,
+    ingredients: [
+      { itemName: 'Iron Ore', count: 20 },
+      { itemName: 'Wood Log', count: 5 },
+      { itemName: 'Leather Hide', count: 5 }
+    ],
+    resultItem: 'Iron Backpack',
+    craftTimeMs: 4000
   }
 ];

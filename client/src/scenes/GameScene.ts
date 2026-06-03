@@ -83,7 +83,10 @@ export class GameScene extends Phaser.Scene {
       'Iron Ore': { name: 'Minério de Ferro', desc: 'Peso: 8.0 oz\nMinério bruto extraído de depósitos rochosos.', color: '#94a3b8' },
       'Wood Log': { name: 'Tronco de Madeira', desc: 'Peso: 6.0 oz\nMadeira cortada pronta para uso.', color: '#b45309' },
       'Medicinal Herb': { name: 'Erva Medicinal', desc: 'Peso: 2.0 oz\nUma erva com propriedades curativas básicas.', color: '#10b981' },
-      'Leather Hide': { name: 'Pele de Couro', desc: 'Peso: 4.0 oz\nPele obtida de criaturas selvagens.', color: '#78350f' }
+      'Leather Hide': { name: 'Pele de Couro', desc: 'Peso: 4.0 oz\nPele obtida de criaturas selvagens.', color: '#78350f' },
+      'Leather Backpack': { name: 'Mochila de Couro', desc: 'Capacidade: 16 slots | Peso: 10.0 oz\nUma mochila de couro costurada à mão.', color: '#a16207' },
+      'Wooden Backpack': { name: 'Mochila de Madeira', desc: 'Capacidade: 24 slots | Peso: 15.0 oz\nUma caixa de madeira reforçada com alças.', color: '#b45309' },
+      'Iron Backpack': { name: 'Mochila de Ferro', desc: 'Capacidade: 32 slots | Peso: 25.0 oz\nUma mala metálica ultra-resistente e pesada.', color: '#94a3b8' }
   };
   
   constructor() {
@@ -143,7 +146,10 @@ export class GameScene extends Phaser.Scene {
             'Armor': 'Armadura de Placas',
             'Pants': 'Calças de Couro',
             'Leather Boots': 'Botas de Couro',
-            'Gold Coin': 'Moeda de Ouro'
+            'Gold Coin': 'Moeda de Ouro',
+            'Leather Backpack': 'Mochila de Couro',
+            'Wooden Backpack': 'Mochila de Madeira',
+            'Iron Backpack': 'Mochila de Ferro'
         };
         
         const QUALITY_NAMES_PT: Record<string, string> = {
@@ -743,108 +749,172 @@ export class GameScene extends Phaser.Scene {
 
   public onEquipmentUpdate(eq: any) {
          this.equipmentData = eq;
-         const getEmoji = (name: string) => {
-            if (name === 'Steel Sword' || name === 'Wood Sword') return '🗡️';
-            if (name === 'Torch') return '🔦';
-            if (name === 'Helmet') return '👑';
-            if (name === 'Armor') return '👕';
-            if (name === 'Pants') return '👖';
-            if (name === 'Leather Boots') return '🥾';
-            return name;
-        };
+         const getEmoji = (itemStr: string) => {
+             let name = itemStr;
+             if (itemStr && itemStr.startsWith('{')) {
+                 try {
+                     name = JSON.parse(itemStr).name;
+                 } catch(e){}
+             }
+             if (name === 'Steel Sword' || name === 'Wood Sword') return '🗡️';
+             if (name === 'Torch') return '🔦';
+             if (name === 'Helmet') return '👑';
+             if (name === 'Armor') return '👕';
+             if (name === 'Pants') return '👖';
+             if (name === 'Leather Boots') return '🥾';
+             if (name === 'Leather Backpack') return '🎒';
+             if (name === 'Wooden Backpack') return '💼';
+             if (name === 'Iron Backpack') return '🧳';
+             return name;
+         };
 
-        if (eq.head) {
-            const el = document.getElementById('slot-head')!;
-            el.innerText = getEmoji(eq.head);
-            el.onclick = () => this.socketManager.sendUnequip('head');
-        } else {
-            document.getElementById('slot-head')!.innerText = 'Head';
-            document.getElementById('slot-head')!.onclick = null;
-        }
+         if (eq.head) {
+             const el = document.getElementById('slot-head')!;
+             el.innerText = getEmoji(eq.head);
+             el.onclick = () => this.socketManager.sendUnequip('head');
+         } else {
+             document.getElementById('slot-head')!.innerText = 'Head';
+             document.getElementById('slot-head')!.onclick = null;
+         }
 
-        if (eq.body) {
-            const el = document.getElementById('slot-body')!;
-            el.innerText = getEmoji(eq.body);
-            el.onclick = () => this.socketManager.sendUnequip('body');
-        } else {
-            document.getElementById('slot-body')!.innerText = 'Body';
-            document.getElementById('slot-body')!.onclick = null;
-        }
+         if (eq.body) {
+             const el = document.getElementById('slot-body')!;
+             el.innerText = getEmoji(eq.body);
+             el.onclick = () => this.socketManager.sendUnequip('body');
+         } else {
+             document.getElementById('slot-body')!.innerText = 'Body';
+             document.getElementById('slot-body')!.onclick = null;
+         }
 
-        if (eq.legs) {
-            const el = document.getElementById('slot-legs')!;
-            el.innerText = getEmoji(eq.legs);
-            el.onclick = () => this.socketManager.sendUnequip('legs');
-        } else {
-            document.getElementById('slot-legs')!.innerText = 'Legs';
-            document.getElementById('slot-legs')!.onclick = null;
-        }
+         if (eq.legs) {
+             const el = document.getElementById('slot-legs')!;
+             el.innerText = getEmoji(eq.legs);
+             el.onclick = () => this.socketManager.sendUnequip('legs');
+         } else {
+             document.getElementById('slot-legs')!.innerText = 'Legs';
+             document.getElementById('slot-legs')!.onclick = null;
+         }
 
-        if (eq.boots) {
-            const el = document.getElementById('slot-boots')!;
-            el.innerText = getEmoji(eq.boots);
-            el.onclick = () => this.socketManager.sendUnequip('boots');
-        } else {
-            document.getElementById('slot-boots')!.innerText = 'Boots';
-            document.getElementById('slot-boots')!.onclick = null;
-        }
-        
-        if (eq.leftHand) {
-            const el = document.getElementById('slot-left')!;
-            el.innerText = getEmoji(eq.leftHand);
-            el.onclick = () => this.socketManager.sendUnequip('leftHand');
-            this.hasTorch = eq.leftHand === 'Torch';
-        } else {
-            document.getElementById('slot-left')!.innerText = 'L-Hand';
-            document.getElementById('slot-left')!.onclick = null;
-            this.hasTorch = false;
-        }
-        
-        if (eq.rightHand) {
-            const el = document.getElementById('slot-right')!;
-            el.innerText = getEmoji(eq.rightHand);
-            el.onclick = () => this.socketManager.sendUnequip('rightHand');
-        } else {
-            document.getElementById('slot-right')!.innerText = 'R-Hand';
-            document.getElementById('slot-right')!.onclick = null;
-        }
-        
-        const equipSlots = ['slot-head', 'slot-body', 'slot-legs', 'slot-boots', 'slot-left', 'slot-right'];
-        equipSlots.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                // Se o texto for curto (provavelmente um Emoji), aumenta a fonte. Senão volta ao padrão 11px.
-                const isEmoji = el.innerText.length <= 2 && el.innerText !== '';
-                el.style.fontSize = isEmoji ? '24px' : '11px';
-                el.style.cursor = isEmoji ? 'pointer' : 'default';
-                el.style.color = isEmoji ? '#ffffff' : '#475569';
-            }
-        });
+         if (eq.boots) {
+             const el = document.getElementById('slot-boots')!;
+             el.innerText = getEmoji(eq.boots);
+             el.onclick = () => this.socketManager.sendUnequip('boots');
+         } else {
+             document.getElementById('slot-boots')!.innerText = 'Boots';
+             document.getElementById('slot-boots')!.onclick = null;
+         }
+         
+         if (eq.leftHand) {
+             const el = document.getElementById('slot-left')!;
+             el.innerText = getEmoji(eq.leftHand);
+             el.onclick = () => this.socketManager.sendUnequip('leftHand');
+             this.hasTorch = eq.leftHand === 'Torch';
+         } else {
+             document.getElementById('slot-left')!.innerText = 'L-Hand';
+             document.getElementById('slot-left')!.onclick = null;
+             this.hasTorch = false;
+         }
+         
+         if (eq.rightHand) {
+             const el = document.getElementById('slot-right')!;
+             el.innerText = getEmoji(eq.rightHand);
+             el.onclick = () => this.socketManager.sendUnequip('rightHand');
+         } else {
+             document.getElementById('slot-right')!.innerText = 'R-Hand';
+             document.getElementById('slot-right')!.onclick = null;
+         }
+
+         if (eq.backpack) {
+             const el = document.getElementById('slot-backpack')!;
+             el.innerText = getEmoji(eq.backpack);
+             el.onclick = () => this.socketManager.sendUnequip('backpack');
+         } else {
+             document.getElementById('slot-backpack')!.innerText = 'Bolsa';
+             document.getElementById('slot-backpack')!.onclick = null;
+         }
+         
+         const equipSlots = ['slot-head', 'slot-body', 'slot-legs', 'slot-boots', 'slot-left', 'slot-right', 'slot-backpack'];
+         equipSlots.forEach(id => {
+             const el = document.getElementById(id);
+             if (el) {
+                 // Se o texto for curto (provavelmente um Emoji), aumenta a fonte. Senão volta ao padrão 11px.
+                 const isEmoji = el.innerText.length <= 2 && el.innerText !== '';
+                 el.style.fontSize = isEmoji ? '24px' : '11px';
+                 el.style.cursor = isEmoji ? 'pointer' : 'default';
+                 el.style.color = isEmoji ? '#ffffff' : '#475569';
+             }
+         });
   }
 
   private backpackData: string[] = []; // Armazena a bolsa localmente para facilitar a renderização da loja
 
+  private getMaxBackpackSlotsClient(): number {
+      if (!this.equipmentData || !this.equipmentData.backpack) {
+          return 8;
+      }
+      const bp = this.equipmentData.backpack;
+      let name = bp;
+      if (bp.startsWith('{')) {
+          try {
+              name = JSON.parse(bp).name;
+          } catch(e){}
+      }
+      if (name === 'Leather Backpack') return 16;
+      if (name === 'Wooden Backpack') return 24;
+      if (name === 'Iron Backpack') return 32;
+      return 8;
+  }
+
   public onInventoryUpdate(backpack: string[]) {
      this.backpackData = backpack;
-     const slots = document.querySelectorAll('#backpack-grid .slot');
+     
+     const grid = document.getElementById('backpack-grid');
+     if (!grid) return;
+     
+     const maxSlots = this.getMaxBackpackSlotsClient();
+     
+     // Recria os slots se o tamanho atual no DOM for diferente do limite maxSlots
+     if (grid.children.length !== maxSlots) {
+         grid.innerHTML = '';
+         for (let i = 0; i < maxSlots; i++) {
+             const slotDiv = document.createElement('div');
+             slotDiv.className = 'slot';
+             slotDiv.setAttribute('data-index', i.toString());
+             grid.appendChild(slotDiv);
+         }
+     }
+     
+     const slots = grid.querySelectorAll('.slot');
      slots.forEach((slot, index) => {
          const htmlSlot = slot as HTMLElement;
          htmlSlot.onclick = null;
          
          const itemString = backpack[index];
          if (itemString) {
-             const [itemName, countStr] = itemString.split(':');
-             const count = parseInt(countStr) || 1;
+             let baseItemName = itemString;
+             let count = 1;
+             
+             if (itemString.startsWith('{')) {
+                 try {
+                     baseItemName = JSON.parse(itemString).name;
+                 } catch(e){}
+             } else if (itemString.includes(':')) {
+                 const [name, countStr] = itemString.split(':');
+                 baseItemName = name;
+                 count = parseInt(countStr) || 1;
+             }
              
              const emojis: Record<string, string> = { 
                  'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪', 
                  'Mana Potion': '💙', 'Blueberry': '🍇',
                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                 'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
+                 'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                 'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+                 'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
              };
              
-             const isEmojiChar = itemName.length <= 4;
-             const emoji = emojis[itemName] || (isEmojiChar ? itemName : '📦');
+             const isEmojiChar = baseItemName.length <= 4;
+             const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
              
              // Se tiver mais de 1 item, exibe o contador no canto inferior direito
              if (count > 1) {
@@ -2377,7 +2447,8 @@ export class GameScene extends Phaser.Scene {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
+          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
       };
 
       const resultEmoji = emojis[recipe.resultItem] || '📦';
@@ -2467,7 +2538,8 @@ export class GameScene extends Phaser.Scene {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
+          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
       };
 
       let html = '<div style="display:flex; flex-direction:column; gap:10px; font-family:monospace;">';
