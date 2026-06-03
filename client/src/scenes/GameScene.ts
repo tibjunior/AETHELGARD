@@ -42,6 +42,8 @@ export class GameScene extends Phaser.Scene {
   private localHealth: number = 150;
   private localMaxHealth: number = 150;
   private localPlayerDead: boolean = false;
+  private lootTargetId?: string;
+  private lootTargetPos?: { x: number, y: number };
 
   public itemDetails: Record<string, { name: string, desc: string, color: string }> = {
       'Steel Sword': { name: 'Espada de Aço', desc: 'Dano: +15 | Peso: 25.0 oz\nUma espada pesada forjada com liga de metal resistente.', color: '#e2e8f0' },
@@ -330,6 +332,25 @@ export class GameScene extends Phaser.Scene {
     this.autoPath = [];
   }
 
+  private startLootChase(id: string, x: number, y: number) {
+      this.stopChase(); // Para de perseguir monstros
+      this.lootTargetId = id;
+      this.lootTargetPos = { x, y };
+      
+      const playerX = Math.round(this.localPlayerSprite!.x / this.TILE_SIZE);
+      const playerY = Math.round(this.localPlayerSprite!.y / this.TILE_SIZE);
+      
+      this.autoPath = this.calculatePath(playerX, playerY, x, y);
+      if (this.autoPath.length > 0 && !this.isMoving) {
+          this.processNextAutoWalkStep();
+      }
+  }
+  
+  private stopLootChase() {
+      this.lootTargetId = undefined;
+      this.lootTargetPos = undefined;
+  }
+
 
   public onPlayerDashed(data: PlayerData) {
     const isLocal = data.id === this.socketManager.getId();
@@ -545,6 +566,10 @@ export class GameScene extends Phaser.Scene {
      }).setOrigin(0.5).setDepth(4); // Fica abaixo das paredes(5) e do player(10), mas acima do chão
      
      textObj.setData('isFloorItem', true);
+     textObj.setData('itemName', item.name);
+     textObj.setData('gridX', item.x);
+     textObj.setData('gridY', item.y);
+     textObj.setData('itemId', item.id);
      textObj.setInteractive({ useHandCursor: true });
      
      const tooltip = document.getElementById('item-tooltip')!;
@@ -1595,6 +1620,7 @@ export class GameScene extends Phaser.Scene {
   private stopAutofarm() {
       this.isAutofarmEnabled = false;
       this.stopChase();
+      this.stopLootChase();
       
       const btn = document.getElementById('btn-toggle-autofarm');
       const indicator = document.getElementById('autofarm-indicator');
@@ -1656,7 +1682,28 @@ export class GameScene extends Phaser.Scene {
           }
       }
 
-      // 2. Verificar se o alvo atual de perseguicao ainda esta vivo e visivel
+      // 2. Verificar e processar perseguição de loot ativa
+      if (this.lootTargetId && this.lootTargetPos) {
+          if (this.floorItems.has(this.lootTargetId)) {
+              const playerX = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+              const playerY = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+              if (playerX === this.lootTargetPos.x && playerY === this.lootTargetPos.y) {
+                  this.stopLootChase();
+              } else if (this.autoPath.length === 0 && !this.isMoving) {
+                  this.autoPath = this.calculatePath(playerX, playerY, this.lootTargetPos.x, this.lootTargetPos.y);
+                  if (this.autoPath.length > 0 && !this.isMoving) {
+                      this.processNextAutoWalkStep();
+                  } else {
+                      this.stopLootChase();
+                  }
+              }
+              return; // Looting tem prioridade sobre monstros
+          } else {
+              this.stopLootChase();
+          }
+      }
+
+      // 3. Verificar se o alvo atual de perseguicao ainda esta vivo e visivel
       let currentTargetAlive = false;
       if (this.chaseTargetId) {
           const targetData = this.otherPlayersData.get(this.chaseTargetId);
@@ -1665,8 +1712,18 @@ export class GameScene extends Phaser.Scene {
           }
       }
 
-      // 3. Se nao tiver alvo ativo ou o atual morreu, procura o mais proximo
+      // 4. Se nao tiver alvo ativo de monstro ou o atual morreu
       if (!currentTargetAlive) {
+          // Primeiro, procura loot por perto antes de buscar outro monstro!
+          const nearestLoot = this.findNearestLoot();
+          if (nearestLoot) {
+              this.startLootChase(nearestLoot.id, nearestLoot.x, nearestLoot.y);
+              const targetDisplay = document.getElementById('autofarm-target');
+              if (targetDisplay) targetDisplay.innerText = `Alvo: Pegando loot (${nearestLoot.name})`;
+              return;
+          }
+
+          // Se não houver loot, busca monstro
           const nearest = this.findNearestMonster();
           if (nearest) {
               this.currentTargetId = nearest.id;
@@ -1689,7 +1746,7 @@ export class GameScene extends Phaser.Scene {
               targetDisplay.innerText = `Alvo: ${targetData.name} (Lvl ${targetData.level})`;
           }
 
-          // 4. Auto Magic Skills (se habilitado)
+          // 5. Auto Magic Skills (se habilitado)
           const checkbox = document.getElementById('autofarm-skills') as HTMLInputElement;
           if (checkbox && checkbox.checked && targetData) {
               const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
@@ -1715,5 +1772,28 @@ export class GameScene extends Phaser.Scene {
               }
           }
       }
+  }
+
+  private findNearestLoot(): { id: string, x: number, y: number, name: string, distance: number } | null {
+      if (!this.localPlayerSprite) return null;
+      const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+      const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+      
+      let nearest: { id: string, x: number, y: number, name: string, distance: number } | null = null;
+      
+      this.floorItems.forEach((textObj, id) => {
+          const tx = Math.round(textObj.x / this.TILE_SIZE);
+          const ty = Math.round(textObj.y / this.TILE_SIZE);
+          const name = textObj.getData('itemName') || 'Item';
+          
+          const dist = Math.abs(px - tx) + Math.abs(py - ty); // Manhattan distance
+          // Limita a busca a 15 tiles
+          if (dist <= 15) {
+              if (!nearest || dist < nearest.distance) {
+                  nearest = { id, x: tx, y: ty, name, distance: dist };
+              }
+          }
+      });
+      return nearest;
   }
 }
