@@ -1,6 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 
-const socket: Socket = io('http://localhost:3000', {
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const defaultUrl = isLocal ? 'http://localhost:3000' : 'https://aethelgard-server-9go1.onrender.com';
+const serverUrl = (import.meta as any).env.VITE_SERVER_URL || defaultUrl;
+
+const socket: Socket = io(serverUrl, {
     auth: { name: 'AdminGM' }
 });
 

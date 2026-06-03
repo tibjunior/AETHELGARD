@@ -13,7 +13,7 @@ export class SocketManager {
   public connect(playerName: string) {
     // Detecta se estamos em ambiente local. Caso contrario, busca a variavel VITE_SERVER_URL ou usa o placeholder de producao.
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const defaultUrl = isLocal ? 'http://localhost:3000' : 'https://sua-url-do-servidor.onrender.com';
+    const defaultUrl = isLocal ? 'http://localhost:3000' : 'https://aethelgard-server-9go1.onrender.com';
     const serverUrl = (import.meta as any).env.VITE_SERVER_URL || defaultUrl;
 
     this.socket = io(serverUrl, {

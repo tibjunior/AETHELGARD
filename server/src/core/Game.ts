@@ -150,14 +150,38 @@ export class Game {
 
       let newPlayer: PlayerData;
       
-      // Carrega do Banco ou Cria Novo
-      const dbPlayer = await getPlayerFromDB(playerName);
-      if (dbPlayer) {
-          newPlayer = { ...dbPlayer, id: socket.id }; // Preserva o ID do socket
+      // Procura se o jogador já está em memória (pra evitar race condition no F5)
+      let existingPlayerId: string | undefined;
+      for (const [id, p] of this.players.entries()) {
+          if (p.name === playerName && !p.isMonster) {
+              existingPlayerId = id;
+              break;
+          }
+      }
+
+      if (existingPlayerId) {
+          console.log(`Sessão transferida para ${playerName} do socket antigo para o novo.`);
+          const oldP = this.players.get(existingPlayerId)!;
           
-          // Suporte a personagens antigos (Retroatividade)
-          if (!newPlayer.stats) {
-              newPlayer.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
+          newPlayer = { ...oldP, id: socket.id };
+          this.players.delete(existingPlayerId);
+          
+          // Desconecta o socket antigo e marca pra não salvar em cima
+          const oldSocket = this.io.sockets.sockets.get(existingPlayerId);
+          if (oldSocket) {
+              (oldSocket as any).sessionTransferred = true;
+              oldSocket.disconnect(true);
+          }
+          this.io.emit('playerLeft', existingPlayerId);
+      } else {
+          // Carrega do Banco ou Cria Novo
+          const dbPlayer = await getPlayerFromDB(playerName);
+          if (dbPlayer) {
+              newPlayer = { ...dbPlayer, id: socket.id }; // Preserva o ID do socket
+              
+              // Suporte a personagens antigos (Retroatividade)
+              if (!newPlayer.stats) {
+                  newPlayer.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
               newPlayer.statPoints = (newPlayer.level - 1) * 5;
           }
           if (newPlayer.sp === undefined) newPlayer.sp = 50;
@@ -192,8 +216,8 @@ export class Game {
           this.recalculateStats(newPlayer);
           newPlayer.health = newPlayer.maxHealth;
           newPlayer.facing = 'down';
-          // Salva imediato o cara novo
-          await savePlayerToDB(newPlayer);
+              await savePlayerToDB(newPlayer);
+          }
       }
 
       this.players.set(socket.id, newPlayer);
@@ -1064,6 +1088,9 @@ export class Game {
       });
 
       socket.on('disconnect', async () => {
+        if ((socket as any).sessionTransferred) {
+            return; // Sessão transferida, não salva para evitar race condition
+        }
         console.log(`Aventureiro desconectado: ${socket.id}`);
         const p = this.players.get(socket.id);
         if (p && !p.isMonster) {
@@ -1094,6 +1121,15 @@ export class Game {
 
     // Atualiza a rede 20 vezes por segundo
     this.io.emit('update', Array.from(this.players.values()));
+
+    // Autosave a cada 60 segundos (1200 ticks)
+    if (this.ticks % 1200 === 0) {
+        this.players.forEach(p => {
+            if (!p.isMonster) {
+                savePlayerToDB(p).catch(e => console.error('Autosave erro:', e));
+            }
+        });
+    }
 
     // Sistema de Ciclo de Dia e Noite (5 min dia = 6000 ticks, 2 min noite = 2400 ticks. Total = 8400)
     const cycle = this.ticks % 8400;
