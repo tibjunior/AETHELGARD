@@ -4,7 +4,7 @@
   "description": "Backend MMORPG Aethelgard",
   "main": "src/server.ts",
   "scripts": {
-    "start": "tsx src/server.ts",
+    "start": "node dist/server/src/server.js",
     "dev": "tsx watch src/server.ts",
     "build": "tsc"
   },
