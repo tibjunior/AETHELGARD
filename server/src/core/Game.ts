@@ -635,6 +635,19 @@ export class Game {
               const count = parseInt(countStr) || 1;
               let consumed = false;
 
+              // Validação: HP cheia para consumíveis de vida
+              const hpConsumables = ['Cheese', 'Apple', 'Health Potion'];
+              if (hpConsumables.includes(itemName) && player.health >= player.maxHealth) {
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Vida cheia!', color: '#22c55e' });
+                  return;
+              }
+              // Validação: SP cheia para consumíveis de mana
+              const mpConsumables = ['Mana Potion', 'Blueberry'];
+              if (mpConsumables.includes(itemName) && (player.sp || 0) >= (player.maxSp || 50)) {
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Mana cheia!', color: '#3b82f6' });
+                  return;
+              }
+
               if (itemName === 'Cheese') {
                   player.health = Math.min(player.maxHealth, player.health + 20);
                   this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Nham!', color: '#ffaa00' });
@@ -665,8 +678,12 @@ export class Game {
               } else if (itemName === 'Steel Sword') {
                   if (!player.equipment) player.equipment = {};
                   
-                  // Se já tiver arma, joga pra bolsa (swap)
+                  // Se já tiver arma, joga pra bolsa (swap) e avisa se inferior
                   if (player.equipment && player.equipment.rightHand) {
+                      const currentParsed = this.parseItem(player.equipment.rightHand);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
                   if (player.equipment) player.equipment.rightHand = item;
@@ -676,6 +693,10 @@ export class Game {
               } else if (itemName === 'Wood Sword') {
                   if (!player.equipment) player.equipment = {};
                   if (player.equipment && player.equipment.rightHand) {
+                      const currentParsed = this.parseItem(player.equipment.rightHand);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
                   if (player.equipment) player.equipment.rightHand = item;
@@ -692,25 +713,49 @@ export class Game {
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Helmet') {
-                  if (player.equipment && player.equipment.head) this.addItemToBackpack(player, player.equipment.head);
+                  if (player.equipment && player.equipment.head) {
+                      const currentParsed = this.parseItem(player.equipment.head);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
+                      this.addItemToBackpack(player, player.equipment.head);
+                  }
                   if (player.equipment) player.equipment.head = item;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Armor') {
-                  if (player.equipment && player.equipment.body) this.addItemToBackpack(player, player.equipment.body);
+                  if (player.equipment && player.equipment.body) {
+                      const currentParsed = this.parseItem(player.equipment.body);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
+                      this.addItemToBackpack(player, player.equipment.body);
+                  }
                   if (player.equipment) player.equipment.body = item;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Pants') {
-                  if (player.equipment && player.equipment.legs) this.addItemToBackpack(player, player.equipment.legs);
+                  if (player.equipment && player.equipment.legs) {
+                      const currentParsed = this.parseItem(player.equipment.legs);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
+                      this.addItemToBackpack(player, player.equipment.legs);
+                  }
                   if (player.equipment) player.equipment.legs = item;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Leather Boots') {
-                  if (player.equipment && player.equipment.boots) this.addItemToBackpack(player, player.equipment.boots);
+                  if (player.equipment && player.equipment.boots) {
+                      const currentParsed = this.parseItem(player.equipment.boots);
+                      if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
+                          this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
+                      }
+                      this.addItemToBackpack(player, player.equipment.boots);
+                  }
                   if (player.equipment) player.equipment.boots = item;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
@@ -752,6 +797,75 @@ export class Game {
                   });
               }
           }
+      });
+
+      // Handler para Dropar Item da Mochila
+      socket.on('dropItemFromBackpack', (data: { index: number, amount: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead) return;
+          if (!player.backpack || !player.backpack[data.index]) return;
+          
+          const item = player.backpack[data.index];
+          const parsed = this.parseItem(item);
+          if (!parsed) return;
+          const itemName = parsed.name;
+          
+          // Mochilas não podem ser dropadas
+          const noDropItems = ['Leather Backpack', 'Wooden Backpack', 'Iron Backpack'];
+          if (noDropItems.includes(itemName)) {
+              this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Não pode dropar!', color: '#ff5555' });
+              return;
+          }
+          
+          let amount = Math.max(1, Math.floor(data.amount));
+          
+          // Verifica se é item empilhado
+          if (item.includes(':')) {
+              const [name, countStr] = item.split(':');
+              const count = parseInt(countStr) || 1;
+              amount = Math.min(amount, count);
+              
+              if (amount >= count) {
+                  player.backpack.splice(data.index, 1);
+              } else {
+                  player.backpack[data.index] = `${name}:${count - amount}`;
+              }
+              
+              // Cria itens no chão (para stacks, cria um item com o nome base)
+              for (let i = 0; i < amount; i++) {
+                  const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${i}`;
+                  const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+                  this.itemsOnFloor.set(dropId, dropItem);
+                  this.io.emit('itemDropped', dropItem);
+              }
+          } else if (item.startsWith('{')) {
+              // Item JSON (equipamento com stats) — dropa inteiro
+              player.backpack.splice(data.index, 1);
+              const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+              this.itemsOnFloor.set(dropId, dropItem);
+              this.io.emit('itemDropped', dropItem);
+          } else {
+              // Item simples sem stack
+              player.backpack.splice(data.index, 1);
+              const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+              this.itemsOnFloor.set(dropId, dropItem);
+              this.io.emit('itemDropped', dropItem);
+          }
+          
+          this.recalculateWeight(player);
+          this.recalculateStats(player);
+          socket.emit('inventoryUpdate', player.backpack);
+          socket.emit('statsUpdate', {
+              id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+              stats: player.stats, statPoints: player.statPoints,
+              attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+              hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+              sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+              health: player.health, maxHealth: player.maxHealth
+          });
+          this.io.emit('textEffect', { x: player.x, y: player.y, message: `Dropou ${itemName}!`, color: '#fbbf24' });
       });
 
       // Loja: Comprar Item
@@ -2403,6 +2517,16 @@ export class Game {
       }
       const [name] = itemStr.split(':');
       return { name };
+  }
+
+  private getItemPower(itemName: string): number {
+      const powerMap: Record<string, number> = {
+          'Wood Sword': 8, 'Steel Sword': 15,
+          'Helmet': 5, 'Armor': 10, 'Pants': 2, 'Leather Boots': 1,
+          'Torch': 1,
+          'Leather Backpack': 16, 'Wooden Backpack': 24, 'Iron Backpack': 32
+      };
+      return powerMap[itemName] || 0;
   }
 
   private countItemInBackpack(player: PlayerData, itemName: string): number {

@@ -234,6 +234,10 @@ export class SocketManager {
   public sendSell(invIndex: number) {
     this.socket.emit('sellItem', invIndex);
   }
+
+  public sendDropItem(index: number, amount: number) {
+    this.socket.emit('dropItemFromBackpack', { index, amount });
+  }
   
   // --- Funções de Loja ---
   

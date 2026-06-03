@@ -6,6 +6,7 @@ import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 export class GameScene extends Phaser.Scene {
   private socketManager!: SocketManager;
   private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
+  private otherPlayerLabels: Map<string, Phaser.GameObjects.Text> = new Map();
   private projectiles: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private localPlayerSprite?: Phaser.GameObjects.Sprite;
   private wallsGroup!: Phaser.GameObjects.Group;
@@ -894,6 +895,7 @@ export class GameScene extends Phaser.Scene {
      slots.forEach((slot, index) => {
          const htmlSlot = slot as HTMLElement;
          htmlSlot.onclick = null;
+         htmlSlot.oncontextmenu = null;
          
          const itemString = backpack[index];
          if (itemString) {
@@ -936,7 +938,25 @@ export class GameScene extends Phaser.Scene {
              
              htmlSlot.style.cursor = 'pointer';
              htmlSlot.style.fontSize = '24px';
+             
+             // Left-click = Dropar item
              htmlSlot.onclick = () => {
+                 if (count > 1) {
+                     const input = prompt(`Quantos deseja dropar? (1 a ${count})`, count.toString());
+                     if (input !== null) {
+                         const amount = parseInt(input);
+                         if (!isNaN(amount) && amount >= 1 && amount <= count) {
+                             this.socketManager.sendDropItem(index, amount);
+                         }
+                     }
+                 } else {
+                     this.socketManager.sendDropItem(index, 1);
+                 }
+             };
+             
+             // Right-click = Consumir ou Equipar
+             htmlSlot.oncontextmenu = (e: MouseEvent) => {
+                 e.preventDefault();
                  this.socketManager.sendUseItem(index);
              };
          } else {
@@ -1196,6 +1216,11 @@ export class GameScene extends Phaser.Scene {
       sprite.destroy();
       this.otherPlayers.delete(id);
     }
+    const label = this.otherPlayerLabels.get(id);
+    if (label) {
+      label.destroy();
+      this.otherPlayerLabels.delete(id);
+    }
     const hpBar = this.hpBars.get(id);
     if (hpBar) {
       hpBar.destroy();
@@ -1238,11 +1263,12 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
-    this.add.text(sprite.x, sprite.y - 30, displayName, { 
+    const nameLabel = this.add.text(sprite.x, sprite.y - 30, displayName, { 
         fontSize: '10px', 
         color: nameColor,
         fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setVisible(false);
+    this.otherPlayerLabels.set(data.id, nameLabel);
 
     // Botão ESQUERDO = selecionar (marcar target), sem atacar
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -1250,10 +1276,10 @@ export class GameScene extends Phaser.Scene {
           const myPos = this.localPlayerSprite;
           if (myPos) {
               const dist = Math.abs(myPos.x - sprite.x) + Math.abs(myPos.y - sprite.y);
-              if (dist / this.TILE_SIZE <= 2.5) {
+              if (dist / this.TILE_SIZE <= 1.5) {
                   this.socketManager.openShop();
               } else {
-                  this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Too far!', '#ff0000');
+                  this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Muito longe!', '#ff0000');
               }
           }
       } else if (pointer.rightButtonDown()) {
@@ -1931,6 +1957,43 @@ export class GameScene extends Phaser.Scene {
           const scale = this.hasTorch ? 5.0 : 0.8;
           this.lightBrush.setScale(scale);
       }
+
+      // Visibilidade de nomes baseada em distância (5 tiles)
+      if (this.localPlayerSprite) {
+          const px = this.localPlayerSprite.x;
+          const py = this.localPlayerSprite.y;
+          const maxDist = 5 * this.TILE_SIZE;
+
+          // Labels e HP bars de entidades (monstros, jogadores, NPCs)
+          this.otherPlayerLabels.forEach((label, id) => {
+              const sprite = this.otherPlayers.get(id);
+              if (sprite) {
+                  const dist = Math.abs(px - sprite.x) + Math.abs(py - sprite.y);
+                  const visible = dist <= maxDist;
+                  label.setVisible(visible);
+                  label.x = sprite.x;
+                  label.y = sprite.y - 30;
+              }
+          });
+
+          // Labels de nós de recursos
+          this.resourceNodesMap.forEach(entry => {
+              const dist = Math.abs(px - entry.data.x * this.TILE_SIZE) + Math.abs(py - entry.data.y * this.TILE_SIZE);
+              entry.label.setVisible(dist <= maxDist);
+          });
+
+          // Labels de estações de trabalho
+          this.craftingStationsMap.forEach(entry => {
+              const dist = Math.abs(px - entry.data.x * this.TILE_SIZE) + Math.abs(py - entry.data.y * this.TILE_SIZE);
+              entry.label.setVisible(dist <= maxDist);
+          });
+
+          // Itens no chão — só visíveis a 5 tiles
+          this.floorItems.forEach(textObj => {
+              const dist = Math.abs(px - textObj.x) + Math.abs(py - textObj.y);
+              textObj.setVisible(dist <= maxDist);
+          });
+      }
   }
 
   public toggleAutofarm() {
@@ -2190,6 +2253,16 @@ export class GameScene extends Phaser.Scene {
               this.onTextEffect(node.x, node.y, 'Esgotado!', '#ff5555');
               return;
           }
+          // Verifica distância (1 tile)
+          if (this.localPlayerSprite) {
+              const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+              const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+              const dist = Math.abs(px - node.x) + Math.abs(py - node.y);
+              if (dist > 1) {
+                  this.onTextEffect(px, py, 'Muito longe!', '#ff0000');
+                  return;
+              }
+          }
           this.socketManager.socket.emit('startGathering', node.id);
       });
 
@@ -2217,6 +2290,16 @@ export class GameScene extends Phaser.Scene {
 
       sprite.setInteractive({ useHandCursor: true });
       sprite.on('pointerdown', () => {
+          // Verifica distância (1 tile)
+          if (this.localPlayerSprite) {
+              const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+              const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+              const dist = Math.abs(px - station.x) + Math.abs(py - station.y);
+              if (dist > 1) {
+                  this.onTextEffect(px, py, 'Muito longe!', '#ff0000');
+                  return;
+              }
+          }
           this.openCraftingUI(station);
       });
 
