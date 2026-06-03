@@ -969,6 +969,13 @@ export class Game {
           }
       });
 
+      socket.on('saveUiPositions', (uiPositions: Record<string, { x: number, y: number }>) => {
+          const player = this.players.get(socket.id);
+          if (player) {
+              player.uiPositions = uiPositions;
+          }
+      });
+
       // --- SISTEMA DE CRAFTING E LEILÕES ---
       
       // 1. Criar Item (Craft)
@@ -1824,17 +1831,17 @@ export class Game {
   private addItemToBackpack(player: PlayerData, itemName: string): boolean {
       if (!player.backpack) player.backpack = [];
       
-      // Define quais itens são empilháveis (até 20 stacks, exceto armas, roupas, tochas)
+      // Define quais itens são empilháveis (até 99 stacks, exceto armas, roupas, tochas)
       const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide'];
       
       if (stackableItems.includes(itemName)) {
-          // Procura por um slot existente do mesmo item com espaço (menor que 20)
+          // Procura por um slot existente do mesmo item com espaço (menor que 99)
           for (let i = 0; i < player.backpack.length; i++) {
               const slot = player.backpack[i];
               const [name, countStr] = slot.split(':');
               const count = parseInt(countStr) || 1;
               
-              if (name === itemName && count < 20) {
+              if (name === itemName && count < 99) {
                   player.backpack[i] = `${name}:${count + 1}`;
                   return true;
               }

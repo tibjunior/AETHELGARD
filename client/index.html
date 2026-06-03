@@ -868,6 +868,34 @@
           element.style.zIndex = maxZIndex;
       }
 
+      function saveAllUiPositions() {
+          const positions = {};
+          ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) {
+                  positions[id] = {
+                      top: el.style.top,
+                      left: el.style.left
+                  };
+              }
+          });
+          if (window.gameScene && window.gameScene.socketManager && window.gameScene.socketManager.socket) {
+              window.gameScene.socketManager.socket.emit('saveUiPositions', positions);
+          }
+      }
+
+      window.loadUiPositions = function(positions) {
+          if (!positions) return;
+          for (const id in positions) {
+              const el = document.getElementById(id);
+              if (el && positions[id]) {
+                  if (positions[id].top) el.style.top = positions[id].top;
+                  if (positions[id].left) el.style.left = positions[id].left;
+                  el.style.right = "auto";
+              }
+          }
+      };
+
       // Drag logic
       function makeDraggable(modalId) {
           const modal = document.getElementById(modalId);
@@ -886,6 +914,7 @@
               document.onmouseup = () => {
                   document.onmouseup = null;
                   document.onmousemove = null;
+                  saveAllUiPositions();
               };
               document.onmousemove = (ev) => {
                   ev.preventDefault();

@@ -94,6 +94,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    (window as any).gameScene = this;
     (window as any).translateMonster = (name: string): string => {
         const MONSTER_NAMES_PT: Record<string, string> = {
             'Giant Rat': 'Rato Gigante',
@@ -279,6 +280,10 @@ export class GameScene extends Phaser.Scene {
     
     // Atualiza a UI lateral com os stats carregados
     this.onStatsUpdate(data);
+
+    if (data.uiPositions && (window as any).loadUiPositions) {
+        (window as any).loadUiPositions(data.uiPositions);
+    }
   }
 
   public onMapData(data: { walls: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
