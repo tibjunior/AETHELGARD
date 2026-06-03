@@ -147,6 +147,11 @@ export class Game {
     this.io.on('connection', async (socket: Socket) => {
       const playerName = socket.handshake.auth.name || 'Unknown';
       console.log(`Aventureiro conectado: ${playerName} (${socket.id})`);
+      this.registerAdminEvents(socket);
+      if (playerName === "AdminGM") {
+          console.log("Sessão AdminGM sem avatar iniciada.");
+          return;
+      }
 
       let newPlayer: PlayerData;
       
@@ -353,203 +358,6 @@ export class Game {
              }
          }
       });
-
-      // Handlers de ADMIN (Game Master)
-      // Nota: Em um servidor de produção, checaríamos autenticação/senhas aqui.
-      socket.on('admin:getPlayers', async () => {
-          try {
-              const allRegistered = await getAllRegisteredPlayers();
-              const onlinePlayers = Array.from(this.players.values()).filter(p => !p.isMonster);
-              const list = allRegistered.map(p => {
-                  const onlinePlayer = onlinePlayers.find(op => op.name === p.name);
-                  const isOnline = !!onlinePlayer;
-                  if (isOnline && onlinePlayer) {
-                      p.id = onlinePlayer.id; // Vincula o socket.id atual
-                      p.x = onlinePlayer.x;
-                      p.y = onlinePlayer.y;
-                      p.health = onlinePlayer.health;
-                      p.maxHealth = onlinePlayer.maxHealth;
-                      p.level = onlinePlayer.level;
-                      p.gold = onlinePlayer.gold;
-                      p.statPoints = onlinePlayer.statPoints;
-                      p.backpack = onlinePlayer.backpack;
-                      p.equipment = onlinePlayer.equipment;
-                  }
-                  return {
-                      ...p,
-                      isOnline
-                  };
-              });
-              socket.emit('admin:playersData', list);
-          } catch(e) {
-              console.error('Erro no admin:getPlayers:', e);
-          }
-      });
-
-      socket.on('admin:kickPlayer', (id: string) => {
-          const targetSocket = this.io.sockets.sockets.get(id);
-          if (targetSocket) {
-              targetSocket.disconnect(true);
-              this.io.emit('admin:playerUpdated'); // Avisa todos os admins pra atualizar a tela
-          }
-      });
-
-      socket.on('admin:resetPlayer', async (idOrName: string) => {
-          // Procura online
-          let p = this.players.get(idOrName) || Array.from(this.players.values()).find(op => op.name === idOrName);
-          if (p && !p.isMonster) {
-              p.level = 1;
-              p.experience = 0;
-              p.gold = 0;
-              p.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
-              p.statPoints = 0;
-              this.recalculateStats(p);
-              p.health = p.maxHealth;
-              
-              this.io.to(p.id).emit('statsUpdate', { 
-                  id: p.id, level: p.level, experience: p.experience, gold: p.gold, 
-                  stats: p.stats, statPoints: p.statPoints,
-                  attack: p.attack, matk: p.matk, def: p.def, mdef: p.mdef,
-                  hit: p.hit, dodge: p.dodge, crit: p.crit, aspd: p.aspd,
-                  sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
-                  health: p.health, maxHealth: p.maxHealth
-              });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'REBORN!', color: '#ff00ff' });
-              await savePlayerToDB(p);
-          } else {
-              // Se offline, atualiza SQLite pelo nome
-              await updatePlayerOffline(idOrName, 1, 0, 0);
-          }
-          this.io.emit('admin:playerUpdated');
-      });
-
-      socket.on('admin:giveGold', async (idOrName: string) => {
-          let p = this.players.get(idOrName) || Array.from(this.players.values()).find(op => op.name === idOrName);
-          if (p && !p.isMonster) {
-              p.gold = (p.gold || 0) + 1000;
-              this.io.to(p.id).emit('statsUpdate', { id: p.id, level: p.level, experience: p.experience, gold: p.gold, stats: p.stats, statPoints: p.statPoints, health: p.health, maxHealth: p.maxHealth });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: '+1000G GM', color: '#fbbf24' });
-              await savePlayerToDB(p);
-          } else {
-              await incrementGoldOffline(idOrName, 1000);
-          }
-          this.io.emit('admin:playerUpdated');
-      });
-
-      socket.on('admin:editPlayer', async (data: { name: string, level: number, gold: number, statPoints: number }) => {
-          let p = Array.from(this.players.values()).find(op => op.name === data.name);
-          if (p && !p.isMonster) {
-              p.level = data.level;
-              p.gold = data.gold;
-              p.statPoints = data.statPoints;
-              this.recalculateStats(p);
-              
-              this.io.to(p.id).emit('statsUpdate', { 
-                  id: p.id, level: p.level, experience: p.experience, gold: p.gold, 
-                  stats: p.stats, statPoints: p.statPoints,
-                  attack: p.attack, matk: p.matk, def: p.def, mdef: p.mdef,
-                  hit: p.hit, dodge: p.dodge, crit: p.crit, aspd: p.aspd,
-                  sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
-                  health: p.health, maxHealth: p.maxHealth
-              });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'GM EDITED STATS!', color: '#00ffff' });
-              await savePlayerToDB(p);
-          } else {
-              await updatePlayerOffline(data.name, data.level, data.gold, data.statPoints);
-          }
-          this.io.emit('admin:playerUpdated');
-      });
-
-      socket.on('admin:broadcast', (msg: string) => {
-          this.io.emit('textEffect', { x: 20, y: 15, message: `[GM] ${msg}`, color: '#ff3333' });
-          this.io.emit('playerSpoke', { id: 'npc_merchant', message: `[GM]: ${msg}` }); // Mensagem de chat global
-      });
-
-      socket.on('admin:setTime', (isNight: boolean) => {
-          this.isNight = isNight;
-          this.io.emit('timeUpdate', { isNight: this.isNight });
-          const msg = isNight ? 'The GM forced Night...' : 'The GM forced Day...';
-          this.players.forEach(p => { if (!p.isMonster) this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: msg, color: isNight ? '#aa00ff' : '#ffff00' }); });
-      });
-
-      socket.on('admin:spawnEntity', (data: { name: string, x?: number, y?: number }) => {
-           let spawnX = data.x;
-           let spawnY = data.y;
-
-           if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
-               spawnX = Math.floor(Math.random() * 38) + 1;
-               spawnY = Math.floor(Math.random() * 38) + 1;
-               while (this.walls.has(`${spawnX},${spawnY}`)) {
-                   spawnX = Math.floor(Math.random() * 38) + 1;
-                   spawnY = Math.floor(Math.random() * 38) + 1;
-               }
-           }
-
-           const id = `${data.name.toLowerCase().replace(' ', '_')}_gm_${Math.random().toString(36).substring(2, 7)}`;
-           const isMonster = data.name === 'Orc' || data.name === 'Giant Rat' || data.name === 'Rotworm' || data.name === 'Demon Skeleton';
-           
-           let hp = 9999;
-           let speed = 0;
-           let level = 100;
-           let attack = 5;
-           
-           if (data.name === 'Giant Rat') {
-               hp = 50; speed = 150; level = 1; attack = 8;
-           } else if (data.name === 'Orc') {
-               hp = 120; speed = 100; level = 3; attack = 15;
-           } else if (data.name === 'Rotworm') {
-               hp = 200; speed = 120; level = 5; attack = 22;
-           } else if (data.name === 'Demon Skeleton') {
-               hp = 400; speed = 90; level = 10; attack = 38;
-           }
-
-           const entity: PlayerData = {
-               id,
-               name: data.name,
-               x: spawnX,
-               y: spawnY,
-               health: hp,
-               maxHealth: hp,
-               speed,
-               isMonster,
-               level,
-               experience: 0,
-               attack
-           };
-           
-           if (data.name === 'Merchant') {
-               (entity as any).isNPC = true;
-           }
-           
-           this.players.set(id, entity);
-           this.io.emit('newPlayer', entity);
-           this.io.emit('admin:playerUpdated');
-       });
-
-       socket.on('admin:spawnItem', (data: { name: string, x?: number, y?: number }) => {
-           let spawnX = data.x;
-           let spawnY = data.y;
-
-           if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
-               spawnX = Math.floor(Math.random() * 38) + 1;
-               spawnY = Math.floor(Math.random() * 38) + 1;
-               while (this.walls.has(`${spawnX},${spawnY}`)) {
-                   spawnX = Math.floor(Math.random() * 38) + 1;
-                   spawnY = Math.floor(Math.random() * 38) + 1;
-               }
-           }
-
-           const dropId = `item_gm_${Math.random().toString(36).substring(2, 7)}`;
-           const emojis: Record<string, string> = {
-               'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-               'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-               'Health Potion': '🧪', 'Mana Potion': '💙', 'Apple': '🍎', 
-               'Cheese': '🧀', 'Blueberry': '🍇', 'Gold Coin': '💰'
-           };
-           const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: emojis[data.name] || '📦' };
-           this.itemsOnFloor.set(dropId, dropItem);
-           this.io.emit('itemDropped', dropItem);
-       });
 
       // Handler de Combate
       socket.on('attack', (targetId: string) => {
@@ -1636,5 +1444,206 @@ export class Game {
       // Capacidade de Carga (Max Weight)
       player.maxWeight = 100 + (FOR * 30);
   }
+
+  private registerAdminEvents(socket: any) {
+      // Handlers de ADMIN (Game Master)
+      // Nota: Em um servidor de produção, checaríamos autenticação/senhas aqui.
+      socket.on('admin:getPlayers', async () => {
+          try {
+              const allRegistered = await getAllRegisteredPlayers();
+              const onlinePlayers = Array.from(this.players.values()).filter(p => !p.isMonster);
+              const list = allRegistered.map(p => {
+                  const onlinePlayer = onlinePlayers.find(op => op.name === p.name);
+                  const isOnline = !!onlinePlayer;
+                  if (isOnline && onlinePlayer) {
+                      p.id = onlinePlayer.id; // Vincula o socket.id atual
+                      p.x = onlinePlayer.x;
+                      p.y = onlinePlayer.y;
+                      p.health = onlinePlayer.health;
+                      p.maxHealth = onlinePlayer.maxHealth;
+                      p.level = onlinePlayer.level;
+                      p.gold = onlinePlayer.gold;
+                      p.statPoints = onlinePlayer.statPoints;
+                      p.backpack = onlinePlayer.backpack;
+                      p.equipment = onlinePlayer.equipment;
+                  }
+                  return {
+                      ...p,
+                      isOnline
+                  };
+              });
+              socket.emit('admin:playersData', list);
+          } catch(e) {
+              console.error('Erro no admin:getPlayers:', e);
+          }
+      });
+
+      socket.on('admin:kickPlayer', (id: string) => {
+          const targetSocket = this.io.sockets.sockets.get(id);
+          if (targetSocket) {
+              targetSocket.disconnect(true);
+              this.io.emit('admin:playerUpdated'); // Avisa todos os admins pra atualizar a tela
+          }
+      });
+
+      socket.on('admin:resetPlayer', async (idOrName: string) => {
+          // Procura online
+          let p = this.players.get(idOrName) || Array.from(this.players.values()).find(op => op.name === idOrName);
+          if (p && !p.isMonster) {
+              p.level = 1;
+              p.experience = 0;
+              p.gold = 0;
+              p.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
+              p.statPoints = 0;
+              this.recalculateStats(p);
+              p.health = p.maxHealth;
+              
+              this.io.to(p.id).emit('statsUpdate', { 
+                  id: p.id, level: p.level, experience: p.experience, gold: p.gold, 
+                  stats: p.stats, statPoints: p.statPoints,
+                  attack: p.attack, matk: p.matk, def: p.def, mdef: p.mdef,
+                  hit: p.hit, dodge: p.dodge, crit: p.crit, aspd: p.aspd,
+                  sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
+                  health: p.health, maxHealth: p.maxHealth
+              });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'REBORN!', color: '#ff00ff' });
+              await savePlayerToDB(p);
+          } else {
+              // Se offline, atualiza SQLite pelo nome
+              await updatePlayerOffline(idOrName, 1, 0, 0);
+          }
+          this.io.emit('admin:playerUpdated');
+      });
+
+      socket.on('admin:giveGold', async (idOrName: string) => {
+          let p = this.players.get(idOrName) || Array.from(this.players.values()).find(op => op.name === idOrName);
+          if (p && !p.isMonster) {
+              p.gold = (p.gold || 0) + 1000;
+              this.io.to(p.id).emit('statsUpdate', { id: p.id, level: p.level, experience: p.experience, gold: p.gold, stats: p.stats, statPoints: p.statPoints, health: p.health, maxHealth: p.maxHealth });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: '+1000G GM', color: '#fbbf24' });
+              await savePlayerToDB(p);
+          } else {
+              await incrementGoldOffline(idOrName, 1000);
+          }
+          this.io.emit('admin:playerUpdated');
+      });
+
+      socket.on('admin:editPlayer', async (data: { name: string, level: number, gold: number, statPoints: number }) => {
+          let p = Array.from(this.players.values()).find(op => op.name === data.name);
+          if (p && !p.isMonster) {
+              p.level = data.level;
+              p.gold = data.gold;
+              p.statPoints = data.statPoints;
+              this.recalculateStats(p);
+              
+              this.io.to(p.id).emit('statsUpdate', { 
+                  id: p.id, level: p.level, experience: p.experience, gold: p.gold, 
+                  stats: p.stats, statPoints: p.statPoints,
+                  attack: p.attack, matk: p.matk, def: p.def, mdef: p.mdef,
+                  hit: p.hit, dodge: p.dodge, crit: p.crit, aspd: p.aspd,
+                  sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
+                  health: p.health, maxHealth: p.maxHealth
+              });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'GM EDITED STATS!', color: '#00ffff' });
+              await savePlayerToDB(p);
+          } else {
+              await updatePlayerOffline(data.name, data.level, data.gold, data.statPoints);
+          }
+          this.io.emit('admin:playerUpdated');
+      });
+
+      socket.on('admin:broadcast', (msg: string) => {
+          this.io.emit('textEffect', { x: 20, y: 15, message: `[GM] ${msg}`, color: '#ff3333' });
+          this.io.emit('playerSpoke', { id: 'npc_merchant', message: `[GM]: ${msg}` }); // Mensagem de chat global
+      });
+
+      socket.on('admin:setTime', (isNight: boolean) => {
+          this.isNight = isNight;
+          this.io.emit('timeUpdate', { isNight: this.isNight });
+          const msg = isNight ? 'The GM forced Night...' : 'The GM forced Day...';
+          this.players.forEach(p => { if (!p.isMonster) this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: msg, color: isNight ? '#aa00ff' : '#ffff00' }); });
+      });
+
+      socket.on('admin:spawnEntity', (data: { name: string, x?: number, y?: number }) => {
+           let spawnX = data.x;
+           let spawnY = data.y;
+
+           if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
+               spawnX = Math.floor(Math.random() * 38) + 1;
+               spawnY = Math.floor(Math.random() * 38) + 1;
+               while (this.walls.has(`${spawnX},${spawnY}`)) {
+                   spawnX = Math.floor(Math.random() * 38) + 1;
+                   spawnY = Math.floor(Math.random() * 38) + 1;
+               }
+           }
+
+           const id = `${data.name.toLowerCase().replace(' ', '_')}_gm_${Math.random().toString(36).substring(2, 7)}`;
+           const isMonster = data.name === 'Orc' || data.name === 'Giant Rat' || data.name === 'Rotworm' || data.name === 'Demon Skeleton';
+           
+           let hp = 9999;
+           let speed = 0;
+           let level = 100;
+           let attack = 5;
+           
+           if (data.name === 'Giant Rat') {
+               hp = 50; speed = 150; level = 1; attack = 8;
+           } else if (data.name === 'Orc') {
+               hp = 120; speed = 100; level = 3; attack = 15;
+           } else if (data.name === 'Rotworm') {
+               hp = 200; speed = 120; level = 5; attack = 22;
+           } else if (data.name === 'Demon Skeleton') {
+               hp = 400; speed = 90; level = 10; attack = 38;
+           }
+
+           const entity: PlayerData = {
+               id,
+               name: data.name,
+               x: spawnX,
+               y: spawnY,
+               health: hp,
+               maxHealth: hp,
+               speed,
+               isMonster,
+               level,
+               experience: 0,
+               attack
+           };
+           
+           if (data.name === 'Merchant') {
+               (entity as any).isNPC = true;
+           }
+           
+           this.players.set(id, entity);
+           this.io.emit('newPlayer', entity);
+           this.io.emit('admin:playerUpdated');
+       });
+
+       socket.on('admin:spawnItem', (data: { name: string, x?: number, y?: number }) => {
+           let spawnX = data.x;
+           let spawnY = data.y;
+
+           if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
+               spawnX = Math.floor(Math.random() * 38) + 1;
+               spawnY = Math.floor(Math.random() * 38) + 1;
+               while (this.walls.has(`${spawnX},${spawnY}`)) {
+                   spawnX = Math.floor(Math.random() * 38) + 1;
+                   spawnY = Math.floor(Math.random() * 38) + 1;
+               }
+           }
+
+           const dropId = `item_gm_${Math.random().toString(36).substring(2, 7)}`;
+           const emojis: Record<string, string> = {
+               'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
+               'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+               'Health Potion': '🧪', 'Mana Potion': '💙', 'Apple': '🍎', 
+               'Cheese': '🧀', 'Blueberry': '🍇', 'Gold Coin': '💰'
+           };
+           const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: emojis[data.name] || '📦' };
+           this.itemsOnFloor.set(dropId, dropItem);
+           this.io.emit('itemDropped', dropItem);
+       });
+
+  }
+
 }
 // Restart trigger
