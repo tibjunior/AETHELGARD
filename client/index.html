@@ -6,6 +6,7 @@
     <title>Aethelgard - MMORPG</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
       body, html {
         margin: 0;
         padding: 0;
@@ -13,14 +14,10 @@
         overflow: hidden; /* Remove barras de rolagem */
         width: 100%;
         height: 100%;
-        display: flex;
-        flex-direction: row;
       }
       #game-container {
-        flex-grow: 1;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        width: 100%;
+        height: 100%;
         box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
         position: relative;
       }
@@ -120,24 +117,13 @@
         border-color: #b91c1c;
         box-shadow: 0 0 14px rgba(185,28,28,0.5);
       }
-      /* Painel Direito (Tibia Style) */
-      #right-panel {
-        width: 280px;
-        background-color: #1e293b;
-        border-left: 2px solid #0f172a;
-        display: flex;
-        flex-direction: column;
-        padding: 15px;
-        box-sizing: border-box;
-        color: white;
-        font-family: sans-serif;
-      }
+      
       .panel-header {
         text-align: center;
         font-weight: bold;
-        margin-bottom: 15px;
+        margin-bottom: 10px;
         color: #94a3b8;
-        border-bottom: 1px solid #334155;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
         padding-bottom: 5px;
       }
       .equip-container {
@@ -149,7 +135,6 @@
           ". boots .";
         gap: 8px;
         justify-content: center;
-        margin-bottom: 20px;
       }
       .slot {
         width: 48px;
@@ -188,14 +173,13 @@
       .stat-row {
           display: flex;
           align-items: center;
-          margin-bottom: 4px;
+          margin-bottom: 6px;
           font-family: 'Courier New', monospace;
           color: #e2e8f0;
-          font-size: 14px;
+          font-size: 13px;
       }
       
       .backpack-container {
-        flex-grow: 1;
         background-color: #0f172a;
         border: 2px inset #475569;
         padding: 8px;
@@ -239,6 +223,182 @@
         outline: none;
         display: none; /* Só mostra quando apertar Enter */
       }
+
+      /* =============================================
+         MENU TOOLBAR & FLOATING MODALS
+      ============================================= */
+      
+      :root {
+        --font-title: 'Cinzel', serif;
+        --font-text: 'Outfit', sans-serif;
+        --accent-gold: #fbbf24;
+        --accent-gold-glow: rgba(251, 191, 36, 0.4);
+      }
+
+      #hud-player {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        width: 250px;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(12px);
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 12px 16px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        z-index: 100;
+        user-select: none;
+        font-family: var(--font-text);
+        color: white;
+      }
+      
+      #menu-toolbar {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        display: flex;
+        gap: 8px;
+        z-index: 100;
+      }
+
+      .menu-btn {
+        width: 44px;
+        height: 44px;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(12px);
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        font-size: 20px;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        outline: none;
+        user-select: none;
+      }
+      .menu-btn:hover {
+        transform: translateY(-2px);
+        border-color: #fbbf24;
+        box-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+      }
+      .menu-btn:active {
+        transform: scale(0.95);
+      }
+      .menu-btn.active {
+        background: rgba(251, 191, 36, 0.25) !important;
+        border-color: #fbbf24 !important;
+        box-shadow: 0 0 14px rgba(251, 191, 36, 0.4);
+      }
+
+      .game-modal {
+        display: none;
+        position: absolute;
+        width: 280px;
+        background: rgba(15, 23, 42, 0.88);
+        backdrop-filter: blur(16px);
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        color: white;
+        z-index: 500;
+        font-family: var(--font-text);
+        flex-direction: column;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        animation: modalFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      #modal-backpack {
+        top: 75px;
+        right: 15px;
+      }
+      #modal-equipment {
+        top: 75px;
+        right: 310px;
+      }
+      #modal-stats {
+        top: 360px;
+        right: 310px;
+      }
+      #modal-gathering {
+        top: 360px;
+        right: 15px;
+      }
+
+      @keyframes modalFadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .modal-header {
+        background: rgba(30, 41, 59, 0.8);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 10px 14px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-radius: 10px 10px 0 0;
+        cursor: move;
+        user-select: none;
+      }
+      .modal-title {
+        font-family: var(--font-title);
+        font-size: 13px;
+        font-weight: 700;
+        color: #f8fafc;
+        letter-spacing: 0.5px;
+      }
+      .close-modal {
+        cursor: pointer;
+        color: #94a3b8;
+        transition: all 0.2s ease;
+        font-size: 14px;
+      }
+      .close-modal:hover {
+        color: #ef4444;
+      }
+      
+      .status-bar-container {
+        margin-bottom: 8px;
+      }
+      .status-bar-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #94a3b8;
+        font-family: var(--font-text);
+        font-weight: 600;
+        margin-bottom: 3px;
+      }
+      .status-bar-bg {
+        background: rgba(15, 23, 42, 0.6);
+        height: 10px;
+        border-radius: 5px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        position: relative;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+      }
+      .status-bar-bg.exp, .status-bar-bg.weight {
+        height: 6px;
+        border-radius: 3px;
+      }
+      .status-bar-fill {
+        height: 100%;
+        transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      #health-fill {
+        background: linear-gradient(90deg, #ef4444, #f87171);
+      }
+      #sp-fill {
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      }
+      #exp-fill {
+        background: linear-gradient(90deg, #10b981, #34d399);
+      }
+      #weight-fill {
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+      }
     </style>
   </head>
   <body>
@@ -257,7 +417,7 @@
 
     <div id="game-container">
       <!-- Painel de Autofarm Flutuante -->
-      <div id="autofarm-panel" style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.12); color: white; padding: 12px 18px; border-radius: 12px; font-family: monospace; font-size: 13px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; user-select: none; width: 180px;">
+      <div id="autofarm-panel" style="position: absolute; top: 15px; left: 280px; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.12); color: white; padding: 12px 18px; border-radius: 12px; font-family: monospace; font-size: 13px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; user-select: none; width: 180px;">
         <div style="font-weight: bold; color: #10b981; display: flex; align-items: center; justify-content: space-between;">
           <span style="letter-spacing: 0.5px;">🤖 AUTOFARM</span>
           <span id="autofarm-indicator" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; transition: all 0.3s;"></span>
@@ -335,92 +495,164 @@
         </div>
 
       </div>
-    </div>
-    
-    <!-- Novo Painel Lateral Estilo Tibia -->
-    <div id="right-panel">
-      <div class="panel-header" id="player-name-display">TIBERIUS</div>
-      <div style="text-align: center; color: #fbbf24; font-size: 14px; margin-bottom: 10px; font-weight: bold;" id="player-level-display">Level 1</div>
-      
-      <div class="equip-container">
-        <div class="slot slot-head" id="slot-head">Head</div>
-        <div class="slot slot-left" id="slot-left">L-Hand</div>
-        <div class="slot slot-body" id="slot-body">Body</div>
-        <div class="slot slot-right" id="slot-right">R-Hand</div>
-        <div class="slot slot-legs" id="slot-legs">Legs</div>
-        <div class="slot slot-boots" id="slot-boots">Boots</div>
+
+      <!-- Player Status HUD (Top-Left) -->
+      <div id="hud-player">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px;">
+          <span id="player-name-display" style="font-family: var(--font-title); font-weight: 700; color: #f8fafc; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">TIBERIUS</span>
+          <span id="player-level-display" style="font-family: var(--font-text); font-weight: 700; color: var(--accent-gold); font-size: 11px; background: rgba(251, 191, 36, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(251, 191, 36, 0.3);">Level 1</span>
+        </div>
+        
+        <!-- HP -->
+        <div class="status-bar-container">
+          <div class="status-bar-label">
+            <span>Vida</span>
+            <span id="health-text" style="color: #f8fafc;">150/150</span>
+          </div>
+          <div class="status-bar-bg">
+            <div id="health-fill" class="status-bar-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- SP -->
+        <div class="status-bar-container">
+          <div class="status-bar-label">
+            <span>Mana</span>
+            <span id="sp-text" style="color: #f8fafc;">50/50</span>
+          </div>
+          <div class="status-bar-bg">
+            <div id="sp-fill" class="status-bar-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+
+        <!-- EXP -->
+        <div class="status-bar-container">
+          <div class="status-bar-label">
+            <span>Experiência</span>
+            <span id="exp-text" style="color: #f8fafc;">Level 1</span>
+          </div>
+          <div class="status-bar-bg exp">
+            <div id="exp-fill" class="status-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Cap -->
+        <div class="status-bar-container">
+          <div class="status-bar-label">
+            <span>Capacidade</span>
+            <span id="weight-text" style="color: #f8fafc;">Cap: 0/250</span>
+          </div>
+          <div class="status-bar-bg weight">
+            <div id="weight-fill" class="status-bar-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Gold -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; font-size: 11px; font-weight: 700; color: var(--accent-gold);">
+          <span>💰 Gold:</span>
+          <span><span id="gold-value">0</span></span>
+        </div>
       </div>
-      
-      <!-- Painel de Status -->
-      <div class="panel-header" style="display: flex; justify-content: space-between;">
-          <span>Status</span>
-          <span id="stat-points" style="color: #fbbf24;">Pts: 0</span>
+
+      <!-- Navigation Menu Toolbar (Top-Right) -->
+      <div id="menu-toolbar">
+        <button class="menu-btn" data-target="modal-backpack" title="Mochila">🎒</button>
+        <button class="menu-btn" data-target="modal-equipment" title="Equipamentos">🛡️</button>
+        <button class="menu-btn" data-target="modal-stats" title="Atributos">📊</button>
+        <button class="menu-btn" data-target="modal-gathering" title="Profissões">🌿</button>
       </div>
-      <div id="stats-panel" style="padding: 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid #1e293b;">
-          <div class="stat-row" data-stat="FOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('FOR')">+</button> <span style="width: 100%;">FOR: <span id="val-FOR" style="float: right;">5</span></span></div>
-          <div class="stat-row" data-stat="AGI"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('AGI')">+</button> <span style="width: 100%;">AGI: <span id="val-AGI" style="float: right;">5</span></span></div>
-          <div class="stat-row" data-stat="VIT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('VIT')">+</button> <span style="width: 100%;">VIT: <span id="val-VIT" style="float: right;">5</span></span></div>
-          <div class="stat-row" data-stat="INT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('INT')">+</button> <span style="width: 100%;">INT: <span id="val-INT" style="float: right;">5</span></span></div>
-          <div class="stat-row" data-stat="DES"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('DES')">+</button> <span style="width: 100%;">DES: <span id="val-DES" style="float: right;">5</span></span></div>
-          <div class="stat-row" data-stat="SOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('SOR')">+</button> <span style="width: 100%;">SOR: <span id="val-SOR" style="float: right;">5</span></span></div>
+
+      <!-- Modal: Mochila -->
+      <div class="game-modal" id="modal-backpack">
+        <div class="modal-header">
+          <span class="modal-title">🎒 Mochila</span>
+          <span class="close-modal" data-target="modal-backpack">✖</span>
+        </div>
+        <div style="padding: 12px;">
+          <div class="backpack-container" id="backpack-grid">
+            <div class="slot" data-index="0"></div><div class="slot" data-index="1"></div><div class="slot" data-index="2"></div><div class="slot" data-index="3"></div>
+            <div class="slot" data-index="4"></div><div class="slot" data-index="5"></div><div class="slot" data-index="6"></div><div class="slot" data-index="7"></div>
+            <div class="slot" data-index="8"></div><div class="slot" data-index="9"></div><div class="slot" data-index="10"></div><div class="slot" data-index="11"></div>
+          </div>
+        </div>
       </div>
-      
-      <!-- Painel Secundário -->
-      <div id="secondary-stats-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-bottom: 1px solid #1e293b; font-family: 'Courier New', monospace; color: #94a3b8; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-          <div>ATK: <span id="val-ATK" style="color: #e2e8f0;">0</span></div>
-          <div>MATK: <span id="val-MATK" style="color: #e2e8f0;">0</span></div>
-          <div>DEF: <span id="val-DEF" style="color: #e2e8f0;">0</span></div>
-          <div>MDEF: <span id="val-MDEF" style="color: #e2e8f0;">0</span></div>
-          <div>HIT: <span id="val-HIT" style="color: #e2e8f0;">0</span></div>
-          <div>DODGE: <span id="val-DODGE" style="color: #e2e8f0;">0</span></div>
-          <div>CRIT: <span id="val-CRIT" style="color: #e2e8f0;">0%</span></div>
-          <div>ASPD: <span id="val-ASPD" style="color: #e2e8f0;">0</span></div>
+
+      <!-- Modal: Equipamento -->
+      <div class="game-modal" id="modal-equipment">
+        <div class="modal-header">
+          <span class="modal-title">🛡️ Equipamentos</span>
+          <span class="close-modal" data-target="modal-equipment">✖</span>
+        </div>
+        <div style="padding: 15px;">
+          <div class="equip-container">
+            <div class="slot slot-head" id="slot-head">Head</div>
+            <div class="slot slot-left" id="slot-left">L-Hand</div>
+            <div class="slot slot-body" id="slot-body">Body</div>
+            <div class="slot slot-right" id="slot-right">R-Hand</div>
+            <div class="slot slot-legs" id="slot-legs">Legs</div>
+            <div class="slot slot-boots" id="slot-boots">Boots</div>
+          </div>
+        </div>
       </div>
-      
-      <!-- Painel de Coleta -->
-      <div class="panel-header">Gathering Skills</div>
-      <div id="gathering-panel" style="padding: 10px; background: rgba(0,0,0,0.25); border-bottom: 1px solid #1e293b; font-family: 'Courier New', monospace; color: #94a3b8; font-size: 11px; display: flex; flex-direction: column; gap: 4px;">
-          <div style="display: flex; justify-content: space-between;">
+
+      <!-- Modal: Atributos -->
+      <div class="game-modal" id="modal-stats">
+        <div class="modal-header">
+          <span class="modal-title">📊 Atributos</span>
+          <span class="close-modal" data-target="modal-stats">✖</span>
+        </div>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; font-weight: bold;">
+            <span style="font-size: 12px; color: #cbd5e1;">Status</span>
+            <span id="stat-points" style="color: var(--accent-gold); font-size: 12px;">Pts: 0</span>
+          </div>
+          <div id="stats-panel" style="padding: 8px; background: rgba(0,0,0,0.15); border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); display: flex; flex-direction: column; gap: 4px;">
+            <div class="stat-row" data-stat="FOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('FOR')">+</button> <span style="width: 100%;">FOR: <span id="val-FOR" style="float: right;">5</span></span></div>
+            <div class="stat-row" data-stat="AGI"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('AGI')">+</button> <span style="width: 100%;">AGI: <span id="val-AGI" style="float: right;">5</span></span></div>
+            <div class="stat-row" data-stat="VIT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('VIT')">+</button> <span style="width: 100%;">VIT: <span id="val-VIT" style="float: right;">5</span></span></div>
+            <div class="stat-row" data-stat="INT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('INT')">+</button> <span style="width: 100%;">INT: <span id="val-INT" style="float: right;">5</span></span></div>
+            <div class="stat-row" data-stat="DES"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('DES')">+</button> <span style="width: 100%;">DES: <span id="val-DES" style="float: right;">5</span></span></div>
+            <div class="stat-row" data-stat="SOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('SOR')">+</button> <span style="width: 100%;">SOR: <span id="val-SOR" style="float: right;">5</span></span></div>
+          </div>
+          <div id="secondary-stats-panel" style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-family: monospace; color: #94a3b8; font-size: 11px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+            <div>ATK: <span id="val-ATK" style="color: #e2e8f0;">0</span></div>
+            <div>MATK: <span id="val-MATK" style="color: #e2e8f0;">0</span></div>
+            <div>DEF: <span id="val-DEF" style="color: #e2e8f0;">0</span></div>
+            <div>MDEF: <span id="val-MDEF" style="color: #e2e8f0;">0</span></div>
+            <div>HIT: <span id="val-HIT" style="color: #e2e8f0;">0</span></div>
+            <div>DODGE: <span id="val-DODGE" style="color: #e2e8f0;">0</span></div>
+            <div>CRIT: <span id="val-CRIT" style="color: #e2e8f0;">0%</span></div>
+            <div>ASPD: <span id="val-ASPD" style="color: #e2e8f0;">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: Profissões -->
+      <div class="game-modal" id="modal-gathering">
+        <div class="modal-header">
+          <span class="modal-title">🌿 Profissões</span>
+          <span class="close-modal" data-target="modal-gathering">✖</span>
+        </div>
+        <div style="padding: 12px;">
+          <div id="gathering-panel" style="padding: 8px; background: rgba(0,0,0,0.15); border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-family: monospace; color: #94a3b8; font-size: 11px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between;">
               <span>🪨 Mineração:</span>
               <span id="lvl-mining" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
+            </div>
+            <div style="display: flex; justify-content: space-between;">
               <span>🌿 Herbologia:</span>
               <span id="lvl-herbalism" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
-          </div>
-          <div style="display: flex; justify-content: space-between;">
+            </div>
+            <div style="display: flex; justify-content: space-between;">
               <span>🪵 Madeireiro:</span>
               <span id="lvl-woodcutting" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
+            </div>
           </div>
-      </div>
-      
-      <div class="panel-header">Backpack</div>
-      <div class="backpack-container" id="backpack-grid">
-        <div class="slot" data-index="0"></div><div class="slot" data-index="1"></div><div class="slot" data-index="2"></div><div class="slot" data-index="3"></div>
-        <div class="slot" data-index="4"></div><div class="slot" data-index="5"></div><div class="slot" data-index="6"></div><div class="slot" data-index="7"></div>
-        <div class="slot" data-index="8"></div><div class="slot" data-index="9"></div><div class="slot" data-index="10"></div><div class="slot" data-index="11"></div>
-      </div>
-      
-      <div id="status-panel" style="margin-top: 20px;">
-        <div class="status-bar health-bar" style="background:#440000; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
-           <div id="health-fill" style="background:#ef4444; height:100%; width:100%;"></div>
-           <span id="health-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">150/150</span>
         </div>
-        <div class="status-bar sp-bar" style="background:#000044; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
-           <div id="sp-fill" style="background:#3b82f6; height:100%; width:100%;"></div>
-           <span id="sp-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">50/50</span>
-        </div>
-        <div class="status-bar exp-bar" style="background:#003300; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
-           <div id="exp-fill" style="background:#22c55e; height:100%; width:0%;"></div>
-           <span id="exp-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">Level 1</span>
-        </div>
-        <div class="status-bar weight-bar" style="background:#332200; height:12px; border:1px solid #333; position:relative; margin-bottom:5px;">
-           <div id="weight-fill" style="background:#d97706; height:100%; width:0%;"></div>
-           <span id="weight-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:10px; color:white; text-shadow: 1px 1px 0 #000;">Cap: 0/250</span>
-        </div>
-        <div class="gold-display" style="color: #fbbf24; font-weight: bold; margin-top: 5px; text-align: center;">💰 Gold: <span id="gold-value">0</span></div>
       </div>
     </div>
+    
+
     
     <!-- Shop UI Modal -->
     <div id="shop-ui" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; background: rgba(20, 20, 20, 0.95); border: 2px solid #fbbf24; border-radius: 8px; color: white; z-index: 200; font-family: monospace; flex-direction: column;">
@@ -578,6 +810,99 @@
 
       // Anima o slot de dash quando SPACE é pressionado
       // (já coberto pelo listener genérico acima)
+    })();
+    </script>
+
+    <!-- Draggable Modals Controller -->
+    <script>
+    (function() {
+      // Toggle logic
+      const buttons = document.querySelectorAll('.menu-btn');
+      buttons.forEach(btn => {
+          btn.addEventListener('click', function() {
+              const targetId = btn.getAttribute('data-target');
+              const targetModal = document.getElementById(targetId);
+              if (!targetModal) return;
+              
+              const isOpen = targetModal.style.display === 'flex';
+              if (isOpen) {
+                  targetModal.style.display = 'none';
+                  btn.classList.remove('active');
+              } else {
+                  targetModal.style.display = 'flex';
+                  btn.classList.add('active');
+                  bringToFront(targetModal);
+              }
+          });
+      });
+
+      // Close buttons inside modals
+      document.querySelectorAll('.close-modal').forEach(btn => {
+          btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              const targetId = btn.getAttribute('data-target');
+              const modal = document.getElementById(targetId);
+              if (modal) modal.style.display = 'none';
+              const menuBtn = document.querySelector(`.menu-btn[data-target="${targetId}"]`);
+              if (menuBtn) menuBtn.classList.remove('active');
+          });
+      });
+
+      // Simple z-index layering logic
+      let maxZIndex = 500;
+      function bringToFront(element) {
+          maxZIndex++;
+          element.style.zIndex = maxZIndex;
+      }
+
+      // Drag logic
+      function makeDraggable(modalId) {
+          const modal = document.getElementById(modalId);
+          if (!modal) return;
+          const header = modal.querySelector('.modal-header');
+          if (!header) return;
+          
+          let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+          header.onmousedown = (e) => {
+              // Ignore if clicking close-modal
+              if (e.target.classList.contains('close-modal')) return;
+              e.preventDefault();
+              bringToFront(modal);
+              pos3 = e.clientX;
+              pos4 = e.clientY;
+              document.onmouseup = () => {
+                  document.onmouseup = null;
+                  document.onmousemove = null;
+              };
+              document.onmousemove = (ev) => {
+                  ev.preventDefault();
+                  pos1 = pos3 - ev.clientX;
+                  pos2 = pos4 - ev.clientY;
+                  pos3 = ev.clientX;
+                  pos4 = ev.clientY;
+                  
+                  // Position updates
+                  const newTop = modal.offsetTop - pos2;
+                  const newLeft = modal.offsetLeft - pos1;
+                  
+                  // Keep window within viewport boundaries
+                  modal.style.top = Math.max(0, Math.min(window.innerHeight - 50, newTop)) + "px";
+                  modal.style.left = Math.max(0, Math.min(window.innerWidth - 100, newLeft)) + "px";
+                  modal.style.right = "auto";
+              };
+          };
+      }
+      
+      // Make modals draggable and bring to front on click
+      ['modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
+          makeDraggable(id);
+          const modal = document.getElementById(id);
+          if (modal) {
+              modal.addEventListener('mousedown', () => {
+                  bringToFront(modal);
+              });
+          }
+      });
     })();
     </script>
   </body>
