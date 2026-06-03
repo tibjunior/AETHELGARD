@@ -245,46 +245,61 @@ export class Game {
           player.x = targetPosition.x;
           player.y = targetPosition.y;
 
-         // Verifica se pegou algum item no chão (procura por qualquer item nas coordenadas do player)
-         const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
-         if (itemsAtCoord.length > 0) {
-            const item = itemsAtCoord[0]; // Pega o primeiro da pilha
-            
-            if (item.name === 'Gold Coin') {
-                // Moeda vai direto pro banco!
-                this.itemsOnFloor.delete(item.id);
-                player.gold = (player.gold || 0) + 1;
-                socket.emit('statsUpdate', { id: player.id, level: player.level, experience: player.experience, gold: player.gold });
-                socket.emit('itemPickedUp', item); 
-                this.io.emit('itemRemoved', item.id);
-            } else if (player.backpack) {
-                // Tabela de pesos
-                const itemWeights: Record<string, number> = {
-                    'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
-                    'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Torch': 5,
-                    'Apple': 2, 'Cheese': 2
-                };
-                const weight = itemWeights[item.name] || 5;
-                
-                if (player.weight + weight <= (player.maxWeight || 250)) {
-                    const added = this.addItemToBackpack(player, item.name);
-                    if (added) {
-                        this.itemsOnFloor.delete(item.id);
-                        this.recalculateWeight(player);
-                        
-                        socket.emit('itemPickedUp', item); // Só pro textinho flutuante
-                        socket.emit('inventoryUpdate', player.backpack); // Sincroniza UI real
-                        socket.emit('statsUpdate', { id: player.id, weight: player.weight, maxWeight: player.maxWeight });
-                        this.io.emit('itemRemoved', item.id);
-                    } else {
-                        socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
-                    }
-                } else {
-                    // Sobrepeso
-                    socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
-                }
-            }
-         }
+          // Verifica se pegou algum item no chão (procura por qualquer item nas coordenadas do player)
+          const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
+          if (itemsAtCoord.length > 0) {
+             let backpackUpdated = false;
+             let weightUpdated = false;
+             let inventoryFullMsgSent = false;
+             
+             for (const item of itemsAtCoord) {
+                 if (item.name === 'Gold Coin') {
+                     // Moeda vai direto pro banco!
+                     this.itemsOnFloor.delete(item.id);
+                     player.gold = (player.gold || 0) + 1;
+                     socket.emit('statsUpdate', { id: player.id, level: player.level, experience: player.experience, gold: player.gold });
+                     socket.emit('itemPickedUp', item); 
+                     this.io.emit('itemRemoved', item.id);
+                 } else if (player.backpack) {
+                     // Tabela de pesos
+                     const itemWeights: Record<string, number> = {
+                         'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
+                         'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
+                         'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1
+                     };
+                     const weight = itemWeights[item.name] || 5;
+                     
+                     if (player.weight + weight <= (player.maxWeight || 250)) {
+                         const added = this.addItemToBackpack(player, item.name);
+                         if (added) {
+                             this.itemsOnFloor.delete(item.id);
+                             this.recalculateWeight(player);
+                             backpackUpdated = true;
+                             weightUpdated = true;
+                             
+                             socket.emit('itemPickedUp', item); // Só pro textinho flutuante
+                             this.io.emit('itemRemoved', item.id);
+                         } else {
+                             if (!inventoryFullMsgSent) {
+                                 socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+                                 inventoryFullMsgSent = true;
+                             }
+                         }
+                     } else {
+                         if (!inventoryFullMsgSent) {
+                             socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
+                             inventoryFullMsgSent = true;
+                         }
+                     }
+                 }
+             }
+             if (backpackUpdated) {
+                 socket.emit('inventoryUpdate', player.backpack); // Sincroniza UI real
+             }
+             if (weightUpdated) {
+                 socket.emit('statsUpdate', { id: player.id, weight: player.weight, maxWeight: player.maxWeight });
+             }
+          }
           
           // Re-transmite o movimento para todo mundo
           this.io.emit('playerMoved', player);
@@ -571,13 +586,21 @@ export class Game {
 
               // Verifica Loot no tile final
               const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
-              if (itemsAtCoord.length > 0 && player.backpack.length < 12) {
-                  const item = itemsAtCoord[0];
-                  this.itemsOnFloor.delete(item.id);
-                  player.backpack.push(item.name);
-                  socket.emit('itemPickedUp', item);
+              let backpackUpdated = false;
+              for (const item of itemsAtCoord) {
+                  if (player.backpack.length < 12) {
+                      this.itemsOnFloor.delete(item.id);
+                      player.backpack.push(item.name);
+                      socket.emit('itemPickedUp', item);
+                      this.io.emit('itemRemoved', item.id);
+                      backpackUpdated = true;
+                  } else {
+                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+                      break;
+                  }
+              }
+              if (backpackUpdated) {
                   socket.emit('inventoryUpdate', player.backpack);
-                  this.io.emit('itemRemoved', item.id);
               }
 
               this.io.emit('playerDashed', player);
