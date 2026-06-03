@@ -16,7 +16,7 @@ export const ITEM_EMOJIS: Record<string, string> = {
     'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
     'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Blueberry': '🍇',
     'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-    'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+    'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
     'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
 };
 
@@ -2210,8 +2210,8 @@ export class Game {
 
   private setupResourceNodes() {
       const types: Array<{ type: 'ore' | 'tree' | 'herb'; name: string; emoji: string }> = [
-          { type: 'ore', name: 'Iron Ore', emoji: '🪨' },
-          { type: 'tree', name: 'Wood Log', emoji: '🪵' },
+          { type: 'ore', name: 'Iron Ore', emoji: '🌑' },
+          { type: 'tree', name: 'Wood Log', emoji: '🌳' },
           { type: 'herb', name: 'Medicinal Herb', emoji: '🌿' }
       ];
 

@@ -694,7 +694,8 @@ export class GameScene extends Phaser.Scene {
     public onItemDropped(item: any) {
      const key = item.id;
      const textObj = this.add.text(item.x * this.TILE_SIZE, item.y * this.TILE_SIZE, item.emoji, {
-         fontSize: '20px'
+         fontSize: '20px',
+         fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
      }).setOrigin(0.5).setDepth(4); // Fica abaixo das paredes(5) e do player(10), mas acima do chão
      
      textObj.setData('isFloorItem', true);
@@ -909,7 +910,7 @@ export class GameScene extends Phaser.Scene {
                  'Mana Potion': '💙', 'Blueberry': '🍇',
                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
                  'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                 'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+                 'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
                  'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
              };
              
@@ -953,7 +954,7 @@ export class GameScene extends Phaser.Scene {
       const emojis: Record<string, string> = { 
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
       };
       
       content.innerHTML = '';
@@ -1232,7 +1233,11 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
-    this.add.text(sprite.x, sprite.y - 30, displayName, { fontSize: '10px', color: nameColor }).setOrigin(0.5);
+    this.add.text(sprite.x, sprite.y - 30, displayName, { 
+        fontSize: '10px', 
+        color: nameColor,
+        fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
+    }).setOrigin(0.5);
 
     // Botão ESQUERDO = selecionar (marcar target), sem atacar
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -2161,7 +2166,8 @@ export class GameScene extends Phaser.Scene {
 
       const emoji = node.state === 'depleted' ? '🕳️' : node.emoji;
       const sprite = this.add.text(node.x * this.TILE_SIZE, node.y * this.TILE_SIZE, emoji, {
-          fontSize: '24px'
+          fontSize: '24px',
+          fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
       }).setOrigin(0.5).setDepth(4) as any;
 
       const displayNodeName = (window as any).translateItem ? (window as any).translateItem(node.name) : node.name;
@@ -2193,7 +2199,8 @@ export class GameScene extends Phaser.Scene {
       }
 
       const sprite = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE, station.emoji, {
-          fontSize: '28px'
+          fontSize: '28px',
+          fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
       }).setOrigin(0.5).setDepth(4) as any;
 
       const label = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE - 20, station.name, {
@@ -2447,7 +2454,7 @@ export class GameScene extends Phaser.Scene {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
           'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
       };
 
@@ -2538,7 +2545,7 @@ export class GameScene extends Phaser.Scene {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
           'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
       };
 
