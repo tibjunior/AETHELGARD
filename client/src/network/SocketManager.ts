@@ -3,7 +3,7 @@ import { GameScene } from '../scenes/GameScene';
 import { PlayerData, Position } from '../../../shared/types';
 
 export class SocketManager {
-  private socket!: Socket;
+  public socket!: Socket;
   private scene: GameScene;
 
   constructor(scene: GameScene) {
@@ -199,7 +199,6 @@ export class SocketManager {
   }
   
   // --- Funções de Loja ---
-  private shopTab: 'buy' | 'sell' = 'buy';
   
   public openShop() {
       const ui = document.getElementById('shop-ui');
@@ -210,14 +209,12 @@ export class SocketManager {
           document.getElementById('close-shop')!.onclick = () => ui.style.display = 'none';
           
           document.getElementById('tab-buy')!.onclick = () => {
-              this.shopTab = 'buy';
               document.getElementById('tab-buy')!.style.background = '#333';
               document.getElementById('tab-sell')!.style.background = '#222';
               this.renderShopBuy();
           };
           
           document.getElementById('tab-sell')!.onclick = () => {
-              this.shopTab = 'sell';
               document.getElementById('tab-buy')!.style.background = '#222';
               document.getElementById('tab-sell')!.style.background = '#333';
               this.scene.renderShopSell();

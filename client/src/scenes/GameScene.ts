@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager';
-import { PlayerData } from '../../../shared/types';
+import { PlayerData, Position } from '../../../shared/types';
 
 export class GameScene extends Phaser.Scene {
   private socketManager!: SocketManager;
@@ -24,12 +24,10 @@ export class GameScene extends Phaser.Scene {
   // Sistema de perseguição (Chase)
   private chaseTargetId?: string;         // ID do alvo sendo perseguido
   private chaseTargetPos?: { x: number, y: number }; // última posição conhecida do alvo
-  private chaseInterval?: number;         // timer de re-path
 
   private readonly TILE_SIZE = 32;
   private isMoving = false;
   private localFacing: string = 'down';
-  private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   
   private collisionMap: Set<string> = new Set();
   private autoPath: {x: number, y: number}[] = [];
@@ -126,7 +124,7 @@ export class GameScene extends Phaser.Scene {
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 256, 256);
-    this.textures.addSpriteSheet('lightBrush', canvas, { frameWidth: 256, frameHeight: 256 });
+    this.textures.addSpriteSheet('lightBrush', canvas as any, { frameWidth: 256, frameHeight: 256 });
     
     this.lightBrush = this.make.image({ x: 0, y: 0, key: 'lightBrush', add: true });
     this.lightBrush.setVisible(false); // Fica invisível, serve só como máscara
@@ -1081,7 +1079,6 @@ export class GameScene extends Phaser.Scene {
 
   // --- Lógica de Input Básico ---
   private setupInput() {
-    this.cursors = this.input.keyboard!.createCursorKeys();
     const chatInput = document.getElementById('chat-input') as HTMLInputElement;
 
     // Clique para andar (Pathfinding)
