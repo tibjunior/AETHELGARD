@@ -262,7 +262,10 @@ export class Game {
           // Validação simples: o jogador só pode se mover 1 casa por vez
           const dx = Math.abs(targetPosition.x - player.x);
           const dy = Math.abs(targetPosition.y - player.y);
-          if (dx > 1 || dy > 1) return;
+          if (dx > 1 || dy > 1) {
+             socket.emit('playerMoved', player); 
+             return;
+          }
 
           // Verifica Colisão com Paredes
           if (this.walls.has(`${targetPosition.x},${targetPosition.y}`)) {

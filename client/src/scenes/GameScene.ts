@@ -224,8 +224,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (isLocal && this.localPlayerSprite) {
+       if ((this as any)._moveSafetyTimeout) {
+           clearTimeout((this as any)._moveSafetyTimeout);
+           (this as any)._moveSafetyTimeout = null;
+       }
        if (this.localPlayerSprite.x === data.x * this.TILE_SIZE && this.localPlayerSprite.y === data.y * this.TILE_SIZE) {
            this.isMoving = false;
+           this.processNextAutoWalkStep();
            return;
        }
 
@@ -1219,6 +1224,14 @@ export class GameScene extends Phaser.Scene {
         this.isMoving = true;
         // Envia tentativa de movimento para o servidor
         this.socketManager.sendMove({ x: targetX, y: targetY }, this.localFacing);
+        
+        // Safety timeout para teclado
+        if ((this as any)._moveSafetyTimeout) clearTimeout((this as any)._moveSafetyTimeout);
+        (this as any)._moveSafetyTimeout = setTimeout(() => {
+            if (this.isMoving) {
+                this.isMoving = false;
+            }
+        }, 500);
       }
     });
   }
@@ -1359,6 +1372,15 @@ export class GameScene extends Phaser.Scene {
 
       this.isMoving = true;
       this.socketManager.sendMove(nextStep, this.localFacing);
+
+      // Safety timeout para auto-walk
+      if ((this as any)._moveSafetyTimeout) clearTimeout((this as any)._moveSafetyTimeout);
+      (this as any)._moveSafetyTimeout = setTimeout(() => {
+          if (this.isMoving) {
+              this.isMoving = false;
+              this.processNextAutoWalkStep();
+          }
+      }, 600);
   }
 
   // Algoritmo BFS para encontrar menor caminho desviando das paredes
@@ -1683,8 +1705,11 @@ export class GameScene extends Phaser.Scene {
       }
 
       // 2. Verificar e processar perseguição de loot ativa
+      const lootCheckbox = document.getElementById('autofarm-loot') as HTMLInputElement;
+      const isLootEnabled = lootCheckbox ? lootCheckbox.checked : true;
+
       if (this.lootTargetId && this.lootTargetPos) {
-          if (this.floorItems.has(this.lootTargetId)) {
+          if (isLootEnabled && this.floorItems.has(this.lootTargetId)) {
               const playerX = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
               const playerY = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
               if (playerX === this.lootTargetPos.x && playerY === this.lootTargetPos.y) {
@@ -1714,13 +1739,15 @@ export class GameScene extends Phaser.Scene {
 
       // 4. Se nao tiver alvo ativo de monstro ou o atual morreu
       if (!currentTargetAlive) {
-          // Primeiro, procura loot por perto antes de buscar outro monstro!
-          const nearestLoot = this.findNearestLoot();
-          if (nearestLoot) {
-              this.startLootChase(nearestLoot.id, nearestLoot.x, nearestLoot.y);
-              const targetDisplay = document.getElementById('autofarm-target');
-              if (targetDisplay) targetDisplay.innerText = `Alvo: Pegando loot (${nearestLoot.name})`;
-              return;
+          // Primeiro, procura loot por perto antes de buscar outro monstro! (se auto-loot estiver ativado)
+          if (isLootEnabled) {
+              const nearestLoot = this.findNearestLoot();
+              if (nearestLoot) {
+                  this.startLootChase(nearestLoot.id, nearestLoot.x, nearestLoot.y);
+                  const targetDisplay = document.getElementById('autofarm-target');
+                  if (targetDisplay) targetDisplay.innerText = `Alvo: Pegando loot (${nearestLoot.name})`;
+                  return;
+              }
           }
 
           // Se não houver loot, busca monstro
