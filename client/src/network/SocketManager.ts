@@ -37,6 +37,15 @@ export class SocketManager {
       console.log('🔗 Conectado ao servidor Aethelgard');
     });
 
+    this.socket.on('disconnect', (reason) => {
+      console.log('Desconectado:', reason);
+      if (reason === 'io server disconnect') {
+          // O servidor forçou a desconexão desse socket (ex: login duplicado)
+          alert('Você foi desconectado porque sua conta fez login em outro dispositivo (ou aba).');
+          window.location.reload();
+      }
+    });
+
     this.socket.on('init', (data: PlayerData) => {
       this.scene.onLocalPlayerInit(data);
     });

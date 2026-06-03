@@ -73,7 +73,7 @@ export class GameScene extends Phaser.Scene {
     this.socketManager = new SocketManager(this);
     
     // Conecta usando o nome do login screen
-    const pName = (window as any).playerName || 'Tiberius';
+    const pName = (window as any).playerName || 'Aventureiro';
     this.socketManager.connect(pName);
 
     // Mapear teclas do teclado (WASD / Setas)
