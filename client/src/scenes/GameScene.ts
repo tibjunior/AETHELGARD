@@ -2094,8 +2094,9 @@ export class GameScene extends Phaser.Scene {
           fontSize: '24px'
       }).setOrigin(0.5).setDepth(4) as any;
 
+      const displayNodeName = (window as any).translateItem ? (window as any).translateItem(node.name) : node.name;
       const chargesInfo = node.state === 'depleted' ? '(Esgotado)' : `(${node.charges}/${node.maxCharges})`;
-      const label = this.add.text(node.x * this.TILE_SIZE, node.y * this.TILE_SIZE - 20, `${node.name} ${chargesInfo}`, {
+      const label = this.add.text(node.x * this.TILE_SIZE, node.y * this.TILE_SIZE - 20, `${displayNodeName} ${chargesInfo}`, {
           fontSize: '9px',
           color: node.state === 'depleted' ? '#888' : '#10b981',
           backgroundColor: 'rgba(0,0,0,0.6)',
@@ -2311,16 +2312,16 @@ export class GameScene extends Phaser.Scene {
       const profNameEl = document.getElementById('crafting-prof-name');
       const profLvlEl = document.getElementById('crafting-prof-level');
 
-      let profName = 'Smithing';
+      let profName = 'Ferraria';
       let profLvl = this.professionSmithingLevel;
       let profXp = this.professionSmithingXp;
 
       if (station.type === 'alchemy') {
-          profName = 'Alchemy';
+          profName = 'Alquimia';
           profLvl = this.professionAlchemyLevel;
           profXp = this.professionAlchemyXp;
       } else if (station.type === 'tanning') {
-          profName = 'Tanning';
+          profName = 'Alfaiataria';
           profLvl = this.professionTanningLevel;
           profXp = this.professionTanningXp;
       }

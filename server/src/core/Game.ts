@@ -2117,7 +2117,7 @@ export class Game {
 
             const node = this.resourceNodes.get(data.nodeId);
             if (!node || node.state === 'depleted') {
-                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Resource depleted!', color: '#ff5555' });
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Recurso esgotado!', color: '#ff5555' });
                 return;
             }
 
@@ -2125,7 +2125,7 @@ export class Game {
             const dx = Math.abs(node.x - player.x);
             const dy = Math.abs(node.y - player.y);
             if (dx > 1 || dy > 1) {
-                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too far!', color: '#ff5555' });
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
                 return;
             }
 
