@@ -2,7 +2,7 @@ import sqlite3 from 'sqlite3';
 import { resolve } from 'path';
 import { PlayerData } from '../../../shared/types';
 
-const dbPath = resolve(__dirname, '../../../database.sqlite');
+const dbPath = resolve(process.cwd(), '../database.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Erro ao abrir o banco de dados:', err.message);
