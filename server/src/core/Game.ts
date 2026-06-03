@@ -17,6 +17,26 @@ export const ITEM_EMOJIS: Record<string, string> = {
     'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿'
 };
 
+export const ITEM_NAMES_PT: Record<string, string> = {
+    'Torch': 'Tocha',
+    'Apple': 'Maçã',
+    'Cheese': 'Queijo',
+    'Health Potion': 'Poção de Vida',
+    'Mana Potion': 'Poção de Mana',
+    'Blueberry': 'Mirtilo',
+    'Steel Sword': 'Espada de Aço',
+    'Wood Sword': 'Espada de Madeira',
+    'Iron Ore': 'Minério de Ferro',
+    'Wood Log': 'Tronco de Madeira',
+    'Medicinal Herb': 'Erva Medicinal',
+    'Leather Hide': 'Pele de Couro',
+    'Helmet': 'Elmo de Aço',
+    'Armor': 'Armadura de Placas',
+    'Pants': 'Calças de Couro',
+    'Leather Boots': 'Botas de Couro',
+    'Gold Coin': 'Moeda de Ouro'
+};
+
 export class Game {
   private io: Server;
   private players: Map<string, PlayerData> = new Map();
@@ -29,6 +49,7 @@ export class Game {
   private isNight: boolean = false; 
   private resourceNodes: Map<string, ResourceNode> = new Map();
   private activeGatherings: Map<string, NodeJS.Timeout> = new Map();
+  private activeRecalls: Map<string, NodeJS.Timeout> = new Map();
   private craftingStations: Map<string, CraftingStation> = new Map();
 
   constructor(io: Server) {
@@ -329,13 +350,13 @@ export class Game {
                              this.io.emit('itemRemoved', item.id);
                          } else {
                              if (!inventoryFullMsgSent) {
-                                 socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+                                 socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
                                  inventoryFullMsgSent = true;
                              }
                          }
                      } else {
                          if (!inventoryFullMsgSent) {
-                             socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
+                             socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito Pesado!', color: '#ff5555' });
                              inventoryFullMsgSent = true;
                          }
                      }
@@ -450,7 +471,7 @@ export class Game {
                       this.io.emit('itemRemoved', item.id);
                       backpackUpdated = true;
                   } else {
-                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
                       break;
                   }
               }
@@ -471,7 +492,7 @@ export class Game {
           // 1. Checa SP
           const spCost = 10;
           if ((player.sp || 0) < spCost) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'No Mana!', color: '#3b82f6' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Sem Mana!', color: '#3b82f6' });
               return;
           }
 
@@ -542,7 +563,7 @@ export class Game {
           // 1. Checa SP
           const spCost = 20;
           if ((player.sp || 0) < spCost) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'No Mana!', color: '#3b82f6' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Sem Mana!', color: '#3b82f6' });
               return;
           }
 
@@ -590,7 +611,7 @@ export class Game {
 
           // Feedback de miss se ninguém foi atingido
           if (hitCount === 0) {
-              this.io.to(player.id).emit('textEffect', { x: player.x, y: player.y, message: 'No targets!', color: '#888888' });
+              this.io.to(player.id).emit('textEffect', { x: player.x, y: player.y, message: 'Sem alvos!', color: '#888888' });
           }
       });
 
@@ -610,23 +631,23 @@ export class Game {
 
               if (itemName === 'Cheese') {
                   player.health = Math.min(player.maxHealth, player.health + 20);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Munch!', color: '#ffaa00' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Nham!', color: '#ffaa00' });
                   this.io.emit('playerDamaged', { id: player.id, health: player.health, maxHealth: player.maxHealth, amount: -20 });
                   consumed = true;
               } else if (itemName === 'Apple') {
                   player.health = Math.min(player.maxHealth, player.health + 10);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Crunch!', color: '#ffaa00' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Croc!', color: '#ffaa00' });
                   this.io.emit('playerDamaged', { id: player.id, health: player.health, maxHealth: player.maxHealth, amount: -10 });
                   consumed = true;
               } else if (itemName === 'Health Potion') {
                   player.health = Math.min(player.maxHealth, player.health + 50);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Gulp!', color: '#ef4444' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Glup!', color: '#ef4444' });
                   this.io.emit('playerDamaged', { id: player.id, health: player.health, maxHealth: player.maxHealth, amount: -50 });
                   consumed = true;
               } else if (itemName === 'Mana Potion') {
                   const mpGain = 40;
                   player.sp = Math.min(player.maxSp || 50, (player.sp || 0) + mpGain);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Sip!', color: '#818cf8' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Gole!', color: '#818cf8' });
                   socket.emit('statsUpdate', { id: player.id, sp: player.sp, maxSp: player.maxSp, health: player.health, maxHealth: player.maxHealth });
                   consumed = true;
               } else if (itemName === 'Blueberry') {
@@ -661,7 +682,7 @@ export class Game {
                   }
                   if (player.equipment) player.equipment.leftHand = item;
                   this.recalculateStats(player);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Light!', color: '#ffaa00' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Luz!', color: '#ffaa00' });
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Helmet') {
@@ -691,7 +712,7 @@ export class Game {
               } else if (itemName === 'Gold Coin') {
                   player.gold = (player.gold || 0) + 1;
                   socket.emit('statsUpdate', { id: player.id, level: player.level, experience: player.experience, gold: player.gold, health: player.health, maxHealth: player.maxHealth });
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: '+1 Gold', color: '#fbbf24' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: '+1 Ouro', color: '#fbbf24' });
                   consumed = true;
               }
 
@@ -740,7 +761,7 @@ export class Game {
           if (cost && player.gold >= cost) {
               const itemWeight = ITEM_WEIGHTS[itemName] || 5;
               if (player.weight + itemWeight > (player.maxWeight || 250)) {
-                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito Pesado!', color: '#ff5555' });
                   return;
               }
 
@@ -758,12 +779,12 @@ export class Game {
                       health: player.health, maxHealth: player.maxHealth
                   });
                   socket.emit('inventoryUpdate', player.backpack);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Bought!', color: '#00ff00' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Comprado!', color: '#00ff00' });
               } else {
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff0000' });
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff0000' });
               }
           } else {
-              this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Failed', color: '#ff0000' });
+              this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Falhou', color: '#ff0000' });
           }
       });
       
@@ -805,7 +826,7 @@ export class Game {
               health: player.health, maxHealth: player.maxHealth
           });
           socket.emit('inventoryUpdate', player.backpack);
-          this.io.emit('textEffect', { x: player.x, y: player.y, message: `+${sellValue}G`, color: '#fbbf24' });
+          this.io.emit('textEffect', { x: player.x, y: player.y, message: `+${sellValue} Ouro`, color: '#fbbf24' });
       });
 
       // Desequipar Item
@@ -836,7 +857,7 @@ export class Game {
                           health: player.health, maxHealth: player.maxHealth
                       });
                   } else {
-                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
                   }
               }
           }
@@ -856,7 +877,7 @@ export class Game {
               
               // Atualiza o HUD do jogador local
               socket.emit('statsUpdate', { id: player.id, health: player.health, maxHealth: player.maxHealth });
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'REBORN!', color: '#00ff00' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'RENASCIDO!', color: '#00ff00' });
           }
       });
 
@@ -883,7 +904,7 @@ export class Game {
           }
 
           if (usedIndex === -1) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: type === 'hp' ? 'No HP Items!' : 'No Mana Items!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: type === 'hp' ? 'Sem Itens de Vida!' : 'Sem Itens de Mana!', color: '#ff5555' });
               return;
           }
 
@@ -946,7 +967,7 @@ export class Game {
           }
           
           if (!nearStation) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too far from station!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe da bancada!', color: '#ff5555' });
               return;
           }
           
@@ -970,7 +991,7 @@ export class Game {
           }
           
           if (playerProfLvl < recipe.levelRequired) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Level too low!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Nível muito baixo!', color: '#ff5555' });
               return;
           }
 
@@ -978,7 +999,7 @@ export class Game {
           if (recipe.levelRequired >= 2) {
               const isLearned = player.learnedRecipes && player.learnedRecipes.includes(recipe.id);
               if (!isLearned) {
-                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Recipe not learned!', color: '#ff5555' });
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Receita não aprendida!', color: '#ff5555' });
                   return;
               }
           }
@@ -992,7 +1013,7 @@ export class Game {
           });
           
           if (!hasIngredients) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Missing materials!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Materiais ausentes!', color: '#ff5555' });
               return;
           }
           
@@ -1057,7 +1078,7 @@ export class Game {
               if (newXp >= nextLvlReq) {
                   newXp -= nextLvlReq;
                   newLvl++;
-                  socket.emit('textEffect', { x: player.x, y: player.y, message: `Profession Lvl UP!`, color: '#fbbf24' });
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: `Nível de Profissão Subiu!`, color: '#fbbf24' });
               }
               
               player[xpField] = newXp;
@@ -1076,7 +1097,8 @@ export class Game {
               
               if (quality === 'epico') {
                   // Mensagem Global para item Épico
-                  this.io.emit('playerSpoke', { id: player.id, message: `Forjei um item ÉPICO: ${recipe.resultItem}! 🔥` });
+                  const displayItem = ITEM_NAMES_PT[recipe.resultItem] || recipe.resultItem;
+                  this.io.emit('playerSpoke', { id: player.id, message: `Forjei um item ÉPICO: ${displayItem}! 🔥` });
               }
               
               socket.emit('inventoryUpdate', player.backpack);
@@ -1089,7 +1111,7 @@ export class Game {
               });
           } else {
               // Falha: materiais consumidos
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Crafting Failed! materials lost', color: '#ef4444' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Criação Falhou! Materiais perdidos', color: '#ef4444' });
               socket.emit('inventoryUpdate', player.backpack);
           }
       });
@@ -1109,7 +1131,7 @@ export class Game {
           });
           
           if (idx === -1) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Item not found!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Item não encontrado!', color: '#ff5555' });
               return;
           }
           
@@ -1123,7 +1145,8 @@ export class Game {
               for (let i = 0; i < qty; i++) {
                   this.addItemToBackpack(player, ing.itemName);
               }
-              refunded.push(`${qty}x ${ing.itemName}`);
+              const namePt = ITEM_NAMES_PT[ing.itemName] || ing.itemName;
+              refunded.push(`${qty}x ${namePt}`);
           });
           
           this.recalculateWeight(player);
@@ -1135,8 +1158,9 @@ export class Game {
               weight: player.weight, 
               maxWeight: player.maxWeight 
           });
-          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Salvaged!', color: '#3b82f6' });
-          socket.emit('playerSpoke', { id: player.id, message: `Desmontei ${recipe.resultItem} e recuperei ${refunded.join(', ')}!` });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Desmantelado!', color: '#3b82f6' });
+          const displayResult = ITEM_NAMES_PT[recipe.resultItem] || recipe.resultItem;
+          socket.emit('playerSpoke', { id: player.id, message: `Desmontei ${displayResult} e recuperei ${refunded.join(', ')}!` });
       });
 
       // 3. Consertar Equipamentos (Repair All)
@@ -1166,7 +1190,7 @@ export class Game {
           });
           
           if (totalCost === 0) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'All items repaired!', color: '#00ff00' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Todos os itens reparados!', color: '#00ff00' });
               return;
           }
           
@@ -1188,9 +1212,9 @@ export class Game {
                   maxHealth: player.maxHealth
               });
               socket.emit('equipmentUpdate', player.equipment);
-              socket.emit('textEffect', { x: player.x, y: player.y, message: `Repaired! -${totalCost}G`, color: '#00ff00' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Reparado! -${totalCost} Ouro`, color: '#00ff00' });
           } else {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: `Need ${totalCost} Gold!`, color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Necessita de ${totalCost} Ouro!`, color: '#ff5555' });
           }
       });
 
@@ -1202,7 +1226,7 @@ export class Game {
           const index = data.backpackIndex;
           const price = Math.floor(data.price);
           if (price <= 0) {
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Invalid Price!', color: '#ff5555' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Preço Inválido!', color: '#ff5555' });
               return;
           }
           
@@ -1215,7 +1239,7 @@ export class Game {
           createAuctionInDB(player.name, itemStr, price).then(() => {
               socket.emit('inventoryUpdate', player.backpack);
               socket.emit('statsUpdate', { id: player.id, weight: player.weight, maxWeight: player.maxWeight });
-              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Listed!', color: '#00ff00' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Listado!', color: '#00ff00' });
               this.broadcastAuctions();
           }).catch(err => {
               console.error(err);
@@ -1231,12 +1255,12 @@ export class Game {
           
           getAuctionByIdFromDB(auctionId).then((auc) => {
               if (!auc) {
-                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Not found!', color: '#ff5555' });
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Não encontrado!', color: '#ff5555' });
                   return;
               }
               
               if ((buyer.gold || 0) < auc.price) {
-                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'No Gold!', color: '#ff5555' });
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Sem Ouro!', color: '#ff5555' });
                   return;
               }
               
@@ -1244,7 +1268,7 @@ export class Game {
               const parsedItem = this.parseItem(itemStr)!;
               const weight = ITEM_WEIGHTS[parsedItem.name] || 5;
               if (buyer.weight + weight > (buyer.maxWeight || 250)) {
-                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Too Heavy!', color: '#ff5555' });
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Muito Pesado!', color: '#ff5555' });
                   return;
               }
               
@@ -1267,7 +1291,7 @@ export class Game {
                       const sellerSocket = this.io.sockets.sockets.get(sellerPlayer.id);
                       if (sellerSocket) {
                           sellerSocket.emit('statsUpdate', { id: sellerPlayer.id, gold: sellerPlayer.gold });
-                          sellerSocket.emit('textEffect', { x: sellerPlayer.x, y: sellerPlayer.y, message: `Sold! +${auc.price}G`, color: '#00ff00' });
+                          sellerSocket.emit('textEffect', { x: sellerPlayer.x, y: sellerPlayer.y, message: `Vendido! +${auc.price} Ouro`, color: '#00ff00' });
                       }
                   } else {
                       incrementGoldOffline(auc.sellerName, auc.price).catch(console.error);
@@ -1280,7 +1304,7 @@ export class Game {
                       maxWeight: buyer.maxWeight 
                   });
                   socket.emit('inventoryUpdate', buyer.backpack);
-                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Purchased!', color: '#00ff00' });
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Comprado!', color: '#00ff00' });
                   
                   this.broadcastAuctions();
               }).catch(err => {
@@ -1362,12 +1386,12 @@ export class Game {
     if (cycle === 0) {
         this.isNight = false;
         this.io.emit('timeUpdate', { isNight: this.isNight });
-        const msg = 'The sun rises. You are safe for now.';
+        const msg = 'O sol nasce. Você está seguro por enquanto.';
         this.players.forEach(p => { if (!p.isMonster) this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' }); });
     } else if (cycle === 6000) {
         this.isNight = true;
         this.io.emit('timeUpdate', { isNight: this.isNight });
-        const msg = 'The sun goes down. The monsters get stronger...';
+        const msg = 'O sol se põe. Os monstros ficam mais fortes...';
         this.players.forEach(p => { if (!p.isMonster) this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#aa00ff' }); });
     }
 
@@ -1598,7 +1622,7 @@ export class Game {
                attacker.health = attacker.maxHealth; // Cura total ao upar
                
                this.io.emit('levelUp', { id: attacker.id, level: attacker.level });
-               this.io.emit('textEffect', { x: attacker.x, y: attacker.y, message: 'Level Up!', color: '#ffff00' });
+               this.io.emit('textEffect', { x: attacker.x, y: attacker.y, message: 'Subiu de Nível!', color: '#ffff00' });
             }
             
             // Sempre enviar a atualização completa pro cliente
@@ -1953,7 +1977,7 @@ export class Game {
                   sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
                   health: p.health, maxHealth: p.maxHealth
               });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'REBORN!', color: '#ff00ff' });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'RENASCIDO!', color: '#ff00ff' });
               await savePlayerToDB(p);
           } else {
               // Se offline, atualiza SQLite pelo nome
@@ -1967,7 +1991,7 @@ export class Game {
           if (p && !p.isMonster) {
               p.gold = (p.gold || 0) + 1000;
               this.io.to(p.id).emit('statsUpdate', { id: p.id, level: p.level, experience: p.experience, gold: p.gold, stats: p.stats, statPoints: p.statPoints, health: p.health, maxHealth: p.maxHealth });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: '+1000G GM', color: '#fbbf24' });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: '+1000 Ouro GM', color: '#fbbf24' });
               await savePlayerToDB(p);
           } else {
               await incrementGoldOffline(idOrName, 1000);
@@ -1991,7 +2015,7 @@ export class Game {
                   sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight,
                   health: p.health, maxHealth: p.maxHealth
               });
-              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'GM EDITED STATS!', color: '#00ffff' });
+              this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: 'GM EDITOU ATRIBUTOS!', color: '#00ffff' });
               await savePlayerToDB(p);
           } else {
               await updatePlayerOffline(data.name, data.level, data.gold, data.statPoints);
@@ -2007,7 +2031,7 @@ export class Game {
       socket.on('admin:setTime', (isNight: boolean) => {
           this.isNight = isNight;
           this.io.emit('timeUpdate', { isNight: this.isNight });
-          const msg = isNight ? 'The GM forced Night...' : 'The GM forced Day...';
+          const msg = isNight ? 'O GM forçou a Noite...' : 'O GM forçou o Dia...';
           this.players.forEach(p => { if (!p.isMonster) this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: msg, color: isNight ? '#aa00ff' : '#ffff00' }); });
       });
 
@@ -2117,6 +2141,25 @@ export class Game {
             this.activeGatherings.set(socket.id, timeout);
         });
 
+        socket.on('startRecall', () => {
+             const player = this.players.get(socket.id);
+             if (!player || player.isDead) return;
+
+             // Cancela qualquer canalização de coleta ou recall ativa
+             this.cancelGathering(socket.id);
+
+             // Inicia canalização de 5 segundos (5000ms)
+             const duration = 5000;
+             socket.emit('recallStarted', { duration });
+
+             const timeout = setTimeout(() => {
+                 this.activeRecalls.delete(socket.id);
+                 this.completeRecall(socket);
+             }, duration);
+
+             this.activeRecalls.set(socket.id, timeout);
+         });
+
   }
 
   private setupResourceNodes() {
@@ -2167,6 +2210,33 @@ export class Game {
           this.activeGatherings.delete(socketId);
           this.io.to(socketId).emit('gatheringCancelled');
       }
+      this.cancelRecall(socketId);
+  }
+
+  private cancelRecall(socketId: string) {
+      const timeout = this.activeRecalls.get(socketId);
+      if (timeout) {
+          clearTimeout(timeout);
+          this.activeRecalls.delete(socketId);
+          this.io.to(socketId).emit('recallCancelled');
+      }
+  }
+
+  private completeRecall(socket: Socket) {
+      const player = this.players.get(socket.id);
+      if (!player || player.isDead) return;
+
+      player.x = 10;
+      player.y = 10;
+      player.targetId = undefined;
+
+      // Notifica todos que o jogador se moveu
+      this.io.emit('playerMoved', player);
+
+      // Atualiza o HUD do jogador local
+      socket.emit('statsUpdate', { id: player.id, health: player.health, maxHealth: player.maxHealth });
+      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Retornou!', color: '#3b82f6' });
+      socket.emit('recallCompleted');
   }
 
   private completeGathering(socket: Socket, node: ResourceNode) {
@@ -2176,7 +2246,7 @@ export class Game {
       const dx = Math.abs(node.x - player.x);
       const dy = Math.abs(node.y - player.y);
       if (dx > 1 || dy > 1 || node.state === 'depleted') {
-          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Gathering failed!', color: '#ff5555' });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Coleta falhou!', color: '#ff5555' });
           return;
       }
 
@@ -2202,13 +2272,13 @@ export class Game {
 
       const itemWeight = ITEM_WEIGHTS[itemName] || 5;
       if (player.weight + itemWeight > (player.maxWeight || 250)) {
-          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Too Heavy!', color: '#ff5555' });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito Pesado!', color: '#ff5555' });
           return;
       }
 
       const added = this.addItemToBackpack(player, itemName);
       if (!added) {
-          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Full!', color: '#ff5555' });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
           return;
       }
 
@@ -2230,7 +2300,7 @@ export class Game {
           if (newXp >= nextLvlXp) {
               newXp -= nextLvlXp;
               newLvl++;
-              socket.emit('textEffect', { x: player.x, y: player.y, message: `Lvl UP ${node.type === 'ore' ? 'Mining' : node.type === 'tree' ? 'Woodcutting' : 'Herbalism'}!`, color: '#eab308' });
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Nível Subiu: ${node.type === 'ore' ? 'Mineração' : node.type === 'tree' ? 'Lenhador' : 'Herborismo'}!`, color: '#eab308' });
           }
 
           player[xpField] = newXp;
@@ -2239,7 +2309,8 @@ export class Game {
 
       this.recalculateWeight(player);
 
-      socket.emit('textEffect', { x: player.x, y: player.y, message: `+1 ${itemName}`, color: '#10b981' });
+      const displayItemName = ITEM_NAMES_PT[itemName] || itemName;
+      socket.emit('textEffect', { x: player.x, y: player.y, message: `+1 ${displayItemName}`, color: '#10b981' });
       socket.emit('inventoryUpdate', player.backpack);
       socket.emit('statsUpdate', { 
           id: player.id, 

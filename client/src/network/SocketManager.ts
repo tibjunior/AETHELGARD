@@ -152,6 +152,18 @@ export class SocketManager {
       this.scene.onGatheringCancelled();
     });
 
+    this.socket.on('recallStarted', (data: { duration: number }) => {
+      this.scene.onRecallStarted(data.duration);
+    });
+
+    this.socket.on('recallCancelled', () => {
+      this.scene.onRecallCancelled();
+    });
+
+    this.socket.on('recallCompleted', () => {
+      this.scene.onRecallCompleted();
+    });
+
     this.socket.on('equipmentUpdate', (eq: any) => {
         this.scene.onEquipmentUpdate(eq);
     });
@@ -311,10 +323,11 @@ export class SocketManager {
           div.style.padding = '8px';
           div.style.borderBottom = '1px solid #333';
           
+          const displayItemName = (window as any).translateItem ? (window as any).translateItem(item.name) : item.name;
           div.innerHTML = `
-              <span class="shop-item-hover" style="cursor: help; text-decoration: underline dotted rgba(255,255,255,0.3);">${item.emoji} ${item.name}</span>
+              <span class="shop-item-hover" style="cursor: help; text-decoration: underline dotted rgba(255,255,255,0.3);">${item.emoji} ${displayItemName}</span>
               <button style="background: #fbbf24; color: black; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                 Buy (${item.price}G)
+                 Comprar (${item.price} Ouro)
               </button>
           `;
           

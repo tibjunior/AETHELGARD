@@ -507,7 +507,7 @@
 
       <!-- Player Status HUD (Top-Left) -->
       <div id="hud-player">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px;">
+        <div class="hud-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px; cursor: move; user-select: none;">
           <span id="player-name-display" style="font-family: var(--font-title); font-weight: 700; color: #f8fafc; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">TIBERIUS</span>
           <span id="player-level-display" style="font-family: var(--font-text); font-weight: 700; color: var(--accent-gold); font-size: 11px; background: rgba(251, 191, 36, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(251, 191, 36, 0.3);">Level 1</span>
         </div>
@@ -869,7 +869,7 @@
       function makeDraggable(modalId) {
           const modal = document.getElementById(modalId);
           if (!modal) return;
-          const header = modal.querySelector('.modal-header');
+          const header = modal.querySelector('.modal-header, .hud-header');
           if (!header) return;
           
           let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -904,7 +904,7 @@
       }
       
       // Make modals draggable and bring to front on click
-      ['autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
+      ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
           makeDraggable(id);
           const modal = document.getElementById(id);
           if (modal) {

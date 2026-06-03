@@ -17,6 +17,10 @@ export class GameScene extends Phaser.Scene {
   private gatheringProgressBar?: Phaser.GameObjects.Graphics;
   private gatheringProgressText?: Phaser.GameObjects.Text;
   private gatheringTimerEvent?: Phaser.Time.TimerEvent;
+  private recallProgressBar?: Phaser.GameObjects.Graphics;
+  private recallProgressText?: Phaser.GameObjects.Text;
+  private recallTimerEvent?: Phaser.Time.TimerEvent;
+  private recallGlowGraphics?: Phaser.GameObjects.Graphics;
 
   // Profissões de Criação e Receitas do Jogador
   private professionSmithingLevel: number = 1;
@@ -75,7 +79,11 @@ export class GameScene extends Phaser.Scene {
       'Apple': { name: 'Maçã Vermelha', desc: 'Cura: +10 HP | Peso: 2.0 oz\nFruta fresca e crocante.', color: '#ef4444' },
       'Cheese': { name: 'Pedaço de Queijo', desc: 'Cura: +20 HP | Peso: 2.0 oz\nQueijo saboroso e curado.', color: '#fbbf24' },
       'Blueberry': { name: 'Mirtilo Azul', desc: 'Mana: +15 SP | Peso: 1.0 oz\nFrutinha azul que restaura levemente a mana.', color: '#a78bfa' },
-      'Gold Coin': { name: 'Moeda de Ouro', desc: 'Ouro: +1 G | Peso: 0.1 oz\nMoeda brilhante de ouro.', color: '#eab308' }
+      'Gold Coin': { name: 'Moeda de Ouro', desc: 'Ouro: +1 G | Peso: 0.1 oz\nMoeda brilhante de ouro.', color: '#eab308' },
+      'Iron Ore': { name: 'Minério de Ferro', desc: 'Peso: 8.0 oz\nMinério bruto extraído de depósitos rochosos.', color: '#94a3b8' },
+      'Wood Log': { name: 'Tronco de Madeira', desc: 'Peso: 6.0 oz\nMadeira cortada pronta para uso.', color: '#b45309' },
+      'Medicinal Herb': { name: 'Erva Medicinal', desc: 'Peso: 2.0 oz\nUma erva com propriedades curativas básicas.', color: '#10b981' },
+      'Leather Hide': { name: 'Pele de Couro', desc: 'Peso: 4.0 oz\nPele obtida de criaturas selvagens.', color: '#78350f' }
   };
   
   constructor() {
@@ -83,6 +91,78 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    (window as any).translateMonster = (name: string): string => {
+        const MONSTER_NAMES_PT: Record<string, string> = {
+            'Giant Rat': 'Rato Gigante',
+            'Orc': 'Orc',
+            'Rotworm': 'Verme da Podridão',
+            'Demon Skeleton': 'Esqueleto Demônio',
+            'Merchant': 'Mercador'
+        };
+        return MONSTER_NAMES_PT[name] || name;
+    };
+
+    (window as any).translateItem = (itemStr: string): string => {
+        if (!itemStr) return '';
+        let name = itemStr;
+        let quality = '';
+        
+        if (itemStr.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(itemStr);
+                name = parsed.name;
+                quality = parsed.quality || '';
+            } catch (e) {}
+        } else if (itemStr.includes(':')) {
+            [name] = itemStr.split(':');
+        }
+        
+        if (name.includes(' (')) {
+            const parts = name.split(' (');
+            name = parts[0];
+            if (!quality) {
+                const qPart = parts[1].replace(')', '');
+                quality = qPart;
+            }
+        }
+        
+        const ITEM_NAMES_PT: Record<string, string> = {
+            'Torch': 'Tocha',
+            'Apple': 'Maçã',
+            'Cheese': 'Queijo',
+            'Health Potion': 'Poção de Vida',
+            'Mana Potion': 'Poção de Mana',
+            'Blueberry': 'Mirtilo',
+            'Steel Sword': 'Espada de Aço',
+            'Wood Sword': 'Espada de Madeira',
+            'Iron Ore': 'Minério de Ferro',
+            'Wood Log': 'Tronco de Madeira',
+            'Medicinal Herb': 'Erva Medicinal',
+            'Leather Hide': 'Pele de Couro',
+            'Helmet': 'Elmo de Aço',
+            'Armor': 'Armadura de Placas',
+            'Pants': 'Calças de Couro',
+            'Leather Boots': 'Botas de Couro',
+            'Gold Coin': 'Moeda de Ouro'
+        };
+        
+        const QUALITY_NAMES_PT: Record<string, string> = {
+            'comum': 'Comum',
+            'raro': 'Raro',
+            'epico': 'Épico',
+            'common': 'Comum',
+            'rare': 'Raro',
+            'epic': 'Épico'
+        };
+        
+        const translatedName = ITEM_NAMES_PT[name] || name;
+        if (quality) {
+            const transQuality = QUALITY_NAMES_PT[quality.toLowerCase()] || quality;
+            return `${translatedName} (${transQuality})`;
+        }
+        return translatedName;
+    };
+
     this.wallsGroup = this.add.group();
     this.createWorld();
     
@@ -791,7 +871,7 @@ export class GameScene extends Phaser.Scene {
      
      // Atualiza a aba Sell da loja se ela estiver aberta
      if (document.getElementById('shop-ui')?.style.display === 'flex') {
-         this.renderShopSell();
+          this.renderShopSell();
      }
   }
   
@@ -799,10 +879,11 @@ export class GameScene extends Phaser.Scene {
       const content = document.getElementById('shop-content');
       if (!content) return;
       
-      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25 };
+      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
       const emojis: Record<string, string> = { 
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 
-          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦' 
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
       };
       
       content.innerHTML = '';
@@ -812,10 +893,24 @@ export class GameScene extends Phaser.Scene {
       this.backpackData.forEach((itemString, index) => {
           if (itemString && itemString !== '') {
               hasItems = true;
-              const [itemName, countStr] = itemString.split(':');
-              const count = parseInt(countStr) || 1;
-              const emoji = emojis[itemName] || '📦';
-              const val = sellPrices[itemName] || 1;
+              
+              let baseItemName = itemString;
+              let count = 1;
+              
+              if (itemString.startsWith('{')) {
+                  try {
+                      const parsed = JSON.parse(itemString);
+                      baseItemName = parsed.name;
+                  } catch (e) {}
+              } else if (itemString.includes(':')) {
+                  const [name, countStr] = itemString.split(':');
+                  baseItemName = name;
+                  count = parseInt(countStr) || 1;
+              }
+              
+              const emoji = emojis[baseItemName] || '📦';
+              const val = sellPrices[baseItemName] || 1;
+              const displayItemName = (window as any).translateItem ? (window as any).translateItem(itemString) : baseItemName;
               
               const div = document.createElement('div');
               div.style.display = 'flex';
@@ -825,9 +920,9 @@ export class GameScene extends Phaser.Scene {
               div.style.borderBottom = '1px solid #333';
               
               div.innerHTML = `
-                  <span class="shop-item-hover" style="cursor: help; text-decoration: underline dotted rgba(255,255,255,0.3);">${emoji} ${itemName} (x${count})</span>
+                  <span class="shop-item-hover" style="cursor: help; text-decoration: underline dotted rgba(255,255,255,0.3);">${emoji} ${displayItemName} (x${count})</span>
                   <button style="background: #ff4444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold;">
-                      Sell (+${val}G)
+                      Vender (+${val} Ouro)
                   </button>
               `;
               
@@ -838,7 +933,7 @@ export class GameScene extends Phaser.Scene {
                   const tDesc = document.getElementById('tooltip-desc')!;
                   
                   span.addEventListener('mouseenter', (e) => {
-                      const details = this.itemDetails[itemName] || { name: itemName, desc: 'Item na bolsa', color: '#ffffff' };
+                      const details = this.itemDetails[baseItemName] || { name: baseItemName, desc: 'Item na bolsa', color: '#ffffff' };
                       tName.innerText = details.name;
                       tName.style.color = details.color;
                       tDesc.innerText = details.desc;
@@ -850,7 +945,7 @@ export class GameScene extends Phaser.Scene {
                   span.addEventListener('mouseleave', () => {
                       tooltip.style.display = 'none';
                   });
-              }
+               }
               
               div.querySelector('button')!.onclick = () => {
                   this.socketManager.sendSell(index);
@@ -861,7 +956,7 @@ export class GameScene extends Phaser.Scene {
       });
       
       if (!hasItems) {
-          content.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">Your backpack is empty.</div>';
+          content.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">Sua mochila está vazia.</div>';
       }
   }
 
@@ -1066,7 +1161,8 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Merchant') nameColor = '#fbbf24';
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
-    this.add.text(sprite.x, sprite.y - 30, data.name, { fontSize: '10px', color: nameColor }).setOrigin(0.5);
+    const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
+    this.add.text(sprite.x, sprite.y - 30, displayName, { fontSize: '10px', color: nameColor }).setOrigin(0.5);
 
     // Botão ESQUERDO = selecionar (marcar target), sem atacar
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -1236,6 +1332,12 @@ export class GameScene extends Phaser.Scene {
       // Atalho do Autofarm
       if (event.key.toLowerCase() === 'f') {
           this.toggleAutofarm();
+          return;
+      }
+
+      // Atalho de retornar para a base (Recall)
+      if (event.key.toLowerCase() === 'b') {
+          this.socketManager.socket.emit('startRecall');
           return;
       }
 
@@ -1528,6 +1630,14 @@ export class GameScene extends Phaser.Scene {
       const tDesc = document.getElementById('tooltip-desc')!;
 
       const getTooltipData = (slotEl: HTMLElement): { name: string, desc: string, color: string } | null => {
+          const QUALITY_NAMES_PT: Record<string, string> = {
+              'comum': 'Comum',
+              'raro': 'Raro',
+              'epico': 'Épico',
+              'common': 'Comum',
+              'rare': 'Raro',
+              'epic': 'Épico'
+          };
           const id = slotEl.id;
           if (id && id.startsWith('slot-')) {
               const eqSlot = id.replace('slot-', '');
@@ -1536,10 +1646,51 @@ export class GameScene extends Phaser.Scene {
                   'body': 'body', 'legs': 'legs', 'boots': 'boots'
               };
               const key = slotMap[eqSlot];
-              const itemName = this.equipmentData ? this.equipmentData[key] : null;
+              const itemString = this.equipmentData ? this.equipmentData[key] : null;
               
-              if (itemName) {
-                  return this.itemDetails[itemName] || { name: itemName, desc: 'Equipamento', color: '#ffffff' };
+              if (itemString) {
+                  let itemName = itemString;
+                  let quality = 'comum';
+                  let stats: any = null;
+                  let durability = 100;
+                  let maxDurability = 100;
+                  
+                  if (itemString.startsWith('{')) {
+                      try {
+                          const parsed = JSON.parse(itemString);
+                          itemName = parsed.name;
+                          quality = parsed.quality || 'comum';
+                          stats = parsed.stats;
+                          durability = parsed.durability ?? 100;
+                          maxDurability = parsed.maxDurability ?? 100;
+                      } catch (e) {}
+                  }
+                  
+                  const details = this.itemDetails[itemName] || { name: itemName, desc: 'Equipamento', color: '#ffffff' };
+                  let displayName = details.name;
+                  let displayDesc = details.desc;
+                  let displayColor = details.color;
+                  
+                  if (quality && quality !== 'comum') {
+                      const transQuality = QUALITY_NAMES_PT[quality.toLowerCase()] || quality;
+                      displayName += ` [${transQuality}]`;
+                      if (quality.toLowerCase() === 'raro' || quality.toLowerCase() === 'rare') {
+                          displayColor = '#3b82f6';
+                      } else if (quality.toLowerCase() === 'epico' || quality.toLowerCase() === 'epic') {
+                          displayColor = '#a78bfa';
+                      }
+                  }
+                  
+                  if (stats && Object.keys(stats).length > 0) {
+                      displayDesc += '\n\nAtributos adicionais:';
+                      for (const [stat, val] of Object.entries(stats)) {
+                          displayDesc += `\n +${val} ${stat}`;
+                      }
+                  }
+                  
+                  displayDesc += `\n\nDurabilidade: ${durability}/${maxDurability}`;
+                  
+                  return { name: displayName, desc: displayDesc, color: displayColor };
               } else {
                   const emptyNames: Record<string, string> = {
                       'head': 'Slot de Cabeça', 'left': 'Mão Esquerda', 'right': 'Mão Direita',
@@ -1562,18 +1713,66 @@ export class GameScene extends Phaser.Scene {
               const index = parseInt(indexAttr);
               const itemString = this.backpackData[index];
               if (itemString) {
-                  const [itemName, countStr] = itemString.split(':');
-                  const count = parseInt(countStr) || 1;
+                  let itemName = itemString;
+                  let count = 1;
+                  let quality = 'comum';
+                  let stats: any = null;
+                  let durability: number | undefined;
+                  let maxDurability: number | undefined;
+                  
+                  if (itemString.startsWith('{')) {
+                      try {
+                          const parsed = JSON.parse(itemString);
+                          itemName = parsed.name;
+                          quality = parsed.quality || 'comum';
+                          stats = parsed.stats;
+                          durability = parsed.durability;
+                          maxDurability = parsed.maxDurability;
+                      } catch (e) {}
+                  } else if (itemString.includes(':')) {
+                      const [name, countStr] = itemString.split(':');
+                      itemName = name;
+                      count = parseInt(countStr) || 1;
+                  }
+                  
                   const details = this.itemDetails[itemName];
                   if (details) {
+                      let displayName = details.name;
+                      let displayDesc = details.desc;
+                      let displayColor = details.color;
+                      
+                      if (quality && quality !== 'comum') {
+                          const transQuality = QUALITY_NAMES_PT[quality.toLowerCase()] || quality;
+                          displayName += ` [${transQuality}]`;
+                          if (quality.toLowerCase() === 'raro' || quality.toLowerCase() === 'rare') {
+                              displayColor = '#3b82f6';
+                          } else if (quality.toLowerCase() === 'epico' || quality.toLowerCase() === 'epic') {
+                              displayColor = '#a78bfa';
+                          }
+                      }
+                      
+                      if (stats && Object.keys(stats).length > 0) {
+                          displayDesc += '\n\nAtributos adicionais:';
+                          for (const [stat, val] of Object.entries(stats)) {
+                              displayDesc += `\n +${val} ${stat}`;
+                          }
+                      }
+                      
+                      if (durability !== undefined && maxDurability !== undefined) {
+                          displayDesc += `\n\nDurabilidade: ${durability}/${maxDurability}`;
+                      }
+                      
                       const countText = count > 1 ? ` (x${count})` : '';
                       return {
-                          name: details.name + countText,
-                          desc: details.desc,
-                          color: details.color
+                          name: displayName + countText,
+                          desc: displayDesc,
+                          color: displayColor
                       };
                   }
-                  return { name: itemName, desc: `Item (x${count})`, color: '#ffffff' };
+                  
+                  const countText = count > 1 ? ` (x${count})` : '';
+                  const displayItemName = (window as any).translateItem ? (window as any).translateItem(itemString) : itemName;
+                  return { name: displayItemName + countText, desc: `Item (x${count})`, color: '#ffffff' };
               } else {
                   return { name: 'Espaço Vazio', desc: 'Slot de inventário livre.', color: '#475569' };
               }
@@ -2008,6 +2207,95 @@ export class GameScene extends Phaser.Scene {
       }
   }
 
+  public onRecallStarted(duration: number) {
+      this.onRecallCancelled();
+      
+      if (!this.localPlayerSprite) return;
+      
+      const width = 60;
+      const height = 8;
+      
+      this.recallProgressBar = this.add.graphics();
+      this.recallProgressBar.setDepth(15);
+      
+      this.recallProgressText = this.add.text(this.localPlayerSprite.x, this.localPlayerSprite.y - 45, 'Retornando à base...', {
+          fontSize: '8px',
+          color: '#3b82f6',
+          fontStyle: 'bold'
+      }).setOrigin(0.5).setDepth(15);
+
+      this.recallGlowGraphics = this.add.graphics();
+      this.recallGlowGraphics.setDepth(this.localPlayerSprite.depth - 1);
+
+      const startTime = Date.now();
+      
+      this.recallTimerEvent = this.time.addEvent({
+          delay: 20,
+          loop: true,
+          callback: () => {
+              if (!this.localPlayerSprite || !this.recallProgressBar || !this.recallGlowGraphics) return;
+              
+              const elapsed = Date.now() - startTime;
+              const pct = Math.min(elapsed / duration, 1.0);
+              
+              // Barra de Progresso
+              this.recallProgressBar.clear();
+              this.recallProgressBar.fillStyle(0x000000, 0.7);
+              this.recallProgressBar.fillRect(this.localPlayerSprite.x - width / 2, this.localPlayerSprite.y - 35, width, height);
+              
+              this.recallProgressBar.fillStyle(0x3b82f6, 1.0);
+              this.recallProgressBar.fillRect(this.localPlayerSprite.x - width / 2 + 1, this.localPlayerSprite.y - 34, (width - 2) * pct, height - 2);
+              
+              if (this.recallProgressText) {
+                  this.recallProgressText.x = this.localPlayerSprite.x;
+                  this.recallProgressText.y = this.localPlayerSprite.y - 45;
+              }
+              
+              // Efeito de Brilho Neon Pulsante (Glow Aura)
+              this.recallGlowGraphics.clear();
+              const pulse = Math.sin(Date.now() / 150) * 0.25 + 0.75;
+              const radius = 16 + pulse * 8;
+              
+              for (let i = 1; i <= 3; i++) {
+                  const alpha = (0.25 / i) * pulse;
+                  const r = radius + i * 4;
+                  this.recallGlowGraphics.fillStyle(0x60a5fa, alpha);
+                  this.recallGlowGraphics.fillCircle(this.localPlayerSprite.x, this.localPlayerSprite.y + 4, r);
+              }
+              
+              this.recallGlowGraphics.fillStyle(0xffffff, 0.4 * pulse);
+              this.recallGlowGraphics.fillCircle(this.localPlayerSprite.x, this.localPlayerSprite.y + 4, 12);
+              
+              if (pct >= 1.0) {
+                  this.onRecallCancelled();
+              }
+          }
+      });
+  }
+
+  public onRecallCancelled() {
+      if (this.recallTimerEvent) {
+          this.recallTimerEvent.destroy();
+          this.recallTimerEvent = undefined;
+      }
+      if (this.recallProgressBar) {
+          this.recallProgressBar.destroy();
+          this.recallProgressBar = undefined;
+      }
+      if (this.recallProgressText) {
+          this.recallProgressText.destroy();
+          this.recallProgressText = undefined;
+      }
+      if (this.recallGlowGraphics) {
+          this.recallGlowGraphics.destroy();
+          this.recallGlowGraphics = undefined;
+      }
+  }
+
+  public onRecallCompleted() {
+      this.onRecallCancelled();
+  }
+
   public openCraftingUI(station: CraftingStation) {
       const ui = document.getElementById('crafting-ui');
       if (!ui) return;
@@ -2067,7 +2355,7 @@ export class GameScene extends Phaser.Scene {
               div.style.color = '#e2e8f0';
           }
 
-          div.innerText = `⚒️ ${recipe.resultItem}${statusText}`;
+          div.innerText = `⚒️ ${recipe.name}${statusText}`;
           
           div.onclick = () => {
               Array.from(listEl.children).forEach(child => (child as HTMLElement).style.background = 'transparent');
@@ -2087,7 +2375,8 @@ export class GameScene extends Phaser.Scene {
       const emojis: Record<string, string> = { 
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
+          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
       };
 
       const resultEmoji = emojis[recipe.resultItem] || '📦';
@@ -2097,9 +2386,10 @@ export class GameScene extends Phaser.Scene {
           const countInBackpack = this.countItemInBackpackClient(ing.itemName);
           const color = countInBackpack >= ing.count ? '#22c55e' : '#ef4444';
           const ingEmoji = emojis[ing.itemName] || '📦';
+          const translatedIngName = (window as any).translateItem ? (window as any).translateItem(ing.itemName) : ing.itemName;
           ingredsHtml += `
               <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:11px; color:${color};">
-                  <span>${ingEmoji} ${ing.itemName}</span>
+                  <span>${ingEmoji} ${translatedIngName}</span>
                   <span>${countInBackpack}/${ing.count}</span>
               </div>
           `;
@@ -2113,7 +2403,7 @@ export class GameScene extends Phaser.Scene {
       detailsEl.innerHTML = `
           <div style="text-align:center; margin-bottom:12px;">
               <span style="font-size:32px; display:block;">${resultEmoji}</span>
-              <span style="font-weight:bold; font-size:14px; color:#fbbf24;">${recipe.resultItem}</span>
+              <span style="font-weight:bold; font-size:14px; color:#fbbf24;">${recipe.name}</span>
               <span style="font-size:10px; color:#94a3b8; display:block; margin-top:2px;">Chance de Sucesso: ${successChance}%</span>
           </div>
 
@@ -2175,7 +2465,8 @@ export class GameScene extends Phaser.Scene {
       const emojis: Record<string, string> = { 
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾'
+          'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+          'Iron Ore': '🪨', 'Wood Log': '🪵', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
       };
 
       let html = '<div style="display:flex; flex-direction:column; gap:10px; font-family:monospace;">';
@@ -2189,27 +2480,15 @@ export class GameScene extends Phaser.Scene {
               let itemEmoji = '📦';
               
               if (typeof auc.itemData === 'string') {
-                  if (auc.itemData.startsWith('{')) {
-                      try {
-                          const parsed = JSON.parse(auc.itemData);
-                          itemName = parsed.name;
-                          if (parsed.quality && parsed.quality !== 'comum') {
-                              itemName += ` (${parsed.quality})`;
-                          }
-                      } catch (e) {
-                          itemName = auc.itemData;
-                      }
-                  } else {
-                      itemName = auc.itemData;
-                  }
+                  itemName = (window as any).translateItem ? (window as any).translateItem(auc.itemData) : auc.itemData;
               } else if (auc.itemData && typeof auc.itemData === 'object') {
-                  itemName = auc.itemData.name;
-                  if (auc.itemData.quality && auc.itemData.quality !== 'comum') {
-                      itemName += ` (${auc.itemData.quality})`;
-                  }
+                  const itemStr = JSON.stringify(auc.itemData);
+                  itemName = (window as any).translateItem ? (window as any).translateItem(itemStr) : auc.itemData.name;
               }
               
-              const baseName = itemName.split(' (')[0];
+              const baseName = typeof auc.itemData === 'string'
+                  ? (auc.itemData.startsWith('{') ? JSON.parse(auc.itemData).name : auc.itemData.split(':')[0])
+                  : auc.itemData.name;
               itemEmoji = emojis[baseName] || '📦';
               
               html += `
@@ -2232,24 +2511,10 @@ export class GameScene extends Phaser.Scene {
       this.backpackData.forEach((itemString, index) => {
           if (itemString && itemString !== '') {
               hasItems = true;
-              let itemName = '';
+              let itemName = (window as any).translateItem ? (window as any).translateItem(itemString) : itemString;
               let itemEmoji = '📦';
               
-              if (itemString.startsWith('{')) {
-                  try {
-                      const parsed = JSON.parse(itemString);
-                      itemName = parsed.name;
-                      if (parsed.quality && parsed.quality !== 'comum') {
-                          itemName += ` (${parsed.quality})`;
-                      }
-                  } catch (e) {
-                      itemName = itemString;
-                  }
-              } else {
-                  [itemName] = itemString.split(':');
-              }
-              
-              const baseName = itemName.split(' (')[0];
+              const baseName = itemString.startsWith('{') ? JSON.parse(itemString).name : itemString.split(':')[0];
               itemEmoji = emojis[baseName] || '📦';
               
               html += `
