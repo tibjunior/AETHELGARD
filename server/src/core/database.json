@@ -1,0 +1,92 @@
+{
+  "Tiberius": {
+    "id": "iD40aMUzAhge-ZCdAAAF",
+    "name": "Tiberius",
+    "x": 14,
+    "y": 13,
+    "health": 175,
+    "maxHealth": 175,
+    "speed": 185,
+    "equipment": {
+      "head": "Helmet",
+      "body": "Armor",
+      "legs": "Pants",
+      "boots": "Leather Boots",
+      "leftHand": "Torch",
+      "rightHand": "Wood Sword"
+    },
+    "level": 5,
+    "experience": 50,
+    "gold": 949,
+    "backpack": [
+      "Steel Sword"
+    ],
+    "stats": {
+      "FOR": 10,
+      "AGI": 5,
+      "VIT": 5,
+      "INT": 5,
+      "DES": 8,
+      "SOR": 7
+    },
+    "statPoints": 10,
+    "attack": 31,
+    "facing": "right",
+    "sp": 47,
+    "weight": 33,
+    "maxSp": 55,
+    "matk": 17,
+    "def": 18,
+    "mdef": 2,
+    "hit": 115,
+    "dodge": 12,
+    "crit": 3,
+    "aspd": 1430,
+    "maxWeight": 400,
+    "isDead": false
+  },
+  "AdminGM": {
+    "id": "vL2Reho6KFl7JmWbAAAB",
+    "name": "AdminGM",
+    "x": 10,
+    "y": 10,
+    "health": 155,
+    "maxHealth": 155,
+    "speed": 185,
+    "equipment": {
+      "head": "Helmet",
+      "body": "Armor",
+      "legs": "Pants",
+      "boots": "Leather Boots",
+      "leftHand": "Torch",
+      "rightHand": "Wood Sword"
+    },
+    "level": 1,
+    "experience": 0,
+    "gold": 1000,
+    "backpack": [],
+    "stats": {
+      "FOR": 5,
+      "AGI": 5,
+      "VIT": 5,
+      "INT": 5,
+      "DES": 5,
+      "SOR": 5
+    },
+    "statPoints": 0,
+    "sp": 47,
+    "weight": 0,
+    "maxSp": 47,
+    "attack": 20,
+    "matk": 16,
+    "def": 18,
+    "mdef": 2,
+    "hit": 107,
+    "dodge": 7,
+    "crit": 2,
+    "aspd": 1438,
+    "maxWeight": 250,
+    "facing": "down",
+    "isDead": false
+  }
+}

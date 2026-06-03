@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aethelgard - MMORPG</title>
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        background-color: #0f172a; /* Fundo noturno escuro */
+        overflow: hidden; /* Remove barras de rolagem */
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: row;
+      }
+      #game-container {
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.8);
+        position: relative;
+      }
+      /* =============================================
+         HOTKEY / ACTION BAR
+      ============================================= */
+      #action-bar {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: flex-end;
+        gap: 4px;
+        z-index: 100;
+        pointer-events: none;
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.8));
+      }
+
+      /* Separador vertical */
+      .hk-sep {
+        width: 2px;
+        height: 44px;
+        background: linear-gradient(to bottom, transparent, #475569, transparent);
+        margin: 0 4px;
+        align-self: center;
+      }
+
+      /* Slot base */
+      .hk-slot {
+        position: relative;
+        width: 52px;
+        height: 52px;
+        background: linear-gradient(145deg, #1e293b, #0f172a);
+        border: 2px solid #334155;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        color: #e2e8f0;
+        transition: border-color 0.15s, box-shadow 0.15s, transform 0.08s;
+        overflow: hidden;
+        cursor: default;
+        user-select: none;
+      }
+
+      /* Flash ao pressionar */
+      .hk-slot.hk-pressed {
+        transform: scale(0.88);
+        border-color: #7dd3fc;
+        box-shadow: 0 0 12px rgba(125,211,252,0.5);
+      }
+
+      /* Badge da tecla (canto inferior direito) */
+      .hk-key {
+        position: absolute;
+        bottom: 3px;
+        right: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 9px;
+        font-weight: 700;
+        color: #94a3b8;
+        letter-spacing: -0.5px;
+        line-height: 1;
+        text-shadow: 0 1px 2px #000;
+      }
+
+      /* Borda colorida por tipo */
+      .hk-slot.hk-hp  { border-color: #7f1d1d; }
+      .hk-slot.hk-hp:not(.hk-empty):hover  { border-color: #ef4444; box-shadow: 0 0 10px rgba(239,68,68,0.4); }
+      .hk-slot.hk-mp  { border-color: #1e3a5f; }
+      .hk-slot.hk-mp:not(.hk-empty):hover  { border-color: #3b82f6; box-shadow: 0 0 10px rgba(59,130,246,0.4); }
+      .hk-slot.hk-skill { border-color: #292524; }
+      .hk-slot.hk-skill:hover { border-color: #a78bfa; box-shadow: 0 0 8px rgba(167,139,250,0.3); }
+      .hk-slot.hk-dash { border-color: #1c2a1c; }
+      .hk-slot.hk-dash:hover { border-color: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.3); }
+
+      /* Slot vazio: aparência esmaecida */
+      .hk-slot.hk-empty { opacity: 0.38; }
+
+      /* Contador de stack */
+      .hk-count {
+        position: absolute;
+        top: 3px;
+        right: 5px;
+        font-size: 10px;
+        font-weight: bold;
+        color: #fbbf24;
+        text-shadow: 0 1px 3px #000;
+        font-family: 'Courier New', monospace;
+      }
+
+      /* Glow azul de attack (clique direito) */
+      .hk-slot.hk-attack {
+        border-color: #b91c1c;
+        box-shadow: 0 0 14px rgba(185,28,28,0.5);
+      }
+      /* Painel Direito (Tibia Style) */
+      #right-panel {
+        width: 280px;
+        background-color: #1e293b;
+        border-left: 2px solid #0f172a;
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
+        box-sizing: border-box;
+        color: white;
+        font-family: sans-serif;
+      }
+      .panel-header {
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #94a3b8;
+        border-bottom: 1px solid #334155;
+        padding-bottom: 5px;
+      }
+      .equip-container {
+        display: grid;
+        grid-template-areas:
+          ". head ."
+          "left body right"
+          ". legs ."
+          ". boots .";
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+      .slot {
+        width: 48px;
+        height: 48px;
+        background-color: #0f172a;
+        border: 2px inset #475569;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #475569;
+        font-size: 11px;
+        text-transform: uppercase;
+        background-size: cover;
+        image-rendering: pixelated;
+      }
+      .slot-head { grid-area: head; }
+      .slot-body { grid-area: body; }
+      .slot-legs { grid-area: legs; }
+      .slot-boots { grid-area: boots; }
+      .slot-left { grid-area: left; }
+      .slot-right { grid-area: right; }
+      .btn-stat-add {
+          background: #eab308;
+          color: #000;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-weight: bold;
+          font-size: 14px;
+          line-height: 14px;
+          padding: 2px 6px;
+          margin-right: 8px;
+          transition: background 0.2s;
+      }
+      .btn-stat-add:hover { background: #fef08a; }
+      .stat-row {
+          display: flex;
+          align-items: center;
+          margin-bottom: 4px;
+          font-family: 'Courier New', monospace;
+          color: #e2e8f0;
+          font-size: 14px;
+      }
+      
+      .backpack-container {
+        flex-grow: 1;
+        background-color: #0f172a;
+        border: 2px inset #475569;
+        padding: 8px;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        grid-auto-rows: 48px;
+        gap: 5px;
+        overflow-y: auto;
+      }
+      #login-screen {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(15, 23, 42, 0.95);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      #login-screen h1 { font-size: 48px; color: #fbbf24; text-shadow: 2px 2px 0 #000; margin-bottom: 10px; }
+      #login-name { padding: 10px; font-size: 18px; text-align: center; background: #1e293b; color: white; border: 2px solid #334155; margin-bottom: 20px; }
+      #btn-login { padding: 10px 20px; font-size: 18px; cursor: pointer; background: #3b82f6; color: white; border: none; font-weight: bold; }
+      #btn-login:hover { background: #2563eb; }
+      #ui-layer {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+      }
+      #chat-input {
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        border: 2px solid #334155;
+        padding: 10px;
+        width: 400px;
+        font-family: monospace;
+        font-size: 16px;
+        outline: none;
+        display: none; /* Só mostra quando apertar Enter */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Tela Inicial de Login -->
+    <div id="login-screen">
+      <h1>AETHELGARD</h1>
+      <p>Enter Character Name:</p>
+      <input type="text" id="login-name" value="Tiberius" autocomplete="off" />
+      <button id="btn-login">Enter World</button>
+    </div>
+
+    <div id="game-container">
+      <!-- Painel de Autofarm Flutuante -->
+      <div id="autofarm-panel" style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.12); color: white; padding: 12px 18px; border-radius: 12px; font-family: monospace; font-size: 13px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; user-select: none; width: 180px;">
+        <div style="font-weight: bold; color: #10b981; display: flex; align-items: center; justify-content: space-between;">
+          <span style="letter-spacing: 0.5px;">🤖 AUTOFARM</span>
+          <span id="autofarm-indicator" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; transition: all 0.3s;"></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button id="btn-toggle-autofarm" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit; font-size: 11px; transition: all 0.2s; flex: 1;">
+            OFF
+          </button>
+          <div style="font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; flex: 1;">
+            <span>Atalho: [ F ]</span>
+          </div>
+        </div>
+        <div id="autofarm-target" style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; margin-top: 2px;">
+          Alvo: Nenhum
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+          <input type="checkbox" id="autofarm-skills" style="cursor: pointer; accent-color: #10b981;" checked />
+          <label for="autofarm-skills" style="cursor: pointer;">Auto Spells (1, 2)</label>
+        </div>
+      </div>
+
+      <div id="clock-container" style="position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: white; padding: 5px 20px; border-radius: 20px; font-family: monospace; font-size: 18px; border: 2px solid #555; z-index: 100; user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.5);">
+        <span id="clock-icon">☀️</span> <span id="clock-time">00:30</span>
+      </div>
+      
+      <!-- Barra de Hotkeys / Skills -->
+      <div id="action-bar">
+
+        <!-- Q: Poção de HP -->
+        <div class="hk-slot hk-hp hk-empty" id="hk-q" title="Q — Usar item de HP">
+          <span class="hk-icon">🧪</span>
+          <span class="hk-count" id="hk-q-count"></span>
+          <span class="hk-key">Q</span>
+        </div>
+
+        <!-- E: Poção de MP -->
+        <div class="hk-slot hk-mp hk-empty" id="hk-e" title="E — Usar item de MP">
+          <span class="hk-icon">💧</span>
+          <span class="hk-count" id="hk-e-count"></span>
+          <span class="hk-key">E</span>
+        </div>
+
+        <div class="hk-sep"></div>
+
+        <!-- Slot 1: Skillshot / Fireball -->
+        <div class="hk-slot hk-skill" id="hk-1" title="1 — Skillshot">
+          <span class="hk-icon">🔥</span>
+          <span class="hk-key">1</span>
+        </div>
+
+        <!-- Slot 2: Whirlwind AoE -->
+        <div class="hk-slot hk-skill" id="hk-2" title="2 — Whirlwind (AoE)">
+          <span class="hk-icon">🌀</span>
+          <span class="hk-key">2</span>
+        </div>
+
+        <!-- Slots 3-8: reservados -->
+        <div class="hk-slot hk-skill hk-empty" id="hk-3" title="3 — (Em breve)"><span class="hk-icon">⚔️</span><span class="hk-key">3</span></div>
+        <div class="hk-slot hk-skill hk-empty" id="hk-4" title="4 — (Em breve)"><span class="hk-icon">🛡️</span><span class="hk-key">4</span></div>
+        <div class="hk-slot hk-skill hk-empty" id="hk-5" title="5 — (Em breve)"><span class="hk-icon">✨</span><span class="hk-key">5</span></div>
+        <div class="hk-slot hk-skill hk-empty" id="hk-6" title="6 — (Em breve)"><span class="hk-icon">💀</span><span class="hk-key">6</span></div>
+        <div class="hk-slot hk-skill hk-empty" id="hk-7" title="7 — (Em breve)"><span class="hk-icon">🌩️</span><span class="hk-key">7</span></div>
+        <div class="hk-slot hk-skill hk-empty" id="hk-8" title="8 — (Em breve)"><span class="hk-icon">🗺️</span><span class="hk-key">8</span></div>
+
+        <div class="hk-sep"></div>
+
+        <!-- SPACE: Dash -->
+        <div class="hk-slot hk-dash" id="hk-space" title="SPACE — Dash">
+          <span class="hk-icon">💨</span>
+          <span class="hk-key">SPACE</span>
+        </div>
+
+      </div>
+    </div>
+    
+    <!-- Novo Painel Lateral Estilo Tibia -->
+    <div id="right-panel">
+      <div class="panel-header" id="player-name-display">TIBERIUS</div>
+      <div style="text-align: center; color: #fbbf24; font-size: 14px; margin-bottom: 10px; font-weight: bold;" id="player-level-display">Level 1</div>
+      
+      <div class="equip-container">
+        <div class="slot slot-head" id="slot-head">Head</div>
+        <div class="slot slot-left" id="slot-left">L-Hand</div>
+        <div class="slot slot-body" id="slot-body">Body</div>
+        <div class="slot slot-right" id="slot-right">R-Hand</div>
+        <div class="slot slot-legs" id="slot-legs">Legs</div>
+        <div class="slot slot-boots" id="slot-boots">Boots</div>
+      </div>
+      
+      <!-- Painel de Status -->
+      <div class="panel-header" style="display: flex; justify-content: space-between;">
+          <span>Status</span>
+          <span id="stat-points" style="color: #fbbf24;">Pts: 0</span>
+      </div>
+      <div id="stats-panel" style="padding: 10px; background: rgba(0,0,0,0.2); border-bottom: 1px solid #1e293b;">
+          <div class="stat-row" data-stat="FOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('FOR')">+</button> <span style="width: 100%;">FOR: <span id="val-FOR" style="float: right;">5</span></span></div>
+          <div class="stat-row" data-stat="AGI"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('AGI')">+</button> <span style="width: 100%;">AGI: <span id="val-AGI" style="float: right;">5</span></span></div>
+          <div class="stat-row" data-stat="VIT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('VIT')">+</button> <span style="width: 100%;">VIT: <span id="val-VIT" style="float: right;">5</span></span></div>
+          <div class="stat-row" data-stat="INT"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('INT')">+</button> <span style="width: 100%;">INT: <span id="val-INT" style="float: right;">5</span></span></div>
+          <div class="stat-row" data-stat="DES"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('DES')">+</button> <span style="width: 100%;">DES: <span id="val-DES" style="float: right;">5</span></span></div>
+          <div class="stat-row" data-stat="SOR"><button class="btn-stat-add" style="display:none;" onclick="window.sendAddStat('SOR')">+</button> <span style="width: 100%;">SOR: <span id="val-SOR" style="float: right;">5</span></span></div>
+      </div>
+      
+      <!-- Painel Secundário -->
+      <div id="secondary-stats-panel" style="padding: 10px; background: rgba(0,0,0,0.3); border-bottom: 1px solid #1e293b; font-family: 'Courier New', monospace; color: #94a3b8; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+          <div>ATK: <span id="val-ATK" style="color: #e2e8f0;">0</span></div>
+          <div>MATK: <span id="val-MATK" style="color: #e2e8f0;">0</span></div>
+          <div>DEF: <span id="val-DEF" style="color: #e2e8f0;">0</span></div>
+          <div>MDEF: <span id="val-MDEF" style="color: #e2e8f0;">0</span></div>
+          <div>HIT: <span id="val-HIT" style="color: #e2e8f0;">0</span></div>
+          <div>DODGE: <span id="val-DODGE" style="color: #e2e8f0;">0</span></div>
+          <div>CRIT: <span id="val-CRIT" style="color: #e2e8f0;">0%</span></div>
+          <div>ASPD: <span id="val-ASPD" style="color: #e2e8f0;">0</span></div>
+      </div>
+      
+      <div class="panel-header">Backpack</div>
+      <div class="backpack-container" id="backpack-grid">
+        <div class="slot" data-index="0"></div><div class="slot" data-index="1"></div><div class="slot" data-index="2"></div><div class="slot" data-index="3"></div>
+        <div class="slot" data-index="4"></div><div class="slot" data-index="5"></div><div class="slot" data-index="6"></div><div class="slot" data-index="7"></div>
+        <div class="slot" data-index="8"></div><div class="slot" data-index="9"></div><div class="slot" data-index="10"></div><div class="slot" data-index="11"></div>
+      </div>
+      
+      <div id="status-panel" style="margin-top: 20px;">
+        <div class="status-bar health-bar" style="background:#440000; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
+           <div id="health-fill" style="background:#ef4444; height:100%; width:100%;"></div>
+           <span id="health-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">150/150</span>
+        </div>
+        <div class="status-bar sp-bar" style="background:#000044; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
+           <div id="sp-fill" style="background:#3b82f6; height:100%; width:100%;"></div>
+           <span id="sp-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">50/50</span>
+        </div>
+        <div class="status-bar exp-bar" style="background:#003300; height:15px; border:1px solid #333; position:relative; margin-bottom:5px;">
+           <div id="exp-fill" style="background:#22c55e; height:100%; width:0%;"></div>
+           <span id="exp-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:12px; color:white; text-shadow: 1px 1px 0 #000;">Level 1</span>
+        </div>
+        <div class="status-bar weight-bar" style="background:#332200; height:12px; border:1px solid #333; position:relative; margin-bottom:5px;">
+           <div id="weight-fill" style="background:#d97706; height:100%; width:0%;"></div>
+           <span id="weight-text" style="position:absolute; top:0; left:50%; transform:translateX(-50%); font-size:10px; color:white; text-shadow: 1px 1px 0 #000;">Cap: 0/250</span>
+        </div>
+        <div class="gold-display" style="color: #fbbf24; font-weight: bold; margin-top: 5px; text-align: center;">💰 Gold: <span id="gold-value">0</span></div>
+      </div>
+    </div>
+    
+    <!-- Shop UI Modal -->
+    <div id="shop-ui" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; background: rgba(20, 20, 20, 0.95); border: 2px solid #fbbf24; border-radius: 8px; color: white; z-index: 200; font-family: monospace; flex-direction: column;">
+        <div style="background: #fbbf24; color: black; padding: 10px; font-weight: bold; text-align: center; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between;">
+           <span>🛒 Merchant Shop</span>
+           <span id="close-shop" style="cursor: pointer; font-weight: bold; padding: 0 5px;">✖</span>
+        </div>
+        <div style="display: flex; border-bottom: 1px solid #444;">
+            <button id="tab-buy" style="flex: 1; padding: 10px; background: #333; color: white; border: none; cursor: pointer;">Buy</button>
+            <button id="tab-sell" style="flex: 1; padding: 10px; background: #222; color: white; border: none; cursor: pointer;">Sell</button>
+        </div>
+        <div id="shop-content" style="padding: 15px; max-height: 250px; overflow-y: auto;">
+            <!-- Conteúdo dinâmico via JS -->
+        </div>
+    </div>
+
+    <div id="ui-layer">
+      <input type="text" id="chat-input" placeholder="Say... (Press Enter to send)" autocomplete="off" />
+    </div>
+
+    <!-- Death Screen Overlay -->
+    <div id="death-screen" style="display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; font-family: monospace; color: #ef4444;">
+        <h1 style="font-size: 48px; margin-bottom: 10px; text-shadow: 0 0 20px #ef4444; letter-spacing: 2px;">YOU ARE DEAD</h1>
+        <p id="death-loot-msg" style="color: #94a3b8; font-size: 14px; margin-bottom: 30px; text-align: center; max-width: 400px; line-height: 1.5;"></p>
+        <button id="btn-respawn" style="background: #3b82f6; color: white; border: none; padding: 15px 30px; border-radius: 6px; cursor: not-allowed; font-size: 18px; font-weight: bold; transition: all 0.3s; opacity: 0.5;" disabled>
+            Respawn (5s)
+        </button>
+    </div>
+
+    <!-- Premium Custom Tooltip -->
+    <div id="item-tooltip" style="display: none; position: absolute; background: rgba(9, 15, 29, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 12px; color: white; font-family: monospace; font-size: 12px; pointer-events: none; z-index: 10000; box-shadow: 0 10px 30px rgba(0,0,0,0.6); max-width: 250px; line-height: 1.4;">
+        <div id="tooltip-name" style="font-weight: bold; color: #fbbf24; font-size: 13px; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;"></div>
+        <div id="tooltip-desc" style="color: #94a3b8; font-size: 11px; white-space: pre-line;"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+
+    <!-- Hotkey Bar: animações de tecla e sincronização com inventário -->
+    <script>
+    (function() {
+      // Mapa tecla -> id do slot
+      const keySlotMap = {
+        'q': 'hk-q', 'e': 'hk-e', ' ': 'hk-space',
+        '1': 'hk-1', '2': 'hk-2', '3': 'hk-3', '4': 'hk-4',
+        '5': 'hk-5', '6': 'hk-6', '7': 'hk-7', '8': 'hk-8'
+      };
+
+      // Flash visual ao pressionar a tecla
+      document.addEventListener('keydown', function(e) {
+        const key = e.key.toLowerCase();
+        const id = keySlotMap[key];
+        if (!id) return;
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('hk-pressed');
+        clearTimeout(el._pressTimer);
+        el._pressTimer = setTimeout(() => el.classList.remove('hk-pressed'), 180);
+      });
+
+      // Items de HP em ordem de prioridade
+      const HP_ITEMS = ['Health Potion', 'Cheese', 'Apple'];
+      const HP_EMOJI = { 'Health Potion': '🧪', 'Cheese': '🧀', 'Apple': '🍎' };
+
+      // Items de MP em ordem de prioridade
+      const MP_ITEMS = ['Mana Potion', 'Blueberry'];
+      const MP_EMOJI = { 'Mana Potion': '💙', 'Blueberry': '🍇' };
+
+      // Sincroniza os slots Q e E com o inventário atual
+      window.updateHotkeyBar = function(backpack) {
+        // --- Slot Q (HP) ---
+        const slotQ = document.getElementById('hk-q');
+        const countQ = document.getElementById('hk-q-count');
+        let foundHP = null;
+        let hpCount = 0;
+
+        for (const hpName of HP_ITEMS) {
+          for (const slot of backpack) {
+            const [name, cStr] = slot.split(':');
+            if (name === hpName) {
+              foundHP = hpName;
+              hpCount = parseInt(cStr) || 1;
+              break;
+            }
+          }
+          if (foundHP) break;
+        }
+
+        if (foundHP) {
+          slotQ.classList.remove('hk-empty');
+          slotQ.querySelector('.hk-icon').textContent = HP_EMOJI[foundHP];
+          countQ.textContent = hpCount > 1 ? `x${hpCount}` : '';
+          slotQ.title = `Q — ${foundHP} (x${hpCount})`;
+        } else {
+          slotQ.classList.add('hk-empty');
+          slotQ.querySelector('.hk-icon').textContent = '🧪';
+          countQ.textContent = '';
+          slotQ.title = 'Q — Sem item de HP';
+        }
+
+        // --- Slot E (MP) ---
+        const slotE = document.getElementById('hk-e');
+        const countE = document.getElementById('hk-e-count');
+        let foundMP = null;
+        let mpCount = 0;
+
+        for (const mpName of MP_ITEMS) {
+          for (const slot of backpack) {
+            const [name, cStr] = slot.split(':');
+            if (name === mpName) {
+              foundMP = mpName;
+              mpCount = parseInt(cStr) || 1;
+              break;
+            }
+          }
+          if (foundMP) break;
+        }
+
+        if (foundMP) {
+          slotE.classList.remove('hk-empty');
+          slotE.querySelector('.hk-icon').textContent = MP_EMOJI[foundMP];
+          countE.textContent = mpCount > 1 ? `x${mpCount}` : '';
+          slotE.title = `E — ${foundMP} (x${mpCount})`;
+        } else {
+          slotE.classList.add('hk-empty');
+          slotE.querySelector('.hk-icon').textContent = '💧';
+          countE.textContent = '';
+          slotE.title = 'E — Sem item de Mana';
+        }
+      };
+
+
+      // Anima o slot de dash quando SPACE é pressionado
+      // (já coberto pelo listener genérico acima)
+    })();
+    </script>
+  </body>
+</html>

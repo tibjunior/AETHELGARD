@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aethelgard - GM Dashboard</title>
+  <style>
+    /* Premium Glassmorphism Dark Mode Theme */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    :root {
+      --bg-color: #020617;
+      --glass-bg: rgba(15, 23, 42, 0.65);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --danger: #ef4444;
+      --danger-hover: #f87171;
+      --success: #10b981;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #020617, #0f172a, #111827);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    aside {
+      width: 260px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--glass-border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+
+    aside h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fbbf24;
+      text-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+      margin-bottom: 40px;
+      text-align: center;
+      letter-spacing: 1.5px;
+    }
+
+    aside nav {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    aside nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 12px 16px;
+      border-radius: 8px;
+      display: block;
+      transition: all 0.3s;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    aside nav a:hover, aside nav a.active {
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--accent-hover);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    /* Main Content */
+    main {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+      height: 100vh;
+      position: relative;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    header h2 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    .btn-refresh {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    .btn-refresh:hover { background: var(--accent-hover); }
+    .btn-refresh:active { transform: scale(0.98); }
+
+    /* Dashboard Cards */
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .stat-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    .stat-card h3 { color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 10px; letter-spacing: 0.5px; }
+    .stat-card .value { font-size: 32px; font-weight: 700; color: white; }
+
+    /* Tab Panes */
+    .tab-pane {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+
+    /* Table Container */
+    .table-container {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 16px 20px; text-align: left; }
+    th {
+      background: rgba(0,0,0,0.25);
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--glass-border);
+    }
+    td {
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 14px;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.015); }
+
+    /* Status Dot */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .status-online {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success);
+    }
+    .status-offline {
+      background: rgba(148, 163, 184, 0.15);
+      color: var(--text-muted);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+    }
+    .status-online .status-dot { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-offline .status-dot { background: var(--text-muted); }
+
+    /* Action Buttons */
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      transition: all 0.2s;
+    }
+    .btn-gold { background: var(--warning); color: #000; }
+    .btn-gold:hover { background: #fcd34d; }
+    .btn-reset { background: rgba(255,255,255,0.08); border: 1px solid var(--glass-border); }
+    .btn-reset:hover { background: rgba(255,255,255,0.15); }
+    .btn-edit { background: var(--accent); }
+    .btn-edit:hover { background: var(--accent-hover); }
+    .btn-kick { background: var(--danger); }
+    .btn-kick:hover { background: var(--danger-hover); }
+    .btn-kick:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Grid layout for Cards */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .gm-card {
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .gm-card h3 {
+      font-size: 18px;
+      color: #fbbf24;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 8px;
+      font-weight: 600;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .form-group label {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .form-group input, .form-group select {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--glass-border);
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .btn-submit {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+    }
+    .btn-submit:hover { background: var(--accent-hover); }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: #0f172a;
+      border: 2px solid var(--glass-border);
+      border-radius: 14px;
+      padding: 30px;
+      width: 420px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .modal-content h3 {
+      font-size: 20px;
+      color: #fbbf24;
+      font-weight: 600;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .btn-cancel {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--glass-border);
+    }
+    .btn-cancel:hover { background: rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+
+  <aside>
+    <h1>AETHELGARD GM</h1>
+    <nav>
+      <a href="#" class="active" id="nav-players">Controle de Contas</a>
+      <a href="#" id="nav-server">Comandos de Servidor</a>
+      <a href="#" id="nav-spawner">Gerador de Entidades</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header>
+      <h2 id="page-title">Gerenciamento de Jogadores</h2>
+      <button class="btn-refresh" id="btn-refresh">Atualizar Dados</button>
+    </header>
+
+    <!-- Tab 1: Players Management (Default) -->
+    <div id="tab-players" class="tab-pane">
+      <div class="stats-container">
+        <div class="stat-card">
+          <h3>Jogadores Online</h3>
+          <div class="value" id="total-online">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>Contas Registradas</h3>
+          <div class="value" id="total-registered">0</div>
+        </div>
+        <div class="stat-card">
+          <h3>Level Médio</h3>
+          <div class="value" id="avg-level">0</div>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Nome</th>
+              <th>Level</th>
+              <th>Ouro</th>
+              <th>Pontos</th>
+              <th>Ações do GM</th>
+            </tr>
+          </thead>
+          <tbody id="players-table-body">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab 2: Server Settings -->
+    <div id="tab-server" class="tab-pane" style="display: none;">
+      <div class="card-grid">
+        <div class="gm-card">
+          <h3>Broadcast Global</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Envia uma mensagem de aviso para todos os jogadores online simultaneamente na tela e no log do chat.</p>
+          <div class="form-group">
+            <label for="broadcast-msg">Mensagem</label>
+            <input type="text" id="broadcast-msg" placeholder="Atenção aventureiros! Servidor vai reiniciar..." />
+          </div>
+          <button class="btn-submit" id="btn-broadcast-submit">Transmitir Mensagem</button>
+        </div>
+
+        <div class="gm-card">
+          <h3>Controle Climático (Tempo)</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Altere instantaneamente a hora do dia no servidor, afetando as mecânicas de Fog of War dos jogadores.</p>
+          <div style="display:flex; gap: 15px; margin-top: 10px;">
+            <button class="btn-submit" id="btn-time-day" style="flex:1; background: #fbbf24; color: black; font-weight: bold;">☀️ Forçar Dia</button>
+            <button class="btn-submit" id="btn-time-night" style="flex:1; background: #6366f1; color: white;">🌙 Forçar Noite</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Spawners -->
+    <div id="tab-spawner" class="tab-pane" style="display: none;">
+      <div class="card-grid">
+        <div class="gm-card">
+          <h3>Spawnar Entidade (Monster/NPC)</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Gera uma criatura hostil ou NPC pacífico no mapa em uma posição vazia aleatória.</p>
+          <div class="form-group">
+            <label for="spawn-entity-name">Entidade</label>
+            <select id="spawn-entity-name">
+              <option value="Giant Rat">Giant Rat (Lvl 1)</option>
+              <option value="Orc">Orc (Lvl 3)</option>
+              <option value="Rotworm">Rotworm (Lvl 5)</option>
+              <option value="Demon Skeleton">Demon Skeleton (Lvl 10)</option>
+              <option value="Merchant">Merchant (NPC Loja)</option>
+            </select>
+          </div>
+          <button class="btn-submit" id="btn-spawn-entity">Gerar Entidade</button>
+        </div>
+
+        <div class="gm-card">
+          <h3>Gerar Item no Chão (Spawn Item)</h3>
+          <p style="font-size: 13px; color: var(--text-muted);">Faz surgir um item coletável em uma posição vazia aleatória do mapa.</p>
+          <div class="form-group">
+            <label for="spawn-item-name">Item</label>
+            <select id="spawn-item-name">
+              <option value="Steel Sword">Steel Sword (🗡️)</option>
+              <option value="Wood Sword">Wood Sword (🗡️)</option>
+              <option value="Helmet">Helmet (👑)</option>
+              <option value="Armor">Armor (👕)</option>
+              <option value="Pants">Pants (👖)</option>
+              <option value="Leather Boots">Leather Boots (🥾)</option>
+              <option value="Torch">Torch (🔦)</option>
+              <option value="Health Potion">Health Potion (🧪)</option>
+              <option value="Mana Potion">Mana Potion (💙)</option>
+              <option value="Apple">Apple (🍎)</option>
+              <option value="Cheese">Cheese (🧀)</option>
+              <option value="Blueberry">Blueberry (🍇)</option>
+              <option value="Gold Coin">Gold Coin (💰)</option>
+            </select>
+          </div>
+          <button class="btn-submit" id="btn-spawn-item">Spawnar Item</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Edit Player Modal -->
+  <div class="modal-overlay" id="edit-modal" style="display: none;">
+    <div class="modal-content">
+      <h3>Editar Jogador</h3>
+      <div class="form-group">
+        <label for="edit-player-name">Nome da Conta (Não Editável)</label>
+        <input type="text" id="edit-player-name" disabled />
+      </div>
+      <div class="form-group">
+        <label for="edit-player-level">Level</label>
+        <input type="number" id="edit-player-level" min="1" max="100" />
+      </div>
+      <div class="form-group">
+        <label for="edit-player-gold">Ouro (G)</label>
+        <input type="number" id="edit-player-gold" min="0" />
+      </div>
+      <div class="form-group">
+        <label for="edit-player-points">Pontos de Atributos (Pts)</label>
+        <input type="number" id="edit-player-points" min="0" />
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-reset btn-cancel" id="btn-edit-cancel">Cancelar</button>
+        <button class="btn btn-edit" id="btn-edit-save">Salvar Alterações</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/admin.ts"></script>
+</body>
+</html>
