@@ -1672,6 +1672,15 @@ export class GameScene extends Phaser.Scene {
               indicator.style.boxShadow = '0 0 8px #10b981';
           }
           if (targetDisplay) targetDisplay.innerText = 'Alvo: Procurando...';
+          
+          // Abre a janela do Autofarm se estiver fechada
+          const modal = document.getElementById('autofarm-panel');
+          if (modal && modal.style.display !== 'flex') {
+              modal.style.display = 'flex';
+              const menuBtn = document.querySelector('.menu-btn[data-target="autofarm-panel"]');
+              if (menuBtn) menuBtn.classList.add('active');
+          }
+
           this.onTextEffect(
               Math.round(this.localPlayerSprite!.x / this.TILE_SIZE),
               Math.round(this.localPlayerSprite!.y / this.TILE_SIZE),

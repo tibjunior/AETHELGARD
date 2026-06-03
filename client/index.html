@@ -307,7 +307,11 @@
         box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         animation: modalFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      
+      #autofarm-panel {
+        top: 75px;
+        left: 15px;
+        width: 220px;
+      }
       #modal-backpack {
         top: 75px;
         right: 15px;
@@ -417,29 +421,34 @@
 
     <div id="game-container">
       <!-- Painel de Autofarm Flutuante -->
-      <div id="autofarm-panel" style="position: absolute; top: 15px; left: 280px; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.12); color: white; padding: 12px 18px; border-radius: 12px; font-family: monospace; font-size: 13px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 8px; user-select: none; width: 180px;">
-        <div style="font-weight: bold; color: #10b981; display: flex; align-items: center; justify-content: space-between;">
-          <span style="letter-spacing: 0.5px;">🤖 AUTOFARM</span>
-          <span id="autofarm-indicator" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; transition: all 0.3s;"></span>
+      <div class="game-modal" id="autofarm-panel">
+        <div class="modal-header">
+          <span class="modal-title" style="display: flex; align-items: center; gap: 6px;">
+            🤖 Autofarm
+            <span id="autofarm-indicator" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; transition: all 0.3s;"></span>
+          </span>
+          <span class="close-modal" data-target="autofarm-panel">✖</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <button id="btn-toggle-autofarm" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit; font-size: 11px; transition: all 0.2s; flex: 1;">
-            OFF
-          </button>
-          <div style="font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; flex: 1;">
-            <span>Atalho: [ F ]</span>
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <button id="btn-toggle-autofarm" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit; font-size: 11px; transition: all 0.2s; flex: 1;">
+              OFF
+            </button>
+            <div style="font-size: 10px; color: #94a3b8; display: flex; flex-direction: column; flex: 1;">
+              <span>Atalho: [ F ]</span>
+            </div>
           </div>
-        </div>
-        <div id="autofarm-target" style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; margin-top: 2px;">
-          Alvo: Nenhum
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
-          <input type="checkbox" id="autofarm-skills" style="cursor: pointer; accent-color: #10b981;" checked />
-          <label for="autofarm-skills" style="cursor: pointer;">Auto Spells (1, 2)</label>
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding-top: 2px;">
-          <input type="checkbox" id="autofarm-loot" style="cursor: pointer; accent-color: #10b981;" checked />
-          <label for="autofarm-loot" style="cursor: pointer;">Auto Loot (Pegar Itens)</label>
+          <div id="autofarm-target" style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; margin-top: 2px;">
+            Alvo: Nenhum
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px;">
+            <input type="checkbox" id="autofarm-skills" style="cursor: pointer; accent-color: #10b981;" checked />
+            <label for="autofarm-skills" style="cursor: pointer;">Auto Spells (1, 2)</label>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; padding-top: 2px;">
+            <input type="checkbox" id="autofarm-loot" style="cursor: pointer; accent-color: #10b981;" checked />
+            <label for="autofarm-loot" style="cursor: pointer;">Auto Loot (Pegar Itens)</label>
+          </div>
         </div>
       </div>
 
@@ -556,6 +565,7 @@
 
       <!-- Navigation Menu Toolbar (Top-Right) -->
       <div id="menu-toolbar">
+        <button class="menu-btn" data-target="autofarm-panel" title="Autofarm">🤖</button>
         <button class="menu-btn" data-target="modal-backpack" title="Mochila">🎒</button>
         <button class="menu-btn" data-target="modal-equipment" title="Equipamentos">🛡️</button>
         <button class="menu-btn" data-target="modal-stats" title="Atributos">📊</button>
@@ -894,7 +904,7 @@
       }
       
       // Make modals draggable and bring to front on click
-      ['modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
+      ['autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering'].forEach(id => {
           makeDraggable(id);
           const modal = document.getElementById(id);
           if (modal) {
