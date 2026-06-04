@@ -456,7 +456,7 @@ export class GameScene extends Phaser.Scene {
     const adjacentTiles = [
         { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
         { x: tx - 1, y: ty }, { x: tx + 1, y: ty }
-    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= 40 && t.y >= 0 && t.y <= 40);
+    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= 149 && t.y >= 0 && t.y <= 149);
 
     if (adjacentTiles.length === 0) return;
 
@@ -1744,7 +1744,7 @@ export class GameScene extends Phaser.Scene {
           
           for (const n of neighbors) {
               const key = `${n.x},${n.y}`;
-              if (!visited.has(key) && !this.collisionMap.has(key) && n.x >= 0 && n.x <= 40 && n.y >= 0 && n.y <= 40) {
+              if (!visited.has(key) && !this.collisionMap.has(key) && n.x >= 0 && n.x <= 149 && n.y >= 0 && n.y <= 149) {
                   visited.add(key);
                   queue.push({ x: n.x, y: n.y, path: [...curr.path, {x: n.x, y: n.y}] });
               }
