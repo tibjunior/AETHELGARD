@@ -2304,6 +2304,38 @@ export class Game {
           this.io.emit('admin:playerUpdated');
       });
 
+      socket.on('admin:deletePlayer', async (name: string) => {
+          try {
+              // Verifica se o player está online e kicka primeiro
+              const onlinePlayer = Array.from(this.players.values()).find(p => p.name === name);
+              if (onlinePlayer && onlinePlayer.id) {
+                  const pSocket = this.io.sockets.sockets.get(onlinePlayer.id);
+                  if (pSocket) pSocket.disconnect();
+                  this.players.delete(onlinePlayer.id);
+              }
+              // Deleta do banco
+              const { deletePlayerFromDB } = require('./database');
+              await deletePlayerFromDB(name);
+              this.io.emit('admin:playerUpdated');
+          } catch(e) {
+              console.error('Erro ao excluir conta:', e);
+          }
+      });
+
+      socket.on('admin:resetPassword', async (data: { name: string, newPass: string }) => {
+          try {
+              const { getPlayerFromDB, savePlayerToDB } = require('./database');
+              const pData = await getPlayerFromDB(data.name);
+              if (pData) {
+                  pData.password = data.newPass;
+                  await savePlayerToDB(pData);
+                  this.io.emit('admin:playerUpdated');
+              }
+          } catch(e) {
+              console.error('Erro ao resetar senha:', e);
+          }
+      });
+
       socket.on('admin:editPlayer', async (data: { name: string, level: number, gold: number, statPoints: number }) => {
           let p = Array.from(this.players.values()).find(op => op.name === data.name);
           if (p && !p.isMonster) {

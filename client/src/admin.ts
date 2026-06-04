@@ -55,6 +55,14 @@ function renderPlayers(players: any[]) {
                </span>
             </td>
             <td style="font-weight: 600;">${p.name} <span style="color: #64748b; font-size: 11px;">(${displayId})</span></td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-family: monospace; background: rgba(0,0,0,0.4); padding: 4px 8px; border-radius: 4px; filter: blur(4px); transition: filter 0.2s;" id="pass-${displayId}">
+                        ${p.password || 'Sem Senha'}
+                    </span>
+                    <button style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 14px;" title="Ver Senha" onclick="const e = document.getElementById('pass-${displayId}'); e.style.filter = e.style.filter === 'none' ? 'blur(4px)' : 'none';">👁️</button>
+                </div>
+            </td>
             <td>Lvl ${p.level}</td>
             <td style="color: #fbbf24; font-weight: bold;">${p.gold} G</td>
             <td>${p.statPoints}</td>
@@ -63,6 +71,8 @@ function renderPlayers(players: any[]) {
                 <button class="btn btn-reset" onclick="window.resetPlayer('${p.name}')">Reset</button>
                 <button class="btn btn-edit" onclick="window.openEditModal('${p.name}')">Editar</button>
                 <button class="btn btn-kick" ${kickDisabled} onclick="window.kickPlayer('${p.id}')">Kick</button>
+                <button class="btn btn-reset" onclick="window.resetPassword('${p.name}')" style="background: #8b5cf6;">Senha</button>
+                <button class="btn btn-kick" onclick="window.deletePlayer('${p.name}')" style="background: #991b1b;">Excluir</button>
             </td>
         `;
         tbody.appendChild(tr);
@@ -104,6 +114,22 @@ function updateStats(players: any[]) {
 (window as any).kickPlayer = (id: string) => {
     if(confirm('Tem certeza que deseja desconectar (kickar) este jogador?')) {
         socket.emit('admin:kickPlayer', id);
+    }
+};
+
+(window as any).resetPassword = (name: string) => {
+    const newPass = prompt(`Digite a nova senha para o jogador ${name} (até 8 caracteres):`);
+    if (newPass !== null && newPass.trim() !== '') {
+        socket.emit('admin:resetPassword', { name, newPass: newPass.trim().substring(0, 8) });
+    }
+};
+
+(window as any).deletePlayer = (name: string) => {
+    const confirmName = prompt(`CUIDADO! Isso irá excluir permanentemente a conta de ${name}. Digite o nome da conta para confirmar:`);
+    if (confirmName === name) {
+        socket.emit('admin:deletePlayer', name);
+    } else if (confirmName !== null) {
+        alert('Nome incorreto. A conta não foi excluída.');
     }
 };
 

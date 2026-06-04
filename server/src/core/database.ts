@@ -286,3 +286,5 @@ export async function getAuctionByIdFromDB(id: number) {
         return null;
     }
 }
+e x p o r t   a s y n c   f u n c t i o n   d e l e t e P l a y e r F r o m D B ( n a m e :   s t r i n g ) :   P r o m i s e < v o i d >   {   t r y   {   a w a i t   p o o l . q u e r y ( \ D E L E T E   F R O M   p l a y e r s   W H E R E   n a m e   =   \ \ ,   [ n a m e ] ) ;   }   c a t c h   ( e r r )   {   c o n s o l e . e r r o r ( ' d e l e t e P l a y e r F r o m D B   E r r o r : ' ,   e r r ) ;   t h r o w   e r r ;   }   }  
+ 
