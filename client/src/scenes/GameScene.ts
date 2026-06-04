@@ -215,8 +215,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createWorld() {
-    // Criar o gramado cobrindo o mapa inteiro (41x41 tiles de 32px)
-    const mapSize = 41 * this.TILE_SIZE;
+    // Criar o gramado cobrindo o mapa inteiro (150x150 tiles de 32px)
+    const mapSize = 150 * this.TILE_SIZE;
     
     const bg = this.add.tileSprite(mapSize/2, mapSize/2, mapSize, mapSize, 'tile-grass');
     bg.setTint(0x3b3b55); // Efeito de Noite (Azul escuro) na Grama
@@ -248,8 +248,8 @@ export class GameScene extends Phaser.Scene {
     this.lightBrush.setVisible(false); // Fica invisível, serve só como máscara
     
     // Cria a camada de Fog com Graphics cobrindo todo o mapa
-    const mapWidth = 60 * this.TILE_SIZE;
-    const mapHeight = 60 * this.TILE_SIZE;
+    const mapWidth = 150 * this.TILE_SIZE;
+    const mapHeight = 150 * this.TILE_SIZE;
     this.fog = this.add.graphics();
     this.fog.fillStyle(0x000000, 0.98);
     this.fog.fillRect(0, 0, mapWidth, mapHeight);
