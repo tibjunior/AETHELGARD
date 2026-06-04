@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
-import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB } from './database';
+import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 
 export const ITEM_WEIGHTS: Record<string, number> = {
@@ -135,6 +135,24 @@ export class Game {
     // Adicionamos uma tag especial para NPCs pacíficos
     (merchant as any).isNPC = true;
     this.players.set(merchant.id, merchant);
+    this.walls.add('120,110');
+
+    // Spawna o Banqueiro na Cidade
+    const banker: PlayerData = {
+        id: 'npc_banker',
+        name: 'Banker',
+        x: 115,
+        y: 110,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (banker as any).isNPC = true;
+    this.players.set(banker.id, banker);
+    this.walls.add('115,110');
 
     // Spawna múltiplos monstros
     for (let i = 1; i <= 8; i++) {
@@ -301,6 +319,11 @@ export class Game {
           newPlayer.facing = 'down';
               await savePlayerToDB(newPlayer);
           }
+      if (newPlayer.bankGold === undefined) newPlayer.bankGold = 0;
+      if (newPlayer.bankDebtDays === undefined) newPlayer.bankDebtDays = 0;
+      if (!newPlayer.bankItems || newPlayer.bankItems.length !== 50) {
+          newPlayer.bankItems = Array(50).fill('');
+      }
       }
 
       this.players.set(socket.id, newPlayer);
@@ -1016,6 +1039,284 @@ export class Game {
           this.io.emit('textEffect', { x: player.x, y: player.y, message: `+${sellValue} Ouro`, color: '#fbbf24' });
       });
 
+      // Banco: Depositar Ouro
+      socket.on('bank:depositGold', (data: { amount: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead) return;
+
+          // Valida distância do Banqueiro
+          const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
+          if (!banker) return;
+          const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
+          if (dist > 2) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
+              return;
+          }
+
+          const amount = Math.floor(data.amount);
+          if (isNaN(amount) || amount <= 0 || (player.gold || 0) < amount) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Quantidade inválida!', color: '#ff5555' });
+              return;
+          }
+
+          player.gold = (player.gold || 0) - amount;
+
+          // Paga dívida primeiro
+          if ((player.bankDebtDays || 0) < 0) {
+              const debt = -(player.bankDebtDays || 0); // Ex: se bankDebtDays é -5, debt é 5
+              if (amount >= debt) {
+                  player.bankDebtDays = 0;
+                  const leftover = amount - debt;
+                  player.bankGold = (player.bankGold || 0) + leftover;
+              } else {
+                  player.bankDebtDays = (player.bankDebtDays || 0) + amount; // Reduz a dívida
+              }
+          } else {
+              player.bankGold = (player.bankGold || 0) + amount;
+          }
+
+          // Salva no banco de dados
+          savePlayerToDB(player).catch(e => console.error('Error saving bank gold:', e));
+
+          // Envia atualizações
+          socket.emit('statsUpdate', { 
+              id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+              stats: player.stats, statPoints: player.statPoints,
+              attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+              hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+              sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+              health: player.health, maxHealth: player.maxHealth
+          });
+
+          socket.emit('bank:update', {
+              bankGold: player.bankGold,
+              bankItems: player.bankItems || [],
+              bankDebtDays: player.bankDebtDays
+          });
+
+          socket.emit('textEffect', { x: player.x, y: player.y, message: `Depositou ${amount} Ouro`, color: '#10b981' });
+      });
+
+      // Banco: Sacar Ouro
+      socket.on('bank:withdrawGold', (data: { amount: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead) return;
+
+          // Valida distância do Banqueiro
+          const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
+          if (!banker) return;
+          const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
+          if (dist > 2) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
+              return;
+          }
+
+          // Verifica se a conta está bloqueada
+          if ((player.bankDebtDays || 0) < 0 || (player.bankGold || 0) <= 0) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Conta bloqueada por falta de pagamento!', color: '#ff5555' });
+              return;
+          }
+
+          const amount = Math.floor(data.amount);
+          if (isNaN(amount) || amount <= 0 || (player.bankGold || 0) < amount) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Quantidade inválida!', color: '#ff5555' });
+              return;
+          }
+
+          player.bankGold = (player.bankGold || 0) - amount;
+          player.gold = (player.gold || 0) + amount;
+
+          // Salva no banco de dados
+          savePlayerToDB(player).catch(e => console.error('Error saving bank gold:', e));
+
+          socket.emit('statsUpdate', { 
+              id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+              stats: player.stats, statPoints: player.statPoints,
+              attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+              hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+              sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+              health: player.health, maxHealth: player.maxHealth
+          });
+
+          socket.emit('bank:update', {
+              bankGold: player.bankGold,
+              bankItems: player.bankItems || [],
+              bankDebtDays: player.bankDebtDays
+          });
+
+          socket.emit('textEffect', { x: player.x, y: player.y, message: `Sacou ${amount} Ouro`, color: '#10b981' });
+      });
+
+      // Banco: Depositar Item
+      socket.on('bank:depositItem', (data: { backpackIndex: number, bankIndex: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead || !player.backpack || !player.bankItems) return;
+
+          // Valida distância do Banqueiro
+          const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
+          if (!banker) return;
+          const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
+          if (dist > 2) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
+              return;
+          }
+
+          // Verifica se a conta está bloqueada
+          if ((player.bankDebtDays || 0) < 0 || (player.bankGold || 0) <= 0) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Conta bloqueada!', color: '#ff5555' });
+              return;
+          }
+
+          const { backpackIndex, bankIndex } = data;
+          if (backpackIndex < 0 || backpackIndex >= player.backpack.length) return;
+          if (bankIndex < 0 || bankIndex >= 50) return;
+
+          const bpItem = player.backpack[backpackIndex];
+          const bankItem = player.bankItems[bankIndex];
+
+          // Troca os itens de lugar
+          player.backpack[backpackIndex] = bankItem; // pode ser string vazia/null ou outro item
+          player.bankItems[bankIndex] = bpItem;
+
+          // Limpa slots vazios do backpack
+          player.backpack = player.backpack.filter(slot => slot !== '' && slot !== null);
+
+          // Recalcula peso
+          this.recalculateWeight(player);
+          this.recalculateStats(player);
+
+          // Salva no banco de dados
+          savePlayerToDB(player).catch(e => console.error('Error saving bank item:', e));
+
+          socket.emit('statsUpdate', { 
+              id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+              stats: player.stats, statPoints: player.statPoints,
+              attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+              hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+              sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+              health: player.health, maxHealth: player.maxHealth
+          });
+
+          socket.emit('inventoryUpdate', player.backpack);
+          socket.emit('bank:update', {
+              bankGold: player.bankGold,
+              bankItems: player.bankItems || [],
+              bankDebtDays: player.bankDebtDays
+          });
+      });
+
+      // Banco: Retirar Item
+      socket.on('bank:withdrawItem', (data: { bankIndex: number, backpackIndex: number }) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead || !player.backpack || !player.bankItems) return;
+
+          // Valida distância do Banqueiro
+          const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
+          if (!banker) return;
+          const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
+          if (dist > 2) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
+              return;
+          }
+
+          // Verifica se a conta está bloqueada
+          if ((player.bankDebtDays || 0) < 0 || (player.bankGold || 0) <= 0) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Conta bloqueada!', color: '#ff5555' });
+              return;
+          }
+
+          const { bankIndex, backpackIndex } = data;
+          if (bankIndex < 0 || bankIndex >= 50) return;
+
+          const bankItem = player.bankItems[bankIndex];
+          if (!bankItem) return;
+
+          if (backpackIndex === -1) {
+              // Retira para o primeiro slot livre da mochila
+              const maxSlots = this.getMaxBackpackSlots(player);
+              if (player.backpack.length >= maxSlots) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
+                  return;
+              }
+
+              // Se o item for empilhável, tenta empilhar
+              const [itemName, countStr] = bankItem.split(':');
+              const count = parseInt(countStr) || 1;
+              const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide'];
+              let stacked = false;
+
+              if (stackableItems.includes(itemName)) {
+                  for (let i = 0; i < player.backpack.length; i++) {
+                      const slot = player.backpack[i];
+                      const [bpName, bpCountStr] = slot.split(':');
+                      const bpCount = parseInt(bpCountStr) || 1;
+                      
+                      if (bpName === itemName && bpCount < 99) {
+                          player.backpack[i] = `${bpName}:${bpCount + 1}`;
+                          stacked = true;
+                          break;
+                      }
+                  }
+              }
+
+              if (stacked) {
+                  // Se era um stack no banco, deduz 1, senão limpa o slot do banco
+                  if (count > 1) {
+                      player.bankItems[bankIndex] = `${itemName}:${count - 1}`;
+                  } else {
+                      player.bankItems[bankIndex] = '';
+                  }
+              } else {
+                  // Adiciona como novo slot se couber
+                  const itemWeight = ITEM_WEIGHTS[itemName] || 5;
+                  if (player.weight + itemWeight > (player.maxWeight || 250)) {
+                      socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito Pesado!', color: '#ff5555' });
+                      return;
+                  }
+                  
+                  // Se tinha mais de 1 stack no banco, retira 1
+                  if (count > 1) {
+                      player.bankItems[bankIndex] = `${itemName}:${count - 1}`;
+                      player.backpack.push(`${itemName}:1`);
+                  } else {
+                      player.bankItems[bankIndex] = '';
+                      player.backpack.push(bankItem);
+                  }
+              }
+          } else {
+              // Swap com o backpackIndex especificado
+              if (backpackIndex < 0 || backpackIndex >= player.backpack.length) return;
+              const bpItem = player.backpack[backpackIndex];
+              player.backpack[backpackIndex] = bankItem;
+              player.bankItems[bankIndex] = bpItem;
+
+              player.backpack = player.backpack.filter(slot => slot !== '' && slot !== null);
+          }
+
+          // Recalcula peso
+          this.recalculateWeight(player);
+          this.recalculateStats(player);
+
+          // Salva no banco de dados
+          savePlayerToDB(player).catch(e => console.error('Error saving bank item:', e));
+
+          socket.emit('statsUpdate', { 
+              id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+              stats: player.stats, statPoints: player.statPoints,
+              attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+              hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+              sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+              health: player.health, maxHealth: player.maxHealth
+          });
+
+          socket.emit('inventoryUpdate', player.backpack);
+          socket.emit('bank:update', {
+              bankGold: player.bankGold,
+              bankItems: player.bankItems || [],
+              bankDebtDays: player.bankDebtDays
+          });
+      });
+
       // Desequipar Item
       socket.on('unequipItem', (slot: string) => {
           const player = this.players.get(socket.id);
@@ -1592,6 +1893,40 @@ export class Game {
         this.isNight = false;
         this.io.emit('timeUpdate', { isNight: this.isNight });
         const msg = 'O sol nasce. Você está seguro por enquanto.';
+        
+        // Dedução da taxa do Banqueiro
+        const onlineNames: string[] = [];
+        this.players.forEach(p => {
+            if (!p.isMonster) {
+                onlineNames.push(p.name);
+                let bankGold = p.bankGold ?? 0;
+                let bankDebtDays = p.bankDebtDays ?? 0;
+
+                if (bankGold > 0) {
+                    bankGold -= 1;
+                } else {
+                    if (bankDebtDays > -20) {
+                        bankDebtDays -= 1; // max -20 debt days
+                    }
+                }
+                p.bankGold = bankGold;
+                p.bankDebtDays = bankDebtDays;
+
+                const playerSocket = this.io.sockets.sockets.get(p.id);
+                if (playerSocket) {
+                    playerSocket.emit('bank:update', {
+                        bankGold: p.bankGold,
+                        bankItems: p.bankItems || [],
+                        bankDebtDays: p.bankDebtDays
+                    });
+                    playerSocket.emit('textEffect', { x: p.x, y: p.y, message: 'Tarifa do Banco (-1 Ouro)', color: '#ffaa00' });
+                }
+            }
+        });
+
+        // Dedução para jogadores offline no banco de dados
+        deductOfflineBankGold(onlineNames).catch(err => console.error('Erro ao debitar banco offline:', err));
+
         this.players.forEach(p => { 
             if (!p.isMonster) {
                 this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' }); 
@@ -2561,8 +2896,8 @@ export class Game {
       const player = this.players.get(socket.id);
       if (!player || player.isDead) return;
 
-      player.x = 10;
-      player.y = 10;
+      player.x = 120;
+      player.y = 114;
       player.targetId = undefined;
 
       // Notifica todos que o jogador se moveu
@@ -2662,9 +2997,9 @@ export class Game {
 
   private setupCraftingStations() {
       const stations: CraftingStation[] = [
-          { id: 'station_forge', type: 'forge', name: 'Forja', emoji: '⚒️', x: 118, y: 110 },
-          { id: 'station_alchemy', type: 'alchemy', name: 'Mesa de Alquimia', emoji: '🧪', x: 122, y: 110 },
-          { id: 'station_tanning', type: 'tanning', name: 'Bancada de Alfaiataria', emoji: '🧵', x: 120, y: 108 }
+          { id: 'station_forge', type: 'forge', name: 'Ferreiro', emoji: '🧔', x: 118, y: 110 },
+          { id: 'station_alchemy', type: 'alchemy', name: 'Alquimista', emoji: '🧙‍♂️', x: 122, y: 110 },
+          { id: 'station_tanning', type: 'tanning', name: 'Alfaiate', emoji: '🧝‍♂️', x: 120, y: 108 }
       ];
       stations.forEach(s => {
           this.craftingStations.set(s.id, s);

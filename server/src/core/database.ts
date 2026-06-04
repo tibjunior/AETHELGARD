@@ -53,6 +53,9 @@ async function initDB() {
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS learned_recipes TEXT DEFAULT '[]'`);
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ui_positions TEXT DEFAULT '{}'`);
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS password TEXT DEFAULT ''`);
+        await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS bank_gold INTEGER DEFAULT 0`);
+        await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS bank_items TEXT DEFAULT '[]'`);
+        await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS bank_debt_days INTEGER DEFAULT 0`);
 
         // Cria a tabela de Leilões
         await pool.query(`
@@ -108,7 +111,10 @@ export async function getPlayerFromDB(name: string): Promise<PlayerData | null> 
             professionTanningXp: row.profession_tanning_xp ?? 0,
             learnedRecipes: JSON.parse(row.learned_recipes || '[]'),
             uiPositions: JSON.parse(row.ui_positions || '{}'),
-            password: row.password || ''
+            password: row.password || '',
+            bankGold: row.bank_gold ?? 0,
+            bankItems: JSON.parse(row.bank_items || '[]'),
+            bankDebtDays: row.bank_debt_days ?? 0
         } as PlayerData;
     } catch (err) {
         console.error('getPlayerFromDB Error:', err);
@@ -127,9 +133,10 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             profession_smithing_level, profession_smithing_xp,
             profession_alchemy_level, profession_alchemy_xp,
             profession_tanning_level, profession_tanning_xp,
-            learned_recipes, ui_positions, password
+            learned_recipes, ui_positions, password,
+            bank_gold, bank_items, bank_debt_days
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
         ON CONFLICT(name) DO UPDATE SET 
         id=excluded.id, x=excluded.x, y=excluded.y, level=excluded.level, experience=excluded.experience, 
         gold=excluded.gold, stats=excluded.stats, statPoints=excluded.statPoints, sp=excluded.sp, 
@@ -141,7 +148,8 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
         profession_smithing_level=excluded.profession_smithing_level, profession_smithing_xp=excluded.profession_smithing_xp,
         profession_alchemy_level=excluded.profession_alchemy_level, profession_alchemy_xp=excluded.profession_alchemy_xp,
         profession_tanning_level=excluded.profession_tanning_level, profession_tanning_xp=excluded.profession_tanning_xp,
-        learned_recipes=excluded.learned_recipes, ui_positions=excluded.ui_positions, password=excluded.password
+        learned_recipes=excluded.learned_recipes, ui_positions=excluded.ui_positions, password=excluded.password,
+        bank_gold=excluded.bank_gold, bank_items=excluded.bank_items, bank_debt_days=excluded.bank_debt_days
     `;
     
     try {
@@ -158,7 +166,10 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             player.professionTanningLevel ?? 1, player.professionTanningXp ?? 0,
             JSON.stringify(player.learnedRecipes || []),
             JSON.stringify(player.uiPositions || {}),
-            player.password || ''
+            player.password || '',
+            player.bankGold ?? 0,
+            JSON.stringify(player.bankItems || []),
+            player.bankDebtDays ?? 0
         ]);
     } catch (err) {
         console.error('savePlayerToDB Error:', err);
@@ -199,7 +210,10 @@ export async function getAllRegisteredPlayers(): Promise<PlayerData[]> {
             professionTanningXp: row.profession_tanning_xp ?? 0,
             learnedRecipes: JSON.parse(row.learned_recipes || '[]'),
             uiPositions: JSON.parse(row.ui_positions || '{}'),
-            password: row.password || ''
+            password: row.password || '',
+            bankGold: row.bank_gold ?? 0,
+            bankItems: JSON.parse(row.bank_items || '[]'),
+            bankDebtDays: row.bank_debt_days ?? 0
         } as PlayerData));
     } catch (err) {
         console.error('getAllRegisteredPlayers Error:', err);
@@ -293,5 +307,25 @@ export async function deletePlayerFromDB(name: string): Promise<void> {
     } catch (err) {
         console.error('deletePlayerFromDB Error:', err);
         throw err;
+    }
+}
+
+export async function deductOfflineBankGold(onlineNames: string[]): Promise<void> {
+    try {
+        let query = `
+            UPDATE players 
+            SET 
+                bank_gold = CASE WHEN bank_gold > 0 THEN bank_gold - 1 ELSE bank_gold END,
+                bank_debt_days = CASE WHEN bank_gold <= 0 AND bank_debt_days > -20 THEN bank_debt_days - 1 ELSE bank_debt_days END
+        `;
+        if (onlineNames.length > 0) {
+            const placeholders = onlineNames.map((_, i) => `$${i + 1}`).join(', ');
+            query += ` WHERE name NOT IN (${placeholders})`;
+            await pool.query(query, onlineNames);
+        } else {
+            await pool.query(query);
+        }
+    } catch (err) {
+        console.error('deductOfflineBankGold Error:', err);
     }
 }

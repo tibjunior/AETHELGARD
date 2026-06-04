@@ -64,6 +64,9 @@ export interface PlayerData {
   professionTanningXp?: number;
   learnedRecipes?: string[];
   uiPositions?: Record<string, { x: number, y: number }>;
+  bankGold?: number;
+  bankItems?: string[];
+  bankDebtDays?: number;
 }
 
 export interface Equipment {

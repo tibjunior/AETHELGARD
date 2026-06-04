@@ -173,6 +173,31 @@ export class BootScene extends Phaser.Scene {
         merchantCanvas.refresh();
     }
 
+    // Criando o Banker NPC
+    const bankerCanvas = this.textures.createCanvas('banker-sprite', 32, 32);
+    if (bankerCanvas && bankerCanvas.context) {
+        const ctx = bankerCanvas.context;
+        // Terno cinza/escuro elegante
+        ctx.fillStyle = '#334155';
+        ctx.fillRect(6, 8, 20, 22);
+        // Camisa branca interna
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(13, 8, 6, 8);
+        // Gravata dourada
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(15, 11, 2, 8);
+        // Rosto
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(10, 3, 12, 7);
+        // Cabelo grisalho
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(8, 1, 16, 3);
+        ctx.fillRect(8, 4, 2, 4);
+        ctx.fillRect(22, 4, 2, 4);
+
+        bankerCanvas.refresh();
+    }
+
     // Criando a Caveira (Skull)
     const skullCanvas = this.textures.createCanvas('skull-sprite', 32, 32);
     if (skullCanvas && skullCanvas.context) {
@@ -195,6 +220,79 @@ export class BootScene extends Phaser.Scene {
         ctx.fillRect(17, 20, 1, 4);
 
         skullCanvas.refresh();
+    }
+
+    // Criando o Ferreiro (Blacksmith) NPC
+    const blacksmithCanvas = this.textures.createCanvas('blacksmith-sprite', 32, 32);
+    if (blacksmithCanvas && blacksmithCanvas.context) {
+        const ctx = blacksmithCanvas.context;
+        // Avental/Corpo marrom
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(6, 11, 20, 21);
+        // Rosto
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(10, 4, 12, 7);
+        // Cabelo/Barba preta
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(8, 2, 16, 3); // Cabelo topo
+        ctx.fillRect(10, 9, 12, 4); // Barba
+        // Martelo cinza metálico
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(22, 14, 6, 4); // Cabeça do martelo
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(24, 17, 2, 8); // Cabo do martelo
+
+        blacksmithCanvas.refresh();
+    }
+
+    // Criando o Alquimista (Alchemist) NPC
+    const alchemistCanvas = this.textures.createCanvas('alchemist-sprite', 32, 32);
+    if (alchemistCanvas && alchemistCanvas.context) {
+        const ctx = alchemistCanvas.context;
+        // Robe azul escuro
+        ctx.fillStyle = '#1e3a8a';
+        ctx.fillRect(6, 12, 20, 20);
+        // Rosto
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(10, 6, 12, 6);
+        // Barba longa branca
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(11, 11, 10, 7);
+        // Chapéu pontudo azul
+        ctx.fillStyle = '#1d4ed8';
+        ctx.fillRect(8, 5, 16, 2); // Aba do chapéu
+        ctx.fillRect(10, 3, 12, 2); // Base do cone
+        ctx.fillRect(13, 0, 6, 3); // Topo do cone
+        // Frasco verde brilhante na mão
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(23, 16, 5, 7); // Corpo
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(24, 14, 3, 2); // Gargalo
+
+        alchemistCanvas.refresh();
+    }
+
+    // Criando o Alfaiate (Tailor) NPC
+    const tailorCanvas = this.textures.createCanvas('tailor-sprite', 32, 32);
+    if (tailorCanvas && tailorCanvas.context) {
+        const ctx = tailorCanvas.context;
+        // Veste verde élfica
+        ctx.fillStyle = '#065f46';
+        ctx.fillRect(6, 11, 20, 21);
+        // Rosto
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(10, 4, 12, 7);
+        // Cabelo comprido louro
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(8, 2, 16, 3); // Cabelo topo
+        ctx.fillRect(8, 5, 2, 10); // Cabelo lateral esquerdo
+        ctx.fillRect(22, 5, 2, 10); // Cabelo lateral direito
+        // Tecido/fita vermelha nos ombros
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(7, 11, 3, 9); // Lado esquerdo
+        ctx.fillRect(22, 11, 3, 6); // Lado direito
+
+        tailorCanvas.refresh();
     }
   }
 

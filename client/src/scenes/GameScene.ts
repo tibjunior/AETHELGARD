@@ -49,6 +49,8 @@ export class GameScene extends Phaser.Scene {
   // Sistema de perseguição (Chase)
   private chaseTargetId?: string;         // ID do alvo sendo perseguido
   private chaseTargetPos?: { x: number, y: number }; // última posição conhecida do alvo
+  private chaseNodeId?: string;           // ID do recurso sendo coletado
+  private chaseNodePos?: { x: number, y: number }; // posição do recurso sendo coletado
 
   private readonly TILE_SIZE = 32;
   private isMoving = false;
@@ -61,6 +63,11 @@ export class GameScene extends Phaser.Scene {
   private lightBrush!: Phaser.GameObjects.Image;
   private hasTorch: boolean = false;
   
+  // Banker state variables
+  public bankGold = 0;
+  public bankItems: string[] = [];
+  public bankDebtDays = 0;
+
   // Autofarm e Auto-attack
   private isAutofarmEnabled: boolean = false;
   private otherPlayersData: Map<string, PlayerData> = new Map();
@@ -105,7 +112,9 @@ export class GameScene extends Phaser.Scene {
             'Orc': 'Orc',
             'Rotworm': 'Verme da Podridão',
             'Demon Skeleton': 'Esqueleto Demônio',
-            'Merchant': 'Mercador'
+            'Nightmare Skeleton': 'Esqueleto do Pesadelo (Boss)',
+            'Merchant': 'Mercador',
+            'Banker': 'Banqueiro'
         };
         return MONSTER_NAMES_PT[name] || name;
     };
@@ -479,6 +488,56 @@ export class GameScene extends Phaser.Scene {
     this.chaseTargetId = undefined;
     this.chaseTargetPos = undefined;
     this.autoPath = [];
+  }
+
+  private startNodeChase(id: string, x: number, y: number) {
+    this.stopChase();
+    this.stopLootChase();
+    this.chaseNodeId = id;
+    this.chaseNodePos = { x, y };
+    this.recalculateNodeChase();
+  }
+
+  private stopNodeChase() {
+    this.chaseNodeId = undefined;
+    this.chaseNodePos = undefined;
+    this.autoPath = [];
+  }
+
+  private recalculateNodeChase() {
+    if (!this.chaseNodeId || !this.chaseNodePos || !this.localPlayerSprite) return;
+
+    const playerX = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+    const playerY = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+    const tx = this.chaseNodePos.x;
+    const ty = this.chaseNodePos.y;
+
+    const dx = Math.abs(playerX - tx);
+    const dy = Math.abs(playerY - ty);
+    if (dx <= 1 && dy <= 1) {
+        this.autoPath = [];
+        this.socketManager.socket.emit('startGathering', { nodeId: this.chaseNodeId });
+        return;
+    }
+
+    const adjacentTiles = [
+        { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
+        { x: tx - 1, y: ty }, { x: tx + 1, y: ty }
+    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= 149 && t.y >= 0 && t.y <= 149);
+
+    if (adjacentTiles.length === 0) return;
+
+    adjacentTiles.sort((a, b) => {
+        const da = Math.abs(a.x - playerX) + Math.abs(a.y - playerY);
+        const db = Math.abs(b.x - playerX) + Math.abs(b.y - playerY);
+        return da - db;
+    });
+
+    const dest = adjacentTiles[0];
+    this.autoPath = this.calculatePath(playerX, playerY, dest.x, dest.y);
+    if (this.autoPath.length > 0 && !this.isMoving) {
+        this.processNextAutoWalkStep();
+    }
   }
 
   private startLootChase(id: string, x: number, y: number) {
@@ -995,18 +1054,34 @@ export class GameScene extends Phaser.Scene {
              htmlSlot.style.cursor = 'pointer';
              htmlSlot.style.fontSize = '24px';
              
-             // Left-click = Dropar item
+             // Left-click = Depositar se o banco estiver aberto, senão Dropar item
              htmlSlot.onclick = () => {
-                 if (count > 1) {
-                     const input = prompt(`Quantos deseja dropar? (1 a ${count})`, count.toString());
-                     if (input !== null) {
-                         const amount = parseInt(input);
-                         if (!isNaN(amount) && amount >= 1 && amount <= count) {
-                             this.socketManager.sendDropItem(index, amount);
-                         }
+                 const bankModal = document.getElementById('modal-bank');
+                 const isBankOpen = bankModal && bankModal.style.display === 'flex';
+                 if (isBankOpen) {
+                     const emptyIndex = this.bankItems.findIndex(item => !item || item === '');
+                     if (emptyIndex !== -1) {
+                         this.socketManager.socket.emit('bank:depositItem', { backpackIndex: index, bankIndex: emptyIndex });
+                     } else {
+                         this.onTextEffect(
+                             Math.round(this.localPlayerSprite!.x / this.TILE_SIZE),
+                             Math.round(this.localPlayerSprite!.y / this.TILE_SIZE),
+                             'Cofre Cheio!',
+                             '#ff5555'
+                         );
                      }
                  } else {
-                     this.socketManager.sendDropItem(index, 1);
+                     if (count > 1) {
+                         const input = prompt(`Quantos deseja dropar? (1 a ${count})`, count.toString());
+                         if (input !== null) {
+                             const amount = parseInt(input);
+                             if (!isNaN(amount) && amount >= 1 && amount <= count) {
+                                 this.socketManager.sendDropItem(index, amount);
+                             }
+                         }
+                     } else {
+                         this.socketManager.sendDropItem(index, 1);
+                     }
                  }
              };
              
@@ -1035,7 +1110,153 @@ export class GameScene extends Phaser.Scene {
           this.renderShopSell();
      }
   }
-  
+
+  public openBankUI() {
+      const ui = document.getElementById('modal-bank');
+      if (!ui) return;
+
+      ui.style.display = 'flex';
+
+      // Re-atualiza mochila para ligar click de depositar
+      this.onInventoryUpdate(this.backpackData);
+
+      // Vincula fechar modal
+      const closeBtn = ui.querySelector('.close-modal') as HTMLElement;
+      if (closeBtn) {
+          closeBtn.onclick = () => {
+              ui.style.display = 'none';
+              // Restaura clicks normais da mochila
+              this.onInventoryUpdate(this.backpackData);
+          };
+      }
+
+      // Vincula botões de depósito/saque
+      const btnDeposit = document.getElementById('btn-bank-deposit') as HTMLButtonElement;
+      const btnWithdraw = document.getElementById('btn-bank-withdraw') as HTMLButtonElement;
+      const goldInput = document.getElementById('bank-gold-input') as HTMLInputElement;
+
+      if (btnDeposit) {
+          btnDeposit.onclick = () => {
+              const amount = parseInt(goldInput.value);
+              if (!isNaN(amount) && amount > 0) {
+                  this.socketManager.socket.emit('bank:depositGold', { amount });
+                  goldInput.value = '';
+              }
+          };
+      }
+
+      if (btnWithdraw) {
+          btnWithdraw.onclick = () => {
+              const amount = parseInt(goldInput.value);
+              if (!isNaN(amount) && amount > 0) {
+                  this.socketManager.socket.emit('bank:withdrawGold', { amount });
+                  goldInput.value = '';
+              }
+          };
+      }
+
+      // Inicializa grade do banco se vazia
+      this.renderBankGrid();
+  }
+
+  public onBankUpdate(data: { bankGold: number, bankItems: string[], bankDebtDays: number }) {
+      this.bankGold = data.bankGold;
+      this.bankItems = data.bankItems;
+      this.bankDebtDays = data.bankDebtDays;
+
+      const goldAmt = document.getElementById('bank-gold-amount');
+      if (goldAmt) goldAmt.innerText = this.bankGold.toString();
+
+      const statusMsg = document.getElementById('bank-status-msg');
+      const lockedAlert = document.getElementById('bank-locked-alert');
+
+      if (statusMsg) {
+          if (this.bankDebtDays < 0) {
+              statusMsg.innerText = `Em Atraso (${this.bankDebtDays} dias)`;
+              statusMsg.style.color = '#f87171'; // vermelho
+              if (lockedAlert) lockedAlert.style.display = 'inline';
+          } else if (this.bankGold === 0) {
+              statusMsg.innerText = 'Sem Saldo';
+              statusMsg.style.color = '#fbbf24'; // amarelo
+              if (lockedAlert) lockedAlert.style.display = 'inline';
+          } else {
+              statusMsg.innerText = 'Regular';
+              statusMsg.style.color = '#4ade80'; // verde
+              if (lockedAlert) lockedAlert.style.display = 'none';
+          }
+      }
+
+      this.renderBankGrid();
+  }
+
+  public renderBankGrid() {
+      const grid = document.getElementById('bank-grid');
+      if (!grid) return;
+
+      grid.innerHTML = '';
+      for (let i = 0; i < 50; i++) {
+          const slotDiv = document.createElement('div');
+          slotDiv.className = 'slot';
+          slotDiv.setAttribute('data-index', i.toString());
+
+          const itemString = this.bankItems[i];
+          if (itemString) {
+              let baseItemName = itemString;
+              let count = 1;
+
+              if (itemString.startsWith('{')) {
+                  try {
+                      baseItemName = JSON.parse(itemString).name;
+                  } catch(e){}
+              } else if (itemString.includes(':')) {
+                  const [name, countStr] = itemString.split(':');
+                  baseItemName = name;
+                  count = parseInt(countStr) || 1;
+              }
+
+              const emojis: Record<string, string> = { 
+                  'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪', 
+                  'Mana Potion': '💙', 'Blueberry': '🍇',
+                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
+                  'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                  'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+                  'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
+              };
+
+              const isEmojiChar = baseItemName.length <= 4;
+              const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
+
+              if (count > 1) {
+                  slotDiv.innerHTML = `
+                      <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                          <span>${emoji}</span>
+                          <span style="position: absolute; bottom: -2px; right: 2px; font-size: 11px; color: #fbbf24; font-weight: bold; font-family: monospace; text-shadow: 1px 1px 0 #000;">${count}</span>
+                      </div>
+                  `;
+              } else {
+                  slotDiv.innerText = emoji;
+              }
+
+              slotDiv.style.cursor = 'pointer';
+              slotDiv.style.fontSize = '24px';
+
+              // Clique no item do banco para retirar
+              slotDiv.onclick = () => {
+                  this.socketManager.socket.emit('bank:withdrawItem', { bankIndex: i, backpackIndex: -1 });
+              };
+
+              // Tooltips
+              if (this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
+                  slotDiv.addEventListener('mouseenter', this.showTooltipFn);
+                  slotDiv.addEventListener('mousemove', this.moveTooltipFn);
+                  slotDiv.addEventListener('mouseleave', this.hideTooltipFn);
+              }
+          }
+
+          grid.appendChild(slotDiv);
+      }
+  }
+
   public renderShopSell() {
       const content = document.getElementById('shop-content');
       if (!content) return;
@@ -1307,6 +1528,8 @@ export class GameScene extends Phaser.Scene {
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
         texture = 'merchant-sprite';
+    } else if (data.name === 'Banker') {
+        texture = 'banker-sprite';
     }
 
     const sprite = this.add.sprite(
@@ -1318,7 +1541,7 @@ export class GameScene extends Phaser.Scene {
     if (data.name === 'Nightmare Skeleton') {
         sprite.setScale(2);
         sprite.setTint(0xff00ff); // Roxo demoníaco
-    } else if (!data.isMonster && data.name !== 'Merchant') {
+    } else if (!data.isMonster && data.name !== 'Merchant' && data.name !== 'Banker') {
         sprite.setTint(0xff0000); // Jogadores inimigos em vermelho
     }
     sprite.setDepth(10);
@@ -1331,6 +1554,7 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Demon Skeleton') nameColor = '#ef4444';
     else if (data.name === 'Nightmare Skeleton') nameColor = '#ff00ff';
     else if (data.name === 'Merchant') nameColor = '#fbbf24';
+    else if (data.name === 'Banker') nameColor = '#10b981'; // Verde esmeralda para Banqueiro
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
@@ -1353,6 +1577,16 @@ export class GameScene extends Phaser.Scene {
                   this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Muito longe!', '#ff0000');
               }
           }
+      } else if (data.name === 'Banker') {
+          const myPos = this.localPlayerSprite;
+          if (myPos) {
+              const dist = Math.abs(myPos.x - sprite.x) + Math.abs(myPos.y - sprite.y);
+              if (dist / this.TILE_SIZE <= 1.5) {
+                  this.openBankUI();
+              } else {
+                  this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Muito longe!', '#ff0000');
+              }
+          }
       } else if (pointer.rightButtonDown()) {
           // Botão DIREITO = perseguir e atacar
           this.currentTargetId = data.id;
@@ -1368,7 +1602,7 @@ export class GameScene extends Phaser.Scene {
 
     // DUPLO CLIQUE esquerdo = perseguir e atacar
     sprite.on('pointerdblclick', () => {
-      if (data.name !== 'Merchant') {
+      if (data.name !== 'Merchant' && data.name !== 'Banker') {
           this.currentTargetId = data.id;
           this.updateTargetSquare(sprite);
           this.startChase(data.id);
@@ -1447,6 +1681,8 @@ export class GameScene extends Phaser.Scene {
         // Clique no chão cancela perseguição e autofarm e desmarca alvo
 
         this.stopChase();
+        this.stopNodeChase();
+        this.stopLootChase();
         this.currentTargetId = undefined;
         this.updateTargetSquare(null);
 
@@ -1538,8 +1774,9 @@ export class GameScene extends Phaser.Scene {
       const movKeys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
       // Limpa target de perseguição se moveu manualmente
       if (movKeys.includes(event.key)) {
-
           this.stopChase();
+          this.stopNodeChase();
+          this.stopLootChase();
       }
 
       // Aborta auto-walk e processa movimento manual
@@ -2181,6 +2418,7 @@ export class GameScene extends Phaser.Scene {
       this.isAutofarmEnabled = false;
       this.stopChase();
       this.stopLootChase();
+      this.stopNodeChase();
       
       const btn = document.getElementById('btn-toggle-autofarm');
       const indicator = document.getElementById('autofarm-indicator');
@@ -2200,6 +2438,12 @@ export class GameScene extends Phaser.Scene {
   private findNearestMonster(): PlayerData | null {
       if (!this.localPlayerSprite) return null;
       
+      const checkbox = document.getElementById('autofarm-kill-monster') as HTMLInputElement;
+      if (checkbox && !checkbox.checked) return null;
+
+      const select = document.getElementById('autofarm-monster-select') as HTMLSelectElement;
+      const selectedMonster = select ? select.value : 'all';
+
       const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
       const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
       
@@ -2208,6 +2452,9 @@ export class GameScene extends Phaser.Scene {
       
       this.otherPlayersData.forEach(p => {
           if (p.isMonster && !p.isDead && p.health > 0) {
+              if (selectedMonster !== 'all' && p.name !== selectedMonster) {
+                  return;
+              }
               const dist = Math.abs(p.x - px) + Math.abs(p.y - py);
               if (dist < minDist) {
                   minDist = dist;
@@ -2219,11 +2466,51 @@ export class GameScene extends Phaser.Scene {
       return nearest;
   }
 
+  private findNearestResourceNode(): ResourceNode | null {
+      if (!this.localPlayerSprite) return null;
+
+      const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+      const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+
+      const mineCheck = document.getElementById('autofarm-mine') as HTMLInputElement;
+      const woodCheck = document.getElementById('autofarm-wood') as HTMLInputElement;
+      const herbCheck = document.getElementById('autofarm-herb') as HTMLInputElement;
+
+      const mineEnabled = mineCheck ? mineCheck.checked : false;
+      const woodEnabled = woodCheck ? woodCheck.checked : false;
+      const herbEnabled = herbCheck ? herbCheck.checked : false;
+
+      if (!mineEnabled && !woodEnabled && !herbEnabled) return null;
+
+      let nearest: ResourceNode | null = null;
+      let minDist = Infinity;
+
+      this.resourceNodesMap.forEach(entry => {
+          const node = entry.data;
+          if (node.state === 'depleted') return;
+
+          if (node.type === 'ore' && !mineEnabled) return;
+          if (node.type === 'tree' && !woodEnabled) return;
+          if (node.type === 'herb' && !herbEnabled) return;
+
+          const dist = Math.abs(node.x - px) + Math.abs(node.y - py);
+          if (dist < minDist) {
+              minDist = dist;
+              nearest = node;
+          }
+      });
+
+      return nearest;
+  }
+
   private runAutofarmTick() {
       if (!this.isAutofarmEnabled || !this.localPlayerSprite || this.localPlayerDead) {
           if (this.isAutofarmEnabled) this.stopAutofarm();
           return;
       }
+
+      // Se estiver no processo de coleta (canalizando), apenas retorna
+      if (this.gatheringTimerEvent) return;
 
       // 1. Auto-potion check (HP & MP)
       const now = Date.now();
@@ -2260,13 +2547,48 @@ export class GameScene extends Phaser.Scene {
                       this.stopLootChase();
                   }
               }
-              return; // Looting tem prioridade sobre monstros
+              return; // Looting tem prioridade máxima
           } else {
               this.stopLootChase();
           }
       }
 
-      // 3. Verificar se o alvo atual de perseguicao ainda esta vivo e visivel
+      // Se houver loot por perto e auto-loot habilitado, vai pegar primeiro!
+      if (isLootEnabled) {
+          const nearestLoot = this.findNearestLoot();
+          if (nearestLoot) {
+              this.startLootChase(nearestLoot.id, nearestLoot.x, nearestLoot.y);
+              const targetDisplay = document.getElementById('autofarm-target');
+              if (targetDisplay) targetDisplay.innerText = `Alvo: Pegando loot (${nearestLoot.name})`;
+              return;
+          }
+      }
+
+      // 3. Processamento de Coleta de Recursos (Node Chase)
+      if (this.chaseNodeId && this.chaseNodePos) {
+          const entry = this.resourceNodesMap.get(this.chaseNodeId);
+          if (entry && entry.data.state !== 'depleted') {
+              // Continua perseguindo recurso
+              const playerX = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+              const playerY = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+              const dx = Math.abs(playerX - this.chaseNodePos.x);
+              const dy = Math.abs(playerY - this.chaseNodePos.y);
+
+              if (dx <= 1 && dy <= 1) {
+                  this.autoPath = [];
+                  this.socketManager.socket.emit('startGathering', { nodeId: this.chaseNodeId });
+              } else if (this.autoPath.length === 0 && !this.isMoving) {
+                  this.recalculateNodeChase();
+              }
+              const targetDisplay = document.getElementById('autofarm-target');
+              if (targetDisplay) targetDisplay.innerText = `Coletando: ${entry.data.name}`;
+              return;
+          } else {
+              this.stopNodeChase();
+          }
+      }
+
+      // 4. Processamento de Combate com Monstros (Monster Chase)
       let currentTargetAlive = false;
       if (this.chaseTargetId) {
           const targetData = this.otherPlayersData.get(this.chaseTargetId);
@@ -2275,43 +2597,14 @@ export class GameScene extends Phaser.Scene {
           }
       }
 
-      // 4. Se nao tiver alvo ativo de monstro ou o atual morreu
-      if (!currentTargetAlive) {
-          // Primeiro, procura loot por perto antes de buscar outro monstro! (se auto-loot estiver ativado)
-          if (isLootEnabled) {
-              const nearestLoot = this.findNearestLoot();
-              if (nearestLoot) {
-                  this.startLootChase(nearestLoot.id, nearestLoot.x, nearestLoot.y);
-                  const targetDisplay = document.getElementById('autofarm-target');
-                  if (targetDisplay) targetDisplay.innerText = `Alvo: Pegando loot (${nearestLoot.name})`;
-                  return;
-              }
-          }
-
-          // Se não houver loot, busca monstro
-          const nearest = this.findNearestMonster();
-          if (nearest) {
-              this.currentTargetId = nearest.id;
-              const targetSprite = this.otherPlayers.get(nearest.id);
-              if (targetSprite) this.updateTargetSquare(targetSprite);
-              this.startChase(nearest.id);
-              
-              const targetDisplay = document.getElementById('autofarm-target');
-              if (targetDisplay) targetDisplay.innerText = `Alvo: ${nearest.name}`;
-          } else {
-              this.stopChase();
-              const targetDisplay = document.getElementById('autofarm-target');
-              if (targetDisplay) targetDisplay.innerText = 'Alvo: Procurando...';
-          }
-      } else {
-          // Se tiver alvo ativo, atualiza o texto da UI
+      if (currentTargetAlive) {
           const targetData = this.otherPlayersData.get(this.chaseTargetId!);
           const targetDisplay = document.getElementById('autofarm-target');
           if (targetDisplay && targetData) {
               targetDisplay.innerText = `Alvo: ${targetData.name} (Lvl ${targetData.level})`;
           }
 
-          // 5. Auto Magic Skills (se habilitado)
+          // Auto Magic Skills (se habilitado)
           const checkbox = document.getElementById('autofarm-skills') as HTMLInputElement;
           if (checkbox && checkbox.checked && targetData) {
               const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
@@ -2321,21 +2614,57 @@ export class GameScene extends Phaser.Scene {
               const isAdjacent = (dx <= 1 && dy <= 1);
 
               if (isAdjacent) {
-                  // Prioridade 1: Whirlwind (AoE) - Custo 20 SP, Cooldown 3000ms
                   const lastWhirlwind = this.skillCooldowns['whirlwind'] || 0;
-                  if (now - lastWhirlwind >= 3000 && this.localSp >= 20) {
+                  const lastSkillshot = this.skillCooldowns['skillshot'] || 0;
+                  if (now - lastWhirlwind >= 3000) {
                       this.useSkill('whirlwind');
-                      return;
-                   }
-              }
-
-              // Prioridade 2: Skillshot - Custo 10 SP, Cooldown 1500ms
-              const lastSkillshot = this.skillCooldowns['skillshot'] || 0;
-              if (now - lastSkillshot >= 1500 && this.localSp >= 10) {
-                  this.useSkill('skillshot');
-                  return;
+                  } else if (now - lastSkillshot >= 2000) {
+                      this.useSkill('skillshot');
+                  }
               }
           }
+          return;
+      } else {
+          this.stopChase();
+      }
+
+      // 5. Se estiver livre, escolhe o alvo mais próximo entre Monstros e Recursos
+      const nearestMonster = this.findNearestMonster();
+      const nearestNode = this.findNearestResourceNode();
+
+      if (nearestMonster && nearestNode) {
+          // Compara distâncias
+          const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+          const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+          const distMonster = Math.abs(nearestMonster.x - px) + Math.abs(nearestMonster.y - py);
+          const distNode = Math.abs(nearestNode.x - px) + Math.abs(nearestNode.y - py);
+
+          if (distNode < distMonster) {
+              this.startNodeChase(nearestNode.id, nearestNode.x, nearestNode.y);
+              const targetDisplay = document.getElementById('autofarm-target');
+              if (targetDisplay) targetDisplay.innerText = `Coletando: ${nearestNode.name}`;
+          } else {
+              this.currentTargetId = nearestMonster.id;
+              const targetSprite = this.otherPlayers.get(nearestMonster.id);
+              if (targetSprite) this.updateTargetSquare(targetSprite);
+              this.startChase(nearestMonster.id);
+              const targetDisplay = document.getElementById('autofarm-target');
+              if (targetDisplay) targetDisplay.innerText = `Alvo: ${nearestMonster.name}`;
+          }
+      } else if (nearestMonster) {
+          this.currentTargetId = nearestMonster.id;
+          const targetSprite = this.otherPlayers.get(nearestMonster.id);
+          if (targetSprite) this.updateTargetSquare(targetSprite);
+          this.startChase(nearestMonster.id);
+          const targetDisplay = document.getElementById('autofarm-target');
+          if (targetDisplay) targetDisplay.innerText = `Alvo: ${nearestMonster.name}`;
+      } else if (nearestNode) {
+          this.startNodeChase(nearestNode.id, nearestNode.x, nearestNode.y);
+          const targetDisplay = document.getElementById('autofarm-target');
+          if (targetDisplay) targetDisplay.innerText = `Coletando: ${nearestNode.name}`;
+      } else {
+          const targetDisplay = document.getElementById('autofarm-target');
+          if (targetDisplay) targetDisplay.innerText = 'Alvo: Procurando...';
       }
   }
 
@@ -2413,17 +2742,29 @@ export class GameScene extends Phaser.Scene {
           existing.label.destroy();
       }
 
-      const sprite = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE, station.emoji, {
-          fontSize: '28px',
-          fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
-      }).setOrigin(0.5).setDepth(4) as any;
+      let texture = '';
+      if (station.type === 'forge') texture = 'blacksmith-sprite';
+      else if (station.type === 'alchemy') texture = 'alchemist-sprite';
+      else if (station.type === 'tanning') texture = 'tailor-sprite';
+
+      let sprite: any;
+      if (texture) {
+          sprite = this.add.sprite(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE, texture)
+              .setOrigin(0.5)
+              .setDepth(10);
+      } else {
+          sprite = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE, station.emoji, {
+              fontSize: '28px',
+              fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
+          }).setOrigin(0.5).setDepth(4);
+      }
 
       const label = this.add.text(station.x * this.TILE_SIZE, station.y * this.TILE_SIZE - 20, station.name, {
           fontSize: '10px',
           color: '#fbbf24',
           backgroundColor: 'rgba(0,0,0,0.6)',
           padding: { x: 3, y: 1 }
-      }).setOrigin(0.5).setDepth(4);
+      }).setOrigin(0.5).setDepth(10);
 
       sprite.setInteractive({ useHandCursor: true });
       sprite.on('pointerdown', () => {

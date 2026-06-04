@@ -202,6 +202,10 @@ export class SocketManager {
     this.socket.on('auctionList', (list: any[]) => {
       this.scene.renderAuctionList(list);
     });
+
+    this.socket.on('bank:update', (data: { bankGold: number, bankItems: string[], bankDebtDays: number }) => {
+        this.scene.onBankUpdate(data);
+    });
   }
 
   public sendMove(targetPosition: Position, facing: string) {
