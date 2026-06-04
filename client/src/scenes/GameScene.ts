@@ -7,6 +7,9 @@ export class GameScene extends Phaser.Scene {
   private socketManager!: SocketManager;
   private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private otherPlayerLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+  private showTooltipFn?: (e: MouseEvent) => void;
+  private moveTooltipFn?: (e: MouseEvent) => void;
+  private hideTooltipFn?: (e: MouseEvent) => void;
   private projectiles: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private localPlayerSprite?: Phaser.GameObjects.Sprite;
   private wallsGroup!: Phaser.GameObjects.Group;
@@ -959,6 +962,15 @@ export class GameScene extends Phaser.Scene {
                  e.preventDefault();
                  this.socketManager.sendUseItem(index);
              };
+
+             if (this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
+                 htmlSlot.removeEventListener('mouseenter', this.showTooltipFn);
+                 htmlSlot.removeEventListener('mousemove', this.moveTooltipFn);
+                 htmlSlot.removeEventListener('mouseleave', this.hideTooltipFn);
+                 htmlSlot.addEventListener('mouseenter', this.showTooltipFn);
+                 htmlSlot.addEventListener('mousemove', this.moveTooltipFn);
+                 htmlSlot.addEventListener('mouseleave', this.hideTooltipFn);
+             }
          } else {
              htmlSlot.innerHTML = '';
              htmlSlot.style.cursor = 'default';
@@ -1263,7 +1275,7 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
-    const nameLabel = this.add.text(sprite.x, sprite.y - 30, displayName, { 
+    const nameLabel = this.add.text(sprite.x, sprite.y - 30, `[Lv.${data.level || 1}] ${displayName}`, { 
         fontSize: '10px', 
         color: nameColor,
         fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
@@ -1369,7 +1381,8 @@ export class GameScene extends Phaser.Scene {
         if (blocksMovement) return;
         if (!this.localPlayerSprite) return;
 
-        // Clique no chão cancela perseguição
+        // Clique no chão cancela perseguição e autofarm
+        this.cancelAutofarmManually();
         this.stopChase();
 
         const destX = Math.round(pointer.worldX / this.TILE_SIZE);
@@ -1392,6 +1405,7 @@ export class GameScene extends Phaser.Scene {
     // Adiciona tecla de Dash
     this.input.keyboard!.on('keydown-SPACE', () => {
         if (!this.isMoving) {
+            this.cancelAutofarmManually();
             this.socketManager.sendDash();
             this.isMoving = true;
             setTimeout(() => this.isMoving = false, 300);
@@ -1443,6 +1457,7 @@ export class GameScene extends Phaser.Scene {
 
       // Atalho de retornar para a base (Recall)
       if (event.key.toLowerCase() === 'b') {
+          this.cancelAutofarmManually();
           this.socketManager.socket.emit('startRecall');
           return;
       }
@@ -1457,7 +1472,11 @@ export class GameScene extends Phaser.Scene {
 
       // Qualquer tecla de movimento cancela perseguição
       const movKeys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
-      if (movKeys.includes(event.key)) this.stopChase();
+      // Limpa target de perseguição se moveu manualmente
+      if (movKeys.includes(event.key)) {
+          this.cancelAutofarmManually();
+          this.stopChase();
+      }
 
       // Aborta auto-walk e processa movimento manual
       this.autoPath = [];
@@ -1749,7 +1768,8 @@ export class GameScene extends Phaser.Scene {
               const eqSlot = id.replace('slot-', '');
               const slotMap: Record<string, string> = {
                   'head': 'head', 'left': 'leftHand', 'right': 'rightHand',
-                  'body': 'body', 'legs': 'legs', 'boots': 'boots'
+                  'body': 'body', 'legs': 'legs', 'boots': 'boots',
+                  'backpack': 'backpack'
               };
               const key = slotMap[eqSlot];
               const itemString = this.equipmentData ? this.equipmentData[key] : null;
@@ -1800,7 +1820,8 @@ export class GameScene extends Phaser.Scene {
               } else {
                   const emptyNames: Record<string, string> = {
                       'head': 'Slot de Cabeça', 'left': 'Mão Esquerda', 'right': 'Mão Direita',
-                      'body': 'Slot de Corpo', 'legs': 'Slot de Pernas', 'boots': 'Slot de Botas'
+                      'body': 'Slot de Corpo', 'legs': 'Slot de Pernas', 'boots': 'Slot de Botas',
+                      'backpack': 'Slot de Mochila'
                   };
                   const emptyDescs: Record<string, string> = {
                       'head': 'Vazio\nEquipe elmos para aumentar sua Defesa.',
@@ -1808,7 +1829,8 @@ export class GameScene extends Phaser.Scene {
                       'right': 'Vazio\nEquipe armas para aumentar seu ATK.',
                       'body': 'Vazio\nEquipe armaduras para aumentar sua Defesa.',
                       'legs': 'Vazio\nEquipe calças para proteção.',
-                      'boots': 'Vazio\nEquipe botas para proteção.'
+                      'boots': 'Vazio\nEquipe botas para proteção.',
+                      'backpack': 'Vazio\nEquipe mochilas para obter mais espaço no inventário.'
                   };
                   return { name: emptyNames[eqSlot] || 'Equipamento', desc: emptyDescs[eqSlot] || 'Slot vazio.', color: '#475569' };
               }
@@ -1887,7 +1909,7 @@ export class GameScene extends Phaser.Scene {
           return null;
       };
 
-      const showTooltip = (e: MouseEvent) => {
+      this.showTooltipFn = (e: MouseEvent) => {
           const slotEl = e.currentTarget as HTMLElement;
           const data = getTooltipData(slotEl);
           if (data) {
@@ -1899,20 +1921,23 @@ export class GameScene extends Phaser.Scene {
           }
       };
 
-      const moveTooltip = (e: MouseEvent) => {
+      this.moveTooltipFn = (e: MouseEvent) => {
           this.positionTooltip(e.pageX, e.pageY);
       };
 
-      const hideTooltip = () => {
+      this.hideTooltipFn = () => {
           tooltip.style.display = 'none';
       };
 
       const allSlots = document.querySelectorAll('.slot');
       allSlots.forEach(slot => {
           const el = slot as HTMLElement;
-          el.addEventListener('mouseenter', showTooltip);
-          el.addEventListener('mousemove', moveTooltip);
-          el.addEventListener('mouseleave', hideTooltip);
+          el.removeEventListener('mouseenter', this.showTooltipFn!);
+          el.removeEventListener('mousemove', this.moveTooltipFn!);
+          el.removeEventListener('mouseleave', this.hideTooltipFn!);
+          el.addEventListener('mouseenter', this.showTooltipFn!);
+          el.addEventListener('mousemove', this.moveTooltipFn!);
+          el.addEventListener('mouseleave', this.hideTooltipFn!);
       });
   }
 
@@ -1965,16 +1990,60 @@ export class GameScene extends Phaser.Scene {
           const maxDist = 5 * this.TILE_SIZE;
 
           // Labels e HP bars de entidades (monstros, jogadores, NPCs)
-          this.otherPlayerLabels.forEach((label, id) => {
-              const sprite = this.otherPlayers.get(id);
-              if (sprite) {
-                  const dist = Math.abs(px - sprite.x) + Math.abs(py - sprite.y);
-                  const visible = dist <= maxDist;
-                  label.setVisible(visible);
-                  label.x = sprite.x;
-                  label.y = sprite.y - 30;
+          this.otherPlayersData.forEach((p, id) => {
+              const label = this.otherPlayerLabels.get(id);
+              if (label) {
+                  const displayName = (window as any).translateMonster ? (window as any).translateMonster(p.name) : p.name;
+                  label.setText(`[Lv.${p.level || 1}] ${displayName}`);
+                  
+                  const dist = Math.abs(px - p.x * this.TILE_SIZE) + Math.abs(py - p.y * this.TILE_SIZE);
+                  label.setVisible(dist <= maxDist);
+                  label.setPosition(p.x * this.TILE_SIZE, p.y * this.TILE_SIZE - 30);
               }
           });
+          
+          const targetInfo = document.getElementById('target-info');
+
+          if (this.currentTargetId) {
+              const p = this.otherPlayersData.get(this.currentTargetId);
+              if (p && targetInfo) {
+                  targetInfo.style.display = 'block';
+                  const tName = document.getElementById('target-info-name');
+                  const tHp = document.getElementById('target-info-hp');
+                  const tDrops = document.getElementById('target-info-drops');
+                  
+                  if (tName) {
+                      const displayName = (window as any).translateMonster ? (window as any).translateMonster(p.name) : p.name;
+                      tName.innerText = `[Lv.${p.level || 1}] ${displayName}`;
+                  }
+                  
+                  if (tHp) {
+                      tHp.innerText = `${p.health}/${p.maxHealth}`;
+                      tHp.style.color = (p.health / p.maxHealth) < 0.3 ? '#ef4444' : '#10b981';
+                  }
+                  
+                  if (tDrops && p.isMonster) {
+                      const MONSTER_DROPS: Record<string, string> = {
+                          'Orc': 'Iron Ore, Wood Log, Leather, Empty Flask',
+                          'Rotworm': 'Meat, Wood Log, Iron Ore',
+                          'Demon Skeleton': 'Iron Ore, Bone, Sword',
+                          'Giant Rat': 'Cheese, Leather'
+                      };
+                      tDrops.innerText = `Drops: ${MONSTER_DROPS[p.name] || 'Ouro, Itens Comuns'}`;
+                  } else if (tDrops) {
+                      tDrops.innerText = '';
+                  }
+              } else if (targetInfo) {
+                  targetInfo.style.display = 'none';
+              }
+          } else if (targetInfo) {
+              targetInfo.style.display = 'none';
+          }
+
+          // 4) (Futuro) Tenta atualizar inventário/loot do alvo
+          // if (this.currentTargetId) {
+          //     this.socketManager.sendTargetInventory(this.currentTargetId);
+          // }
 
           // Labels de nós de recursos
           this.resourceNodesMap.forEach(entry => {
@@ -2037,6 +2106,12 @@ export class GameScene extends Phaser.Scene {
               'Autofarm: OFF',
               '#ef4444'
           );
+      }
+  }
+
+  private cancelAutofarmManually() {
+      if (this.isAutofarmEnabled) {
+          this.stopAutofarm();
       }
   }
 
@@ -2263,7 +2338,7 @@ export class GameScene extends Phaser.Scene {
                   return;
               }
           }
-          this.socketManager.socket.emit('startGathering', node.id);
+          this.socketManager.socket.emit('startGathering', { nodeId: node.id });
       });
 
       this.resourceNodesMap.set(node.id, { sprite, label, data: node });

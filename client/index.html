@@ -259,6 +259,7 @@
         top: 15px;
         right: 15px;
         display: flex;
+        flex-direction: column;
         gap: 8px;
         z-index: 100;
       }
@@ -505,6 +506,14 @@
           <span class="hk-key">SPACE</span>
         </div>
 
+      </div>
+
+      <div id="game-ui">
+      <!-- Popup Superior de Alvo -->
+      <div id="target-info" style="display: none; position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 12px 24px; color: white; min-width: 250px; text-align: center; pointer-events: none; z-index: 150; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
+        <div id="target-info-name" style="font-weight: bold; font-size: 16px; color: #f97316; margin-bottom: 6px;">[Lv.1] Orc</div>
+        <div style="font-size: 13px; margin-bottom: 4px; font-weight: 600;">Vida: <span id="target-info-hp" style="color: #ef4444;">100/100</span></div>
+        <div id="target-info-drops" style="font-size: 11px; color: #cbd5e1; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px;">Drops: Wood, Iron Ore</div>
       </div>
 
       <!-- Player Status HUD (Top-Left) -->
