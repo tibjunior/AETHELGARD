@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
-import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB } from './database';
+import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 
 export const ITEM_WEIGHTS: Record<string, number> = {
@@ -2314,7 +2314,6 @@ export class Game {
                   this.players.delete(onlinePlayer.id);
               }
               // Deleta do banco
-              const { deletePlayerFromDB } = require('./database');
               await deletePlayerFromDB(name);
               this.io.emit('admin:playerUpdated');
           } catch(e) {
@@ -2324,7 +2323,6 @@ export class Game {
 
       socket.on('admin:resetPassword', async (data: { name: string, newPass: string }) => {
           try {
-              const { getPlayerFromDB, savePlayerToDB } = require('./database');
               const pData = await getPlayerFromDB(data.name);
               if (pData) {
                   pData.password = data.newPass;
