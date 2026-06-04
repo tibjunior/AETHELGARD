@@ -1321,8 +1321,12 @@ export class GameScene extends Phaser.Scene {
     this.updateHpBarPosition(data.id, sprite);
   }
 
-  private updateTargetSquare(sprite: Phaser.GameObjects.Sprite) {
+  private updateTargetSquare(sprite: Phaser.GameObjects.Sprite | null) {
     if (!this.targetSquare) return;
+    if (!sprite) {
+        this.targetSquare.setVisible(false);
+        return;
+    }
     this.targetSquare.setVisible(true);
     this.targetSquare.x = sprite.x;
     this.targetSquare.y = sprite.y;
@@ -1381,9 +1385,11 @@ export class GameScene extends Phaser.Scene {
         if (blocksMovement) return;
         if (!this.localPlayerSprite) return;
 
-        // Clique no chão cancela perseguição e autofarm
+        // Clique no chão cancela perseguição e autofarm e desmarca alvo
         this.cancelAutofarmManually();
         this.stopChase();
+        this.currentTargetId = undefined;
+        this.updateTargetSquare(null);
 
         const destX = Math.round(pointer.worldX / this.TILE_SIZE);
         const destY = Math.round(pointer.worldY / this.TILE_SIZE);
