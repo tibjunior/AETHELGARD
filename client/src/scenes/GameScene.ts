@@ -204,6 +204,14 @@ export class GameScene extends Phaser.Scene {
     if (autoBtn) {
         autoBtn.onclick = () => this.toggleAutofarm();
     }
+
+    const autoRetaliateCheck = document.getElementById('auto-retaliate-checkbox') as HTMLInputElement;
+    if (autoRetaliateCheck) {
+        autoRetaliateCheck.checked = localStorage.getItem('autoRetaliate') === 'true';
+        autoRetaliateCheck.onchange = () => {
+            localStorage.setItem('autoRetaliate', autoRetaliateCheck.checked.toString());
+        };
+    }
   }
 
   private createWorld() {
@@ -552,7 +560,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  public onPlayerDamaged(data: { id: string, health: number, maxHealth: number, amount?: number, isCrit?: boolean }) {
+  public onPlayerDamaged(data: { id: string, health: number, maxHealth: number, amount?: number, isCrit?: boolean, attackerId?: string }) {
        const cached = this.otherPlayersData.get(data.id);
        if (cached) {
            cached.health = data.health;
@@ -561,6 +569,21 @@ export class GameScene extends Phaser.Scene {
        }
        this.updateHpBar({ id: data.id, health: data.health, maxHealth: data.maxHealth } as PlayerData);
        const sprite = data.id === this.socketManager.getId() ? this.localPlayerSprite : this.otherPlayers.get(data.id);
+       
+       if (data.id === this.socketManager.getId() && data.attackerId) {
+           const autoRetaliate = (document.getElementById('auto-retaliate-checkbox') as HTMLInputElement)?.checked;
+           if (autoRetaliate && this.currentTargetId !== data.attackerId) {
+               // Auto-revidar
+               const attackerSprite = this.otherPlayers.get(data.attackerId);
+               if (attackerSprite) {
+                   this.currentTargetId = data.attackerId;
+                   this.startChase(data.attackerId);
+                   if (!this.isAutofarmEnabled) {
+                       this.toggleAutofarm(); // Ativa autofarm
+                   }
+               }
+           }
+       }
       
       if (sprite) {
           // Feedback Visual
@@ -848,10 +871,40 @@ export class GameScene extends Phaser.Scene {
              const el = document.getElementById(id);
              if (el) {
                  // Se o texto for curto (provavelmente um Emoji), aumenta a fonte. Senão volta ao padrão 11px.
-                 const isEmoji = el.innerText.length <= 2 && el.innerText !== '';
+                 const isEmoji = el.innerText.length <= 4 && el.innerText !== '';
                  el.style.fontSize = isEmoji ? '24px' : '11px';
                  el.style.cursor = isEmoji ? 'pointer' : 'default';
                  el.style.color = isEmoji ? '#ffffff' : '#475569';
+
+                 if (isEmoji && this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
+                     let name = '';
+                     if (id === 'slot-head') name = eq.head || '';
+                     else if (id === 'slot-body') name = eq.body || '';
+                     else if (id === 'slot-legs') name = eq.legs || '';
+                     else if (id === 'slot-boots') name = eq.boots || '';
+                     else if (id === 'slot-left') name = eq.leftHand || '';
+                     else if (id === 'slot-right') name = eq.rightHand || '';
+                     else if (id === 'slot-backpack') name = eq.backpack || '';
+                     
+                     if (name.includes(':')) name = name.split(':')[0];
+                     if (name.startsWith('{')) {
+                         try { name = JSON.parse(name).name; } catch(e){}
+                     }
+                     
+                     el.dataset.itemName = name;
+                     el.removeEventListener('mouseenter', this.showTooltipFn);
+                     el.removeEventListener('mousemove', this.moveTooltipFn);
+                     el.removeEventListener('mouseleave', this.hideTooltipFn);
+                     el.addEventListener('mouseenter', this.showTooltipFn);
+                     el.addEventListener('mousemove', this.moveTooltipFn);
+                     el.addEventListener('mouseleave', this.hideTooltipFn);
+                 } else {
+                     if (this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
+                         el.removeEventListener('mouseenter', this.showTooltipFn);
+                         el.removeEventListener('mousemove', this.moveTooltipFn);
+                         el.removeEventListener('mouseleave', this.hideTooltipFn);
+                     }
+                 }
              }
          });
   }
@@ -1250,6 +1303,7 @@ export class GameScene extends Phaser.Scene {
         if (data.name === 'Orc') texture = 'orc-sprite';
         else if (data.name === 'Rotworm') texture = 'rotworm-sprite';
         else if (data.name === 'Demon Skeleton') texture = 'demonskeleton-sprite';
+        else if (data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
         texture = 'merchant-sprite';
@@ -1260,7 +1314,11 @@ export class GameScene extends Phaser.Scene {
       data.y * this.TILE_SIZE, 
       texture
     );
-    if (!data.isMonster && data.name !== 'Merchant') {
+    
+    if (data.name === 'Nightmare Skeleton') {
+        sprite.setScale(2);
+        sprite.setTint(0xff00ff); // Roxo demoníaco
+    } else if (!data.isMonster && data.name !== 'Merchant') {
         sprite.setTint(0xff0000); // Jogadores inimigos em vermelho
     }
     sprite.setDepth(10);
@@ -1271,6 +1329,7 @@ export class GameScene extends Phaser.Scene {
     if (data.name === 'Orc') nameColor = '#f97316';
     else if (data.name === 'Rotworm') nameColor = '#ec4899';
     else if (data.name === 'Demon Skeleton') nameColor = '#ef4444';
+    else if (data.name === 'Nightmare Skeleton') nameColor = '#ff00ff';
     else if (data.name === 'Merchant') nameColor = '#fbbf24';
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
@@ -1386,7 +1445,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.localPlayerSprite) return;
 
         // Clique no chão cancela perseguição e autofarm e desmarca alvo
-        this.cancelAutofarmManually();
+
         this.stopChase();
         this.currentTargetId = undefined;
         this.updateTargetSquare(null);
@@ -1411,7 +1470,6 @@ export class GameScene extends Phaser.Scene {
     // Adiciona tecla de Dash
     this.input.keyboard!.on('keydown-SPACE', () => {
         if (!this.isMoving) {
-            this.cancelAutofarmManually();
             this.socketManager.sendDash();
             this.isMoving = true;
             setTimeout(() => this.isMoving = false, 300);
@@ -1463,7 +1521,7 @@ export class GameScene extends Phaser.Scene {
 
       // Atalho de retornar para a base (Recall)
       if (event.key.toLowerCase() === 'b') {
-          this.cancelAutofarmManually();
+
           this.socketManager.socket.emit('startRecall');
           return;
       }
@@ -1480,7 +1538,7 @@ export class GameScene extends Phaser.Scene {
       const movKeys = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'];
       // Limpa target de perseguição se moveu manualmente
       if (movKeys.includes(event.key)) {
-          this.cancelAutofarmManually();
+
           this.stopChase();
       }
 
@@ -2000,7 +2058,11 @@ export class GameScene extends Phaser.Scene {
               const label = this.otherPlayerLabels.get(id);
               if (label) {
                   const displayName = (window as any).translateMonster ? (window as any).translateMonster(p.name) : p.name;
-                  label.setText(`[Lv.${p.level || 1}] ${displayName}`);
+                  if (p.isMonster) {
+                      label.setText(`${p.level || 1}`);
+                  } else {
+                      label.setText(`[Lv.${p.level || 1}] ${displayName}`);
+                  }
                   
                   const dist = Math.abs(px - p.x * this.TILE_SIZE) + Math.abs(py - p.y * this.TILE_SIZE);
                   label.setVisible(dist <= maxDist);
@@ -2112,12 +2174,6 @@ export class GameScene extends Phaser.Scene {
               'Autofarm: OFF',
               '#ef4444'
           );
-      }
-  }
-
-  private cancelAutofarmManually() {
-      if (this.isAutofarmEnabled) {
-          this.stopAutofarm();
       }
   }
 

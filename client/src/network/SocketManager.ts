@@ -17,7 +17,10 @@ export class SocketManager {
     const serverUrl = (import.meta as any).env.VITE_SERVER_URL || defaultUrl;
 
     this.socket = io(serverUrl, {
-        auth: { name: playerName }
+        auth: { 
+            name: playerName,
+            password: (window as any).playerPassword
+        }
     });
 
     this.setupListeners();
@@ -40,10 +43,20 @@ export class SocketManager {
     this.socket.on('disconnect', (reason) => {
       console.log('Desconectado:', reason);
       if (reason === 'io server disconnect') {
-          // O servidor forçou a desconexão desse socket (ex: login duplicado)
-          alert('Você foi desconectado porque sua conta fez login em outro dispositivo (ou aba).');
+        // the disconnection was initiated by the server, you need to reconnect manually
+        // We handle loginFailed explicitly below.
+      } else {
+          // Reconnect automatically para manter a sessão
           window.location.reload();
       }
+    });
+
+    this.socket.on('loginFailed', (data: { message: string }) => {
+        alert("Falha no Login: " + data.message);
+        document.getElementById('login-screen')!.style.display = 'flex';
+        // Remove from global
+        (window as any).playerName = undefined;
+        (window as any).playerPassword = undefined;
     });
 
     this.socket.on('init', (data: PlayerData) => {

@@ -87,7 +87,12 @@ export class Game {
       for (let y = 0; y <= 40; y++) {
         // Paredes externas
         if (x === 0 || y === 0 || x === 40 || y === 40) {
-          this.walls.add(`${x},${y}`);
+          // Deixa um buraco para o portal na parede norte (x=10, y=0)
+          if (x === 10 && y === 0) {
+              // não é parede
+          } else {
+              this.walls.add(`${x},${y}`);
+          }
         }
         // Pilares internos (formato +)
         else if (x % 8 === 0 && y % 8 === 0) {
@@ -100,12 +105,26 @@ export class Game {
       }
     }
 
-    // Spawna o Mercador (Fase 15) na base
+    // Sala da Cidade (Safe Zone): 100,100 até 140,140
+    for (let x = 100; x <= 140; x++) {
+      for (let y = 100; y <= 140; y++) {
+        if (x === 100 || y === 100 || x === 140 || y === 140) {
+          // Deixa um buraco pro portal de volta (x=120, y=140)
+          if (x === 120 && y === 140) {
+              // portal de volta
+          } else {
+              this.walls.add(`${x},${y}`);
+          }
+        }
+      }
+    }
+
+    // Spawna o Mercador na Cidade
     const merchant: PlayerData = {
         id: 'npc_merchant',
         name: 'Merchant',
-        x: 10,
-        y: 8,
+        x: 120,
+        y: 110,
         health: 9999,
         maxHealth: 9999,
         speed: 0,
@@ -193,7 +212,8 @@ export class Game {
   private setupNetwork() {
     this.io.on('connection', async (socket: Socket) => {
       const playerName = socket.handshake.auth.name || 'Unknown';
-      console.log(`Aventureiro conectado: ${playerName} (${socket.id})`);
+      const playerPassword = socket.handshake.auth.password || '';
+      console.log(`Aventureiro tentando conectar: ${playerName} (${socket.id})`);
       this.registerAdminEvents(socket);
       if (playerName === "AdminGM") {
           console.log("Sessão AdminGM sem avatar iniciada.");
@@ -212,9 +232,14 @@ export class Game {
       }
 
       if (existingPlayerId) {
-          console.log(`Sessão transferida para ${playerName} do socket antigo para o novo.`);
           const oldP = this.players.get(existingPlayerId)!;
-          
+          if (oldP.password && oldP.password !== playerPassword) {
+              socket.emit('loginFailed', { message: 'Senha incorreta.' });
+              socket.disconnect(true);
+              return;
+          }
+
+          console.log(`Sessão transferida para ${playerName} do socket antigo para o novo.`);
           newPlayer = { ...oldP, id: socket.id };
           this.players.delete(existingPlayerId);
           
@@ -229,6 +254,11 @@ export class Game {
           // Carrega do Banco ou Cria Novo
           const dbPlayer = await getPlayerFromDB(playerName);
           if (dbPlayer) {
+              if (dbPlayer.password && dbPlayer.password !== playerPassword) {
+                  socket.emit('loginFailed', { message: 'Senha incorreta.' });
+                  socket.disconnect(true);
+                  return;
+              }
               newPlayer = { ...dbPlayer, id: socket.id }; // Preserva o ID do socket
               
               // Suporte a personagens antigos (Retroatividade)
@@ -243,6 +273,7 @@ export class Game {
           newPlayer = {
             id: socket.id,
             name: playerName,
+            password: playerPassword,
             x: 10,
             y: 10,
             health: 150,
@@ -325,6 +356,19 @@ export class Game {
           
           player.x = targetPosition.x;
           player.y = targetPosition.y;
+
+          // PORTAL: Mundo -> Cidade
+          if (player.x === 10 && player.y === 0) {
+              player.x = 120;
+              player.y = 139; // Coloca logo acima da parede de saída
+              player.facing = 'up';
+          }
+          // PORTAL: Cidade -> Mundo
+          else if (player.x === 120 && player.y === 140) {
+              player.x = 10;
+              player.y = 1; // Coloca logo abaixo do portão do mercador
+              player.facing = 'down';
+          }
 
           // Verifica se pegou algum item no chão (procura por qualquer item nas coordenadas do player)
           const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
@@ -424,15 +468,22 @@ export class Game {
         if (msg.toLowerCase() === 'exori vis') {
            if (player.targetId) {
               const target = this.players.get(player.targetId);
-              if (target) {
-                 // Dano massivo mágico
-                 const damage = Math.floor(Math.random() * 20) + 30; // 30-50 dano
+               if (target) {
+                  // Safe zone check
+                  if (!player.isMonster && !target.isMonster) {
+                      if ((player.x >= 100 && player.y >= 100) || (target.x >= 100 && target.y >= 100)) {
+                          return;
+                      }
+                  }
+
+                  // Dano massivo mágico
+                  const damage = Math.floor(Math.random() * 20) + 30; // 30-50 dano
                  target.health -= damage;
                  this.cancelGathering(target.id);
                  
                  // Emite efeito visual mágico
                  this.io.emit('spellCast', { casterId: player.id, targetId: target.id, spell: 'exori vis' });
-                 this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage });
+                 this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage, attackerId: player.id });
                  
                  this.checkDeath(player, target);
               }
@@ -1278,13 +1329,18 @@ export class Game {
               return;
           }
           
+          const itemSlotStr = player.backpack[idx];
           player.backpack.splice(idx, 1);
           
-          // Reembolsa 20-50% dos materiais de volta
+          const [_, countStr] = itemSlotStr.split(':');
+          const count = parseInt(countStr) || 1;
+          
+          // Reembolsa 20-50% dos materiais de volta, vezes a quantidade na pilha
           const refunded: string[] = [];
           recipe.ingredients.forEach(ing => {
               const pct = 0.2 + Math.random() * 0.3; // 20% a 50%
-              const qty = Math.max(1, Math.floor(ing.count * pct));
+              const baseQty = Math.max(1, Math.floor(ing.count * pct));
+              const qty = baseQty * count;
               for (let i = 0; i < qty; i++) {
                   this.addItemToBackpack(player, ing.itemName);
               }
@@ -1536,12 +1592,69 @@ export class Game {
         this.isNight = false;
         this.io.emit('timeUpdate', { isNight: this.isNight });
         const msg = 'O sol nasce. Você está seguro por enquanto.';
-        this.players.forEach(p => { if (!p.isMonster) this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' }); });
+        this.players.forEach(p => { 
+            if (!p.isMonster) {
+                this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' }); 
+            } else if (p.id.startsWith('night_')) {
+                // Remove monstros da noite
+                if (!p.isDead) {
+                    p.isDead = true;
+                    // Se for o Boss e estiver vivo de dia, morre e vira caveira normal
+                    if (p.id === 'night_boss') {
+                        this.io.emit('playerDamaged', { id: p.id, health: 0, maxHealth: p.maxHealth, amount: 9999 });
+                        const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
+                        const dropItem = { id: dropId, name: 'Skull', x: p.x, y: p.y, emoji: '💀' };
+                        this.itemsOnFloor.set(dropId, dropItem);
+                        this.io.emit('itemDropped', dropItem);
+                    }
+                    this.io.emit('playerLeft', p.id);
+                }
+                this.players.delete(p.id);
+            }
+        });
     } else if (cycle === 6000) {
         this.isNight = true;
         this.io.emit('timeUpdate', { isNight: this.isNight });
         const msg = 'O sol se põe. Os monstros ficam mais fortes...';
         this.players.forEach(p => { if (!p.isMonster) this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#aa00ff' }); });
+        
+        // Spawn Night Boss e Duplica Monstros
+        const baseMonsters: PlayerData[] = [];
+        this.players.forEach(p => {
+            if (p.isMonster && !p.id.startsWith('night_') && !p.isDead) {
+                baseMonsters.push(p);
+            }
+        });
+
+        baseMonsters.forEach((m, idx) => {
+            const clone: PlayerData = {
+                ...m,
+                id: `night_clone_${m.name}_${idx}_${Date.now()}`,
+                health: m.maxHealth,
+                targetId: undefined
+            };
+            this.players.set(clone.id, clone);
+            this.io.emit('newPlayer', clone);
+        });
+
+        // Spawn Boss (Aleatório no mapa mas fora da cidade)
+        const bossX = Math.floor(Math.random() * 30) + 5;
+        const bossY = Math.floor(Math.random() * 30) + 5;
+        const boss: PlayerData = {
+            id: 'night_boss',
+            name: 'Nightmare Skeleton',
+            x: bossX,
+            y: bossY,
+            health: 1200, // 3x Demon Skeleton
+            maxHealth: 1200,
+            speed: 150,
+            isMonster: true,
+            level: 30,
+            experience: 0,
+            attack: 90 // 2x Demon Skeleton
+        };
+        this.players.set(boss.id, boss);
+        this.io.emit('newPlayer', boss);
     }
 
     // Inteligência Artificial do Monstro (Mover a cada 10 ticks = ~0.5 segundos)
@@ -1552,15 +1665,19 @@ export class Game {
               let closestPlayer: PlayerData | null = null;
               let minDistance = 6;
 
-              this.players.forEach((p) => {
-                  if (!p.isMonster) {
-                      const dist = Math.abs(p.x - entity.x) + Math.abs(p.y - entity.y); // Manhattan
-                      if (dist < minDistance) {
-                          minDistance = dist;
-                          closestPlayer = p;
+              if (entity.name === 'Nightmare Skeleton' && !entity.targetId) {
+                  // Boss passivo: não procura ninguém até ser atacado
+              } else {
+                  this.players.forEach((p) => {
+                      if (!p.isMonster) {
+                          const dist = Math.abs(p.x - entity.x) + Math.abs(p.y - entity.y); // Manhattan
+                          if (dist < minDistance) {
+                              minDistance = dist;
+                              closestPlayer = p;
+                          }
                       }
-                  }
-              });
+                  });
+              }
 
               let targetX = entity.x;
               let targetY = entity.y;
@@ -1657,18 +1774,23 @@ export class Game {
                 // Colisão com entidades (monstros ou players)
                 for (const [id, entity] of this.players.entries()) {
                     if (entity.id !== p.casterId && entity.x === p.x && entity.y === p.y && !entity.isDead) {
+                        // Safe zone check para projeteis
+                        const casterPlayer = this.players.get(p.casterId);
+                        if (!entity.isMonster && casterPlayer && !casterPlayer.isMonster) {
+                            if (entity.x >= 100 && entity.y >= 100) continue;
+                        }
+
                         // Acertou
                         hit = true;
                         const damage = 25;
                         entity.health -= damage;
                         this.cancelGathering(entity.id);
-                        this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: damage });
+                        this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: damage, attackerId: p.casterId });
                         if (!entity.isMonster) {
                             this.reduceArmorDurability(entity);
                         }
                         
-                        const caster = this.players.get(p.casterId);
-                        if (caster) this.checkDeath(caster, entity);
+                        if (casterPlayer) this.checkDeath(casterPlayer, entity);
                         break; // Só acerta 1
                     }
                 }
@@ -1699,6 +1821,14 @@ export class Game {
                    const cooldown = player.aspd || (player.isMonster ? (player.name === 'Orc' ? 2000 : 1500) : 1500);
                    
                    if (now - lastAttack >= cooldown) {
+                      // Safe zone check PvP
+                      if (!player.isMonster && !target.isMonster) {
+                          if ((player.x >= 100 && player.y >= 100) || (target.x >= 100 && target.y >= 100)) {
+                              player.targetId = undefined; // Para de atacar
+                              return; // Cancela hit no forEach
+                          }
+                      }
+
                       (player as any).lastAttackTime = now;
                       
                       // Causa dano
@@ -1718,7 +1848,7 @@ export class Game {
                       this.cancelGathering(target.id);
 
                       // Avisa que tomou dano com a quantidade para o Hit Splat
-                      this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage });
+                      this.io.emit('playerDamaged', { id: target.id, health: target.health, maxHealth: target.maxHealth, amount: damage, attackerId: player.id });
                       if (!target.isMonster) {
                           this.reduceArmorDurability(target);
                       }
@@ -1755,6 +1885,7 @@ export class Game {
             if (target.name === 'Orc') expReward = 150;
             else if (target.name === 'Rotworm') expReward = 250;
             else if (target.name === 'Demon Skeleton') expReward = 600;
+            else if (target.name === 'Nightmare Skeleton') expReward = 5000;
             attacker.experience += expReward;
             
             let leveledUp = false;
@@ -1819,6 +1950,13 @@ export class Game {
                     else if (eqRoll < 0.66) itemName = 'Mana Potion'; // 15%
                     else itemName = 'Gold Coin'; // Fallback
                 }
+            } else if (target.name === 'Nightmare Skeleton') {
+                itemName = 'Armor'; // Drop do boss: Armadura Forte
+                // Drop extra de Gold garantido
+                const dropId2 = `item_${Math.random().toString(36).substring(2, 9)}`;
+                const dropItem2 = { id: dropId2, name: 'Gold Coin', x: target.x, y: target.y, emoji: ITEM_EMOJIS['Gold Coin'] || '📦' };
+                this.itemsOnFloor.set(dropId2, dropItem2);
+                this.io.emit('itemDropped', dropItem2);
             } else {
                 // Giant Rat
                 if (roll < 0.04) itemName = 'Steel Sword';   // 4%
@@ -2453,8 +2591,8 @@ export class Game {
       if (node.charges <= 0) {
           node.state = 'depleted';
           node.respawnTime = Date.now() + 30000; // 30s respawn
-          this.io.emit('resourceNodeUpdated', node);
       }
+      this.io.emit('resourceNodeUpdated', node);
 
       if (xpField && lvlField) {
           const currentLvl = player[lvlField] || 1;
@@ -2494,9 +2632,9 @@ export class Game {
 
   private setupCraftingStations() {
       const stations: CraftingStation[] = [
-          { id: 'station_forge', type: 'forge', name: 'Forja', emoji: '⚒️', x: 8, y: 8 },
-          { id: 'station_alchemy', type: 'alchemy', name: 'Mesa de Alquimia', emoji: '🧪', x: 12, y: 8 },
-          { id: 'station_tanning', type: 'tanning', name: 'Bancada de Alfaiataria', emoji: '🧵', x: 10, y: 6 }
+          { id: 'station_forge', type: 'forge', name: 'Forja', emoji: '⚒️', x: 118, y: 110 },
+          { id: 'station_alchemy', type: 'alchemy', name: 'Mesa de Alquimia', emoji: '🧪', x: 122, y: 110 },
+          { id: 'station_tanning', type: 'tanning', name: 'Bancada de Alfaiataria', emoji: '🧵', x: 120, y: 108 }
       ];
       stations.forEach(s => {
           this.craftingStations.set(s.id, s);

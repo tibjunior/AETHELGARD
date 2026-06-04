@@ -172,6 +172,30 @@ export class BootScene extends Phaser.Scene {
 
         merchantCanvas.refresh();
     }
+
+    // Criando a Caveira (Skull)
+    const skullCanvas = this.textures.createCanvas('skull-sprite', 32, 32);
+    if (skullCanvas && skullCanvas.context) {
+        const ctx = skullCanvas.context;
+        // Crânio
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(8, 8, 16, 12);
+        // Olhos vazios
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(10, 12, 4, 4);
+        ctx.fillRect(18, 12, 4, 4);
+        // Nariz
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(15, 16, 2, 2);
+        // Dentes
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(12, 20, 8, 4);
+        ctx.fillStyle = '#020617'; // Frestas dos dentes
+        ctx.fillRect(14, 20, 1, 4);
+        ctx.fillRect(17, 20, 1, 4);
+
+        skullCanvas.refresh();
+    }
   }
 
   create() {

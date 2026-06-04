@@ -52,6 +52,7 @@ async function initDB() {
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS profession_tanning_xp INTEGER DEFAULT 0`);
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS learned_recipes TEXT DEFAULT '[]'`);
         await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS ui_positions TEXT DEFAULT '{}'`);
+        await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS password TEXT DEFAULT ''`);
 
         // Cria a tabela de Leilões
         await pool.query(`
@@ -106,7 +107,8 @@ export async function getPlayerFromDB(name: string): Promise<PlayerData | null> 
             professionTanningLevel: row.profession_tanning_level ?? 1,
             professionTanningXp: row.profession_tanning_xp ?? 0,
             learnedRecipes: JSON.parse(row.learned_recipes || '[]'),
-            uiPositions: JSON.parse(row.ui_positions || '{}')
+            uiPositions: JSON.parse(row.ui_positions || '{}'),
+            password: row.password || ''
         } as PlayerData;
     } catch (err) {
         console.error('getPlayerFromDB Error:', err);
@@ -125,9 +127,9 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             profession_smithing_level, profession_smithing_xp,
             profession_alchemy_level, profession_alchemy_xp,
             profession_tanning_level, profession_tanning_xp,
-            learned_recipes, ui_positions
+            learned_recipes, ui_positions, password
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
         ON CONFLICT(name) DO UPDATE SET 
         id=excluded.id, x=excluded.x, y=excluded.y, level=excluded.level, experience=excluded.experience, 
         gold=excluded.gold, stats=excluded.stats, statPoints=excluded.statPoints, sp=excluded.sp, 
@@ -139,7 +141,7 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
         profession_smithing_level=excluded.profession_smithing_level, profession_smithing_xp=excluded.profession_smithing_xp,
         profession_alchemy_level=excluded.profession_alchemy_level, profession_alchemy_xp=excluded.profession_alchemy_xp,
         profession_tanning_level=excluded.profession_tanning_level, profession_tanning_xp=excluded.profession_tanning_xp,
-        learned_recipes=excluded.learned_recipes, ui_positions=excluded.ui_positions
+        learned_recipes=excluded.learned_recipes, ui_positions=excluded.ui_positions, password=excluded.password
     `;
     
     try {
@@ -155,7 +157,8 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             player.professionAlchemyLevel ?? 1, player.professionAlchemyXp ?? 0,
             player.professionTanningLevel ?? 1, player.professionTanningXp ?? 0,
             JSON.stringify(player.learnedRecipes || []),
-            JSON.stringify(player.uiPositions || {})
+            JSON.stringify(player.uiPositions || {}),
+            player.password || ''
         ]);
     } catch (err) {
         console.error('savePlayerToDB Error:', err);
@@ -195,7 +198,8 @@ export async function getAllRegisteredPlayers(): Promise<PlayerData[]> {
             professionTanningLevel: row.profession_tanning_level ?? 1,
             professionTanningXp: row.profession_tanning_xp ?? 0,
             learnedRecipes: JSON.parse(row.learned_recipes || '[]'),
-            uiPositions: JSON.parse(row.ui_positions || '{}')
+            uiPositions: JSON.parse(row.ui_positions || '{}'),
+            password: row.password || ''
         } as PlayerData));
     } catch (err) {
         console.error('getAllRegisteredPlayers Error:', err);

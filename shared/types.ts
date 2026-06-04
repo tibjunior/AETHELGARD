@@ -22,6 +22,7 @@ export interface PlayerData {
   sp?: number;
   maxSp?: number;
   speed: number;
+  password?: string;
   isMonster?: boolean;
   targetId?: string; // ID de quem o jogador está atacando
   equipment?: Equipment;

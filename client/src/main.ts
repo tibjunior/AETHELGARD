@@ -22,11 +22,17 @@ const config: Phaser.Types.Core.GameConfig = {
 
 document.getElementById('btn-login')!.onclick = () => {
     const name = (document.getElementById('login-name') as HTMLInputElement).value;
+    const pwd = (document.getElementById('login-password') as HTMLInputElement).value;
     if (name.trim() === '') return;
+    if (pwd.trim() === '' || pwd.length > 8) {
+        alert("Senha de até 8 caracteres é obrigatória!");
+        return;
+    }
     
-    // Esconde o Login e salva o nome
+    // Esconde o Login e salva o nome e senha
     document.getElementById('login-screen')!.style.display = 'none';
     (window as any).playerName = name;
+    (window as any).playerPassword = pwd;
     
     // Inicia o Jogo
     new Phaser.Game(config);
