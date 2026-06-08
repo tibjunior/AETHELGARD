@@ -1,18 +1,57 @@
 import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager';
-import { PlayerData, Position, ResourceNode, CraftingStation } from '../../../shared/types';
+import { PlayerData, Position, ResourceNode, CraftingStation, SpriteId, SPRITE_IDS, Facing, FACINGS, getFrameIndex } from '../../../shared/types';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
+
+/**
+ * Ícones de item baseados em imagens (URLs servidas pelo Vite a partir de /client/public).
+ * Quando o nome está aqui, retornamos o caminho; o renderizador usa <img> em vez de texto emoji.
+ */
+const ITEM_ICONS: Record<string, string> = {
+    'Leather Hide': '/items/leather.webp'
+};
+
+/**
+ * Retorna o ícone do item: URL de imagem (se houver) ou emoji Unicode.
+ * Renderizadores devem checar se o retorno começa com '/' para decidir entre <img> e texto.
+ */
+// @ts-ignore — mantida para uso futuro via getItemIcon
+function getItemIcon(name: string, fallbackEmoji: string): string {
+    return ITEM_ICONS[name] || fallbackEmoji;
+}
+
+// @ts-ignore — mantida para uso futuro via paintItemIcon
+function paintItemIcon(el: HTMLElement, icon: string, size: number = 24): void {
+    if (icon.startsWith('/')) {
+        el.innerHTML = `<img src="${icon}" style="width:${size}px;height:${size}px;image-rendering:pixelated;object-fit:contain;" />`;
+    } else {
+        el.innerText = icon;
+    }
+}
 
 export class GameScene extends Phaser.Scene {
   private socketManager!: SocketManager;
   private otherPlayers: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private otherPlayerLabels: Map<string, Phaser.GameObjects.Text> = new Map();
+
+  // Animação direcional de andar
+  private localWalkFrame: number = 0;
+  private localWalkTimer: number = 0;
+  private localLastFacing: Facing = 'down';
+  private localSpriteId: SpriteId = 'm1';
+  private otherPlayerAnim: Map<string, { walkFrame: number, walkTimer: number, lastMoveTime: number, facing: Facing, spriteId: SpriteId }> = new Map();
+  private readonly WALK_FRAME_MS = 180;
   private showTooltipFn?: (e: MouseEvent) => void;
   private moveTooltipFn?: (e: MouseEvent) => void;
   private hideTooltipFn?: (e: MouseEvent) => void;
   private projectiles: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private localPlayerSprite?: Phaser.GameObjects.Sprite;
   private wallsGroup!: Phaser.GameObjects.Group;
+  private gatesGroup!: Phaser.GameObjects.Group;
+  /** Cada portão: posição + sprite + estado atual (aberto/fechado). */
+  private gateSprites: Array<{ x: number, y: number, sprite: Phaser.GameObjects.Sprite, isOpen: boolean }> = [];
+  /** Distância (em tiles) em que a porta abre: 1 = player precisa estar ADJACENTE (colado no portão). */
+  private static readonly GATE_OPEN_DISTANCE = 1;
   private floorItems: Map<string, Phaser.GameObjects.Text> = new Map();
   
   // Habilidades de Coleta e Recursos do Mapa
@@ -23,6 +62,14 @@ export class GameScene extends Phaser.Scene {
   private gatheringTimerEvent?: Phaser.Time.TimerEvent;
   private recallProgressBar?: Phaser.GameObjects.Graphics;
   private recallProgressText?: Phaser.GameObjects.Text;
+
+  // Cidades de Monstros (Fase 3)
+  private cityOverlays: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Graphics | Phaser.GameObjects.Text)[] = [];
+  private plazaOverlay?: Phaser.GameObjects.Rectangle | Phaser.GameObjects.Graphics;
+  private plazaLabel?: Phaser.GameObjects.Text;
+
+  // Right-click context menu (Fase 4b)
+  private contextMenuTargetId: string | null = null;
   private recallTimerEvent?: Phaser.Time.TimerEvent;
   private recallGlowGraphics?: Phaser.GameObjects.Graphics;
 
@@ -34,6 +81,7 @@ export class GameScene extends Phaser.Scene {
   private professionTanningLevel: number = 1;
   private professionTanningXp: number = 0;
   private learnedRecipes: string[] = [];
+  private currentCraftingStationType: string = 'forge';
   
   // Interface e Status
   private hpBars: Map<string, Phaser.GameObjects.Graphics> = new Map();
@@ -52,12 +100,21 @@ export class GameScene extends Phaser.Scene {
   private chaseNodeId?: string;           // ID do recurso sendo coletado
   private chaseNodePos?: { x: number, y: number }; // posição do recurso sendo coletado
 
+  // Chase genérico para interações (NPC, bancada, etc.) - clica e anda até 1 célula de distância
+  private interactionChase?: {
+    pos: { x: number, y: number };
+    onArrive: () => void;
+  };
+
   private readonly TILE_SIZE = 32;
   private isMoving = false;
   private localFacing: string = 'down';
   
   private collisionMap: Set<string> = new Set();
   private autoPath: {x: number, y: number}[] = [];
+  
+  private worldBounds: { width: number; height: number } = { width: 150 * 32, height: 150 * 32 };
+  private backgroundTileSprite!: Phaser.GameObjects.TileSprite;
   
   private fog!: Phaser.GameObjects.Graphics;
   private lightBrush!: Phaser.GameObjects.Image;
@@ -94,10 +151,11 @@ export class GameScene extends Phaser.Scene {
       'Iron Ore': { name: 'Minério de Ferro', desc: 'Peso: 8.0 oz\nMinério bruto extraído de depósitos rochosos.', color: '#94a3b8' },
       'Wood Log': { name: 'Tronco de Madeira', desc: 'Peso: 6.0 oz\nMadeira cortada pronta para uso.', color: '#b45309' },
       'Medicinal Herb': { name: 'Erva Medicinal', desc: 'Peso: 2.0 oz\nUma erva com propriedades curativas básicas.', color: '#10b981' },
-      'Leather Hide': { name: 'Pele de Couro', desc: 'Peso: 4.0 oz\nPele obtida de criaturas selvagens.', color: '#78350f' },
+      'Leather Hide': { name: 'Couro', desc: 'Peso: 4.0 oz\nCouro obtido de criaturas selvagens.', color: '#78350f' },
       'Leather Backpack': { name: 'Mochila de Couro', desc: 'Capacidade: 16 slots | Peso: 10.0 oz\nUma mochila de couro costurada à mão.', color: '#a16207' },
       'Wooden Backpack': { name: 'Mochila de Madeira', desc: 'Capacidade: 24 slots | Peso: 15.0 oz\nUma caixa de madeira reforçada com alças.', color: '#b45309' },
-      'Iron Backpack': { name: 'Mochila de Ferro', desc: 'Capacidade: 32 slots | Peso: 25.0 oz\nUma mala metálica ultra-resistente e pesada.', color: '#94a3b8' }
+      'Iron Backpack': { name: 'Mochila de Ferro', desc: 'Capacidade: 32 slots | Peso: 25.0 oz\nUma mala metálica ultra-resistente e pesada.', color: '#94a3b8' },
+      'Skull': { name: 'Caveira', desc: 'Troféu de combate.\nCarrega o nome do derrotado.', color: '#ffffff' }
   };
   
   constructor() {
@@ -106,6 +164,127 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     (window as any).gameScene = this;
+    // ===== Chat Toggle & Input =====
+    const chatBox = document.getElementById('chat-box') as HTMLDivElement;
+    const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+    if (chatBox) chatBox.style.display = 'none';
+    const chatTabs = document.querySelectorAll('.chat-tab');
+    const chatPanels = document.querySelectorAll('.chat-panel');
+    const chatMinimizeBtn = document.getElementById('chat-minimize-btn');
+    const chatResizeBtn = document.getElementById('chat-resize-btn');
+    const chatResizeHandle = document.getElementById('chat-resize-handle');
+
+    let isChatOpen = false;
+
+    const openChat = () => {
+      if (chatBox) {
+        chatBox.style.display = 'flex';
+        isChatOpen = true;
+        // Foca no input após abrir
+        setTimeout(() => chatInput?.focus(), 50);
+      }
+    };
+    const closeChat = () => {
+      if (chatBox) chatBox.style.display = 'none';
+      isChatOpen = false;
+      chatInput?.blur();
+    };
+    const toggleChat = () => {
+      if (isChatOpen) closeChat();
+      else openChat();
+    };
+
+    // Toggle button
+    const chatToggleBtn = document.getElementById('chat-toggle-btn');
+    if (chatToggleBtn) {
+      chatToggleBtn.style.display = 'flex';
+      chatToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleChat();
+      });
+    }
+
+    // Tabs
+    chatTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const targetTab = tab.getAttribute('data-tab');
+        chatTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        chatPanels.forEach(p => {
+          (p as HTMLElement).style.display = p.id === `chat-${targetTab}` ? 'flex' : 'none';
+        });
+      });
+    });
+
+    // Minimizar/Expandir
+    let isMinimized = false;
+    chatMinimizeBtn?.addEventListener('click', () => {
+      if (!chatBox) return;
+      isMinimized = !isMinimized;
+      const content = chatBox.querySelector('#chat-content') as HTMLElement;
+      const inputWrapper = chatBox.querySelector('#chat-input-wrapper') as HTMLElement;
+      const resizeHandle = document.getElementById('chat-resize-handle') as HTMLElement;
+      if (content) content.style.display = isMinimized ? 'none' : 'flex';
+      if (inputWrapper) inputWrapper.style.display = isMinimized ? 'none' : 'flex';
+      if (resizeHandle) resizeHandle.style.display = isMinimized ? 'none' : 'block';
+      chatMinimizeBtn.textContent = isMinimized ? '+' : '−';
+    });
+
+    // Resize (desktop: 3 tamanhos; mobile: apenas toggle)
+    const resizeSizes = ['420px', '560px', '700px'];
+    let resizeIdx = 0;
+    chatResizeBtn?.addEventListener('click', () => {
+      if (!chatBox) return;
+      resizeIdx = (resizeIdx + 1) % resizeSizes.length;
+      chatBox.style.width = resizeSizes[resizeIdx];
+    });
+
+    // Resize handle (drag para redimensionar)
+    let isResizing = false;
+    const startResize = () => {
+      isResizing = true;
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'se-resize';
+    };
+    const doResize = (clientX: number, clientY: number) => {
+      if (!isResizing || !chatBox) return;
+      const rect = chatBox.getBoundingClientRect();
+      const newWidth = Math.max(300, clientX - rect.left + 8);
+      const newHeight = Math.max(200, rect.top + rect.height - clientY + 8);
+      chatBox.style.width = `${Math.min(newWidth, window.innerWidth - 40)}px`;
+      chatBox.style.height = `${Math.min(newHeight, window.innerHeight - 120)}px`;
+    };
+    const stopResize = () => {
+      isResizing = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    chatResizeHandle?.addEventListener('mousedown', () => startResize());
+    chatResizeHandle?.addEventListener('touchstart', (e) => { startResize(); e.preventDefault(); }, { passive: false });
+    document.addEventListener('mousemove', (e) => doResize(e.clientX, e.clientY));
+    document.addEventListener('touchmove', (e) => { if (isResizing) { const t = e.touches[0]; doResize(t.clientX, t.clientY); e.preventDefault(); } }, { passive: false });
+    document.addEventListener('mouseup', stopResize);
+    document.addEventListener('touchend', stopResize);
+    document.addEventListener('touchcancel', stopResize);
+
+    // Fecha chat ao clicar fora (apenas se não for no input/buttons)
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (chatBox && chatBox.style.display === 'flex' &&
+          !chatBox.contains(target) &&
+          target !== document.getElementById('chat-toggle-btn') &&
+          !target.closest('.chat-tab')) {
+        closeChat();
+      }
+    });
+
+    // Hotkeys: Enter, T, / abrem chat
+    this.input.keyboard?.on('keydown-ENTER', () => { if (!isChatOpen) openChat(); });
+    this.input.keyboard?.on('keydown-T', () => { if (!isChatOpen && document.activeElement !== chatInput) openChat(); });
+    this.input.keyboard?.on('keydown-SLASH', () => { if (!isChatOpen && document.activeElement !== chatInput) openChat(); });
+
+    // Evita keydown de movimento quando input do chat focado
+    (window as any).chatInput = chatInput;
     (window as any).translateMonster = (name: string): string => {
         const MONSTER_NAMES_PT: Record<string, string> = {
             'Giant Rat': 'Rato Gigante',
@@ -155,7 +334,7 @@ export class GameScene extends Phaser.Scene {
             'Iron Ore': 'Minério de Ferro',
             'Wood Log': 'Tronco de Madeira',
             'Medicinal Herb': 'Erva Medicinal',
-            'Leather Hide': 'Pele de Couro',
+            'Leather Hide': 'Couro',
             'Helmet': 'Elmo de Aço',
             'Armor': 'Armadura de Placas',
             'Pants': 'Calças de Couro',
@@ -163,7 +342,8 @@ export class GameScene extends Phaser.Scene {
             'Gold Coin': 'Moeda de Ouro',
             'Leather Backpack': 'Mochila de Couro',
             'Wooden Backpack': 'Mochila de Madeira',
-            'Iron Backpack': 'Mochila de Ferro'
+            'Iron Backpack': 'Mochila de Ferro',
+            'Skull': 'Caveira de PvP'
         };
         
         const QUALITY_NAMES_PT: Record<string, string> = {
@@ -184,14 +364,19 @@ export class GameScene extends Phaser.Scene {
     };
 
     this.wallsGroup = this.add.group();
+    this.gatesGroup = this.add.group();
     this.createWorld();
     
-    // Iniciar a Conexão
+    // Iniciar a Conexão — reutiliza o socket do main.ts (login) em vez de criar outro
     this.socketManager = new SocketManager(this);
-    
-    // Conecta usando o nome do login screen
-    const pName = (window as any).playerName || 'Aventureiro';
-    this.socketManager.connect(pName);
+    const existingSocket = (window as any).__loginSocket;
+    if (existingSocket) {
+        this.socketManager.attachExisting(existingSocket);
+    } else {
+        // Fallback: cria novo socket
+        const pName = (window as any).playerName || 'Aventureiro';
+        this.socketManager.connect(pName);
+    }
 
     // Mapear teclas do teclado (WASD / Setas)
     this.setupInput();
@@ -214,6 +399,14 @@ export class GameScene extends Phaser.Scene {
         autoBtn.onclick = () => this.toggleAutofarm();
     }
 
+    // Vincula botão Organizar Mochila
+    const btnSortBp = document.getElementById('btn-sort-backpack') as HTMLButtonElement;
+    if (btnSortBp) {
+        btnSortBp.onclick = () => {
+            this.socketManager.socket.emit('backpack:sort');
+        };
+    }
+
     const autoRetaliateCheck = document.getElementById('auto-retaliate-checkbox') as HTMLInputElement;
     if (autoRetaliateCheck) {
         autoRetaliateCheck.checked = localStorage.getItem('autoRetaliate') === 'true';
@@ -221,25 +414,127 @@ export class GameScene extends Phaser.Scene {
             localStorage.setItem('autoRetaliate', autoRetaliateCheck.checked.toString());
         };
     }
+
+    // Drag & Drop: soltar item no chão (no canvas do jogo)
+    const gameContainer = document.getElementById('game-container');
+    if (gameContainer) {
+        gameContainer.ondragover = (e: DragEvent) => { e.preventDefault(); };
+        gameContainer.ondrop = (e: DragEvent) => {
+            e.preventDefault();
+            const index = e.dataTransfer?.getData('text/plain');
+            if (index !== undefined && index !== '') {
+                const bankModal = document.getElementById('modal-bank');
+                if (bankModal && bankModal.style.display === 'flex') return;
+                this.socketManager.sendDropItem(parseInt(index), 1);
+            }
+        };
+    }
+
+    // Drag & Drop: soltar no cofre para depositar
+    const bankGrid = document.getElementById('bank-grid');
+    if (bankGrid) {
+        bankGrid.ondragover = (e: DragEvent) => { e.preventDefault(); };
+        bankGrid.ondrop = (e: DragEvent) => {
+            e.preventDefault();
+            const index = e.dataTransfer?.getData('text/plain');
+            if (index !== undefined && index !== '') {
+                this.socketManager.socket.emit('bank:depositItem', { backpackIndex: parseInt(index), amount: 999 });
+            }
+        };
+    }
   }
 
   private createWorld() {
-    // Criar o gramado cobrindo o mapa inteiro (150x150 tiles de 32px)
-    const mapSize = 150 * this.TILE_SIZE;
+    // REGRA: Sempre que criar/expandir mapa, calcular bounds baseado em TODOS os elementos conhecidos
+    // (paredes, cidades, nós de recursos, estações) para garantir que a câmera englobe tudo.
+    // O tamanho inicial é mínimo; onMapData/onCitiesData expandem automaticamente via expandWorldBounds().
+    
+    const initialTiles = 150;
+    const mapSize = initialTiles * this.TILE_SIZE;
+    
+    this.worldBounds = { width: mapSize, height: mapSize };
     
     const bg = this.add.tileSprite(mapSize/2, mapSize/2, mapSize, mapSize, 'tile-grass');
-    bg.setTint(0x3b3b55); // Efeito de Noite (Azul escuro) na Grama
+    bg.setTint(0x3b3b55);
+    this.backgroundTileSprite = bg;
+  }
+
+  /**
+   * REGRA DE MAPA: Sempre que receber dados de mapa (paredes, cidades, nós, praça),
+   * chamar expandWorldBounds* para garantir que worldBounds engloba tudo.
+   * A câmera e o background são redimensionados automaticamente.
+   */
+  private expandWorldBoundsFromData(walls: Position[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[]) {
+    let maxX = 0, maxY = 0;
+    walls.forEach(w => { maxX = Math.max(maxX, w.x); maxY = Math.max(maxY, w.y); });
+    resourceNodes?.forEach(n => { maxX = Math.max(maxX, n.x); maxY = Math.max(maxY, n.y); });
+    craftingStations?.forEach(s => { maxX = Math.max(maxX, s.x); maxY = Math.max(maxY, s.y); });
+    this.applyWorldBounds(maxX, maxY);
+  }
+
+  private expandWorldBoundsFromCities(cities: any[]) {
+    let maxX = 0, maxY = 0;
+    cities.forEach(c => {
+      maxX = Math.max(maxX, c.bounds.xMax);
+      maxY = Math.max(maxY, c.bounds.yMax);
+      // Também considera portais de saída (na praça)
+      if (c.portalOut) {
+        maxX = Math.max(maxX, c.portalOut.x);
+        maxY = Math.max(maxY, c.portalOut.y);
+      }
+    });
+    this.applyWorldBounds(maxX, maxY);
+  }
+
+  private expandWorldBoundsFromPlaza(bounds: { xMin: number; xMax: number; yMin: number; yMax: number }) {
+    this.applyWorldBounds(bounds.xMax, bounds.yMax);
+  }
+
+  private applyWorldBounds(maxTileX: number, maxTileY: number) {
+    const padding = 5; // margem extra em tiles
+    const newWidth = (maxTileX + padding + 1) * this.TILE_SIZE;
+    const newHeight = (maxTileY + padding + 1) * this.TILE_SIZE;
+
+    if (newWidth > this.worldBounds.width || newHeight > this.worldBounds.height) {
+      this.worldBounds.width = Math.max(this.worldBounds.width, newWidth);
+      this.worldBounds.height = Math.max(this.worldBounds.height, newHeight);
+
+      // Redimensiona câmera
+      this.cameras.main.setBounds(0, 0, this.worldBounds.width, this.worldBounds.height);
+
+      // Redimensiona background tileSprite
+      if (this.backgroundTileSprite) {
+        this.backgroundTileSprite.setSize(this.worldBounds.width, this.worldBounds.height);
+        this.backgroundTileSprite.setPosition(this.worldBounds.width / 2, this.worldBounds.height / 2);
+      }
+
+      // Redimensiona fog of war
+      if (this.fog) {
+        this.fog.clear();
+        this.fog.fillStyle(0x000000, 0.98);
+        this.fog.fillRect(0, 0, this.worldBounds.width, this.worldBounds.height);
+      }
+
+      console.log(`[Map] World bounds expandidos: ${this.worldBounds.width}x${this.worldBounds.height} (${maxTileX+1}x${maxTileY+1} tiles)`);
+    }
   }
 
   // --- Callbacks do Socket.io ---
 
   public onLocalPlayerInit(data: PlayerData) {
+    const spriteId: SpriteId = (SPRITE_IDS.includes(data.spriteId as SpriteId) ? data.spriteId : 'm1') as SpriteId;
+    this.localSpriteId = spriteId;
+    const initialFacing: Facing = (FACINGS.includes(data.facing as Facing) ? data.facing : 'down') as Facing;
+    this.localLastFacing = initialFacing;
     this.localPlayerSprite = this.add.sprite(
-      data.x * this.TILE_SIZE, 
-      data.y * this.TILE_SIZE, 
-      'tiberius-sprite'
+      data.x * this.TILE_SIZE,
+      data.y * this.TILE_SIZE,
+      'characters',
+      getFrameIndex(spriteId, initialFacing, 0)
     );
-    this.localPlayerSprite.setDepth(10); // Garantir que o player fique sobre as paredes
+    this.localPlayerSprite.setScale(2);
+    this.localPlayerSprite.setDepth(10);
+    this.localPlayerSprite.flipX = (initialFacing === 'right');
     
     // Cria a textura de luz (brush gradiente) para apagar a escuridão
     const canvas = document.createElement('canvas');
@@ -256,13 +551,11 @@ export class GameScene extends Phaser.Scene {
     this.lightBrush = this.make.image({ x: 0, y: 0, key: 'lightBrush', add: true });
     this.lightBrush.setVisible(false); // Fica invisível, serve só como máscara
     
-    // Cria a camada de Fog com Graphics cobrindo todo o mapa
-    const mapWidth = 150 * this.TILE_SIZE;
-    const mapHeight = 150 * this.TILE_SIZE;
+    // Cria a camada de Fog com Graphics cobrindo todo o mapa (usa worldBounds dinâmico)
     this.fog = this.add.graphics();
     this.fog.fillStyle(0x000000, 0.98);
-    this.fog.fillRect(0, 0, mapWidth, mapHeight);
-    this.fog.setDepth(19); // Acima de monstros(10) e chão, abaixo de texto de level up(20)
+    this.fog.fillRect(0, 0, this.worldBounds.width, this.worldBounds.height);
+    this.fog.setDepth(19);
 
     // Cria a máscara invertida (Furo de Luz)
     const mask = this.lightBrush.createBitmapMask();
@@ -270,7 +563,7 @@ export class GameScene extends Phaser.Scene {
     this.fog.setMask(mask);
 
     // Ajusta o tamanho do mapa e câmera
-    this.cameras.main.setBounds(0, 0, mapWidth, mapHeight);
+    this.cameras.main.setBounds(0, 0, this.worldBounds.width, this.worldBounds.height);
     
     // Câmera segue o jogador local
     this.cameras.main.startFollow(this.localPlayerSprite, true, 0.1, 0.1);
@@ -307,7 +600,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  public onMapData(data: { walls: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
+  public onMapData(data: { walls: Position[], gates?: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
+    this.expandWorldBoundsFromData(data.walls, data.resourceNodes, data.craftingStations);
+
     // Limpa nós de recursos existentes se houver
     this.resourceNodesMap.forEach(n => {
         n.sprite.destroy();
@@ -322,14 +617,31 @@ export class GameScene extends Phaser.Scene {
     });
     this.craftingStationsMap.clear();
 
+    // Limpa itens no chão existentes para evitar duplicação
+    this.floorItems.forEach(textObj => textObj.destroy());
+    this.floorItems.clear();
+
+    // Limpa portões antigos
+    this.gatesGroup.clear(true);
+    this.gateSprites = [];
+
     data.walls.forEach(wall => {
       const sprite = this.add.sprite(wall.x * this.TILE_SIZE, wall.y * this.TILE_SIZE, 'tile-wall');
       sprite.setDepth(5);
-      // Efeito de noite nas paredes (azul escuro)
       sprite.setTint(0x1e1e40);
       this.wallsGroup.add(sprite);
       this.collisionMap.add(`${wall.x},${wall.y}`);
     });
+
+    // Desenha os portões das safe zones (player passa, monstro não)
+    if (data.gates) {
+      data.gates.forEach(gate => {
+        const sprite = this.add.sprite(gate.x * this.TILE_SIZE, gate.y * this.TILE_SIZE, 'gate-door');
+        sprite.setDepth(5);
+        this.gatesGroup.add(sprite);
+        this.gateSprites.push({ x: gate.x, y: gate.y, sprite, isOpen: false });
+      });
+    }
     
     // Desenha os itens iniciais
     data.itemsOnFloor.forEach(item => this.onItemDropped(item));
@@ -345,6 +657,84 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  public onCitiesData(cities: any[]) {
+    if (!cities || cities.length === 0) return;
+    this.expandWorldBoundsFromCities(cities);
+    
+    // Limpa cities visuals antigos (se reconectar)
+    this.cityOverlays.forEach(s => s.destroy());
+    this.cityOverlays = [];
+
+    for (const city of cities) {
+      const w = (city.bounds.xMax - city.bounds.xMin + 1) * this.TILE_SIZE;
+      const h = (city.bounds.yMax - city.bounds.yMin + 1) * this.TILE_SIZE;
+      const cx = (city.bounds.xMin + city.bounds.xMax + 1) / 2 * this.TILE_SIZE;
+      const cy = (city.bounds.yMin + city.bounds.yMax + 1) / 2 * this.TILE_SIZE;
+
+      // Overlay colorido do chão (semi-transparente)
+      const rect = this.add.rectangle(cx, cy, w, h, city.bgColor || 0x222222, 0.30);
+      rect.setDepth(1);
+      this.cityOverlays.push(rect);
+
+      // Borda da cidade (apenas contorno)
+      const border = this.add.graphics();
+      border.lineStyle(2, city.bgColor || 0xfbbf24, 0.7);
+      border.strokeRect(
+        city.bounds.xMin * this.TILE_SIZE,
+        city.bounds.yMin * this.TILE_SIZE,
+        w, h
+      );
+      border.setDepth(2);
+      this.cityOverlays.push(border);
+
+      // Nome da cidade no topo
+      const labelY = (city.bounds.yMin - 1) * this.TILE_SIZE;
+      const label = this.add.text(cx, labelY, `⚔ ${city.name} (Lv ${city.minLevel}+)`, {
+        fontSize: '12px',
+        color: '#fbbf24',
+        backgroundColor: '#000000',
+        padding: { x: 4, y: 2 }
+      });
+      label.setOrigin(0.5, 1);
+      label.setDepth(2);
+      this.cityOverlays.push(label);
+    }
+  }
+
+  public onPlazaData(bounds: { xMin: number; xMax: number; yMin: number; yMax: number }) {
+    this.expandWorldBoundsFromPlaza(bounds);
+    
+    // Limpa overlay anterior
+    if (this.plazaOverlay) this.plazaOverlay.destroy();
+    if (this.plazaLabel) this.plazaLabel.destroy();
+
+    const w = (bounds.xMax - bounds.xMin + 1) * this.TILE_SIZE;
+    const h = (bounds.yMax - bounds.yMin + 1) * this.TILE_SIZE;
+    const cx = (bounds.xMin + bounds.xMax + 1) / 2 * this.TILE_SIZE;
+    const cy = (bounds.yMin + bounds.yMax + 1) / 2 * this.TILE_SIZE;
+
+    // Praça central: tom verde (safe zone)
+    this.plazaOverlay = this.add.rectangle(cx, cy, w, h, 0x10b981, 0.18);
+    this.plazaOverlay.setDepth(1);
+
+    const border = this.add.graphics();
+    border.lineStyle(2, 0x10b981, 0.6);
+    border.strokeRect(bounds.xMin * this.TILE_SIZE, bounds.yMin * this.TILE_SIZE, w, h);
+    border.setDepth(2);
+    this.plazaOverlay = border;
+
+    // Label da praça
+    const labelY = (bounds.yMin - 1) * this.TILE_SIZE;
+    this.plazaLabel = this.add.text(cx, labelY, '🛡 Praça Central (Safe Zone)', {
+      fontSize: '13px',
+      color: '#10b981',
+      backgroundColor: '#000000',
+      padding: { x: 4, y: 2 }
+    });
+    this.plazaLabel.setOrigin(0.5, 1);
+    this.plazaLabel.setDepth(2);
+  }
+
   public onCurrentPlayers(players: PlayerData[]) {
     players.forEach(p => {
       // Ignorar nós mesmos
@@ -357,6 +747,96 @@ export class GameScene extends Phaser.Scene {
   public onPlayerJoined(data: PlayerData) {
     this.otherPlayersData.set(data.id, data);
     this.addOtherPlayer(data);
+    this.updateGates();
+  }
+
+  // ============ Right-click Context Menu (Fase 4b) ============
+
+  private openBackpackContextMenu(x: number, y: number, slotIndex: number) {
+      const itemStr = this.backpackData?.[slotIndex];
+      if (!itemStr) return;
+      const itemName = (window as any).translateItem ? (window as any).translateItem(itemStr) : itemStr;
+      const menu = document.getElementById('context-menu');
+      const header = document.getElementById('ctx-header');
+      if (!menu || !header) return;
+      menu.style.left = `${x}px`;
+      menu.style.top = `${y}px`;
+      header.innerText = itemName;
+      menu.style.display = 'block';
+      menu.setAttribute('data-ctx-type', 'backpack');
+
+      const attackBtn = menu.querySelector('[data-action="attack"]') as HTMLButtonElement;
+      const inspectBtn = menu.querySelector('[data-action="inspect"]') as HTMLButtonElement;
+      const targetBtn = menu.querySelector('[data-action="target"]') as HTMLButtonElement;
+      if (attackBtn) attackBtn.style.display = 'none';
+      if (inspectBtn) inspectBtn.style.display = 'none';
+      if (targetBtn) targetBtn.style.display = 'none';
+
+      // Cria botões específicos para item da bolsa
+      let useBtn = menu.querySelector('[data-action="useItem"]') as HTMLButtonElement;
+      let dropBtn = menu.querySelector('[data-action="dropItem"]') as HTMLButtonElement;
+      if (!useBtn) {
+          useBtn = document.createElement('button');
+          useBtn.className = 'ctx-item';
+          useBtn.dataset.action = 'useItem';
+          useBtn.style.cssText = 'display:block;width:100%;padding:8px 10px;background:transparent;color:#22c55e;border:none;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;border-radius:4px;';
+          useBtn.innerText = '✅ Usar / Equipar';
+          menu.appendChild(useBtn);
+      }
+      if (!dropBtn) {
+          dropBtn = document.createElement('button');
+          dropBtn.className = 'ctx-item';
+          dropBtn.dataset.action = 'dropItem';
+          dropBtn.style.cssText = 'display:block;width:100%;padding:8px 10px;background:transparent;color:#ef4444;border:none;text-align:left;cursor:pointer;font-family:inherit;font-size:13px;border-radius:4px;';
+          dropBtn.innerText = '🗑️ Descartar';
+          menu.appendChild(dropBtn);
+      }
+      useBtn.style.display = 'block';
+      dropBtn.style.display = 'block';
+
+      this.contextMenuTargetId = null;
+      (menu as any).__backpackSlot = slotIndex;
+  }
+
+  private closeContextMenu() {
+      const menu = document.getElementById('context-menu');
+      if (menu) menu.style.display = 'none';
+      this.contextMenuTargetId = null;
+  }
+
+  public onEntityInfo(data: any) {
+      const modal = document.getElementById('inspect-modal');
+      const title = document.getElementById('inspect-title');
+      const body = document.getElementById('inspect-body');
+      if (!modal || !title || !body) return;
+
+      if (data.error) {
+          title.innerText = 'Erro';
+          body.innerHTML = `<p style="color: #ef4444;">${data.error}</p>`;
+          modal.style.display = 'flex';
+          return;
+      }
+
+      const translatedName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
+      title.innerText = `🔍 ${translatedName}`;
+      const type = data.isNPC ? 'NPC' : data.isMonster ? 'Monstro' : 'Jogador';
+      const hpPct = data.maxHealth > 0 ? Math.round((data.health / data.maxHealth) * 100) : 0;
+      const status = data.isDead ? '<span style="color: #ef4444;">(Morto)</span>' : '<span style="color: #10b981;">(Vivo)</span>';
+
+      let html = `
+          <p><b>Tipo:</b> ${type}</p>
+          <p><b>Nível:</b> ${data.level || '?'} ${status}</p>
+          <p><b>HP:</b> ${data.health}/${data.maxHealth} <span style="color: #94a3b8;">(${hpPct}%)</span></p>
+          <p><b>Posição:</b> (${data.x}, ${data.y})</p>
+      `;
+      if (data.bossOfCity) {
+          html += `<p style="color: #ff00ff;"><b>👹 Boss de:</b> ${data.bossOfCity}</p>`;
+      }
+      if (data.gold !== undefined) {
+          html += `<p><b>Ouro:</b> <span style="color: #fbbf24;">${data.gold} G</span></p>`;
+      }
+      body.innerHTML = html;
+      modal.style.display = 'flex';
   }
 
   public onPlayerMoved(data: PlayerData) {
@@ -364,6 +844,43 @@ export class GameScene extends Phaser.Scene {
     if (!isLocal) {
         this.otherPlayersData.set(data.id, data);
     }
+
+    // Atualiza a localização no card do player LOCAL a cada movimento
+    if (isLocal && data.x !== undefined && data.y !== undefined) {
+        const locEl = document.getElementById('player-location');
+        if (locEl) locEl.innerText = `Localização: ${data.x}, ${data.y}`;
+        // Fecha UI de NPC se estiver muito longe
+        const npcPositions = [
+            { name: 'Merchant', x: 110, y: 115 },
+            { name: 'Banker', x: 120, y: 115 },
+            { name: 'Teleporter Hub', x: 115, y: 110 },
+            { name: 'Teleporter Caverna', x: 20, y: 20 },
+            { name: 'Teleporter Rat', x: 54, y: 104 },
+            { name: 'Teleporter Orc', x: 176, y: 104 },
+            { name: 'Teleporter Rotworm', x: 104, y: 44 },
+            { name: 'Teleporter Demon', x: 104, y: 184 },
+            { name: 'Vendor Rat', x: 56, y: 104 },
+            { name: 'Vendor Orc', x: 174, y: 104 },
+            { name: 'Vendor Rotworm', x: 106, y: 44 },
+            { name: 'Vendor Demon', x: 106, y: 184 },
+        ];
+        const shopUI = document.getElementById('shop-ui');
+        const bankUI = document.getElementById('modal-bank');
+        const craftingUI = document.getElementById('crafting-ui');
+        const teleporterUI = document.getElementById('teleporter-ui');
+        const vendorUI = document.getElementById('vendor-ui');
+        for (const npc of npcPositions) {
+            const dist = Math.abs(data.x - npc.x) + Math.abs(data.y - npc.y);
+            if (dist > 2) {
+                if (shopUI && shopUI.style.display === 'flex') shopUI.style.display = 'none';
+                if (bankUI && bankUI.style.display === 'flex') bankUI.style.display = 'none';
+                if (craftingUI && craftingUI.style.display === 'flex') craftingUI.style.display = 'none';
+                if (teleporterUI && teleporterUI.style.display === 'flex') teleporterUI.style.display = 'none';
+                if (vendorUI && vendorUI.style.display === 'flex') vendorUI.style.display = 'none';
+            }
+        }
+    }
+
     const sprite = isLocal ? this.localPlayerSprite : this.otherPlayers.get(data.id);
     
     if (sprite) {
@@ -401,13 +918,24 @@ export class GameScene extends Phaser.Scene {
     } else {
       const sprite = this.otherPlayers.get(data.id);
       if (sprite) {
+        // Atualiza facing + lastMoveTime pra animar o andar deste player
+        const anim = this.otherPlayerAnim.get(data.id);
+        if (anim) {
+          if (data.facing && FACINGS.includes(data.facing as Facing)) {
+            anim.facing = data.facing as Facing;
+          }
+          if (data.spriteId && SPRITE_IDS.includes(data.spriteId as SpriteId)) {
+            anim.spriteId = data.spriteId as SpriteId;
+          }
+          anim.lastMoveTime = this.time.now;
+        }
         this.tweens.add({
             targets: sprite,
             x: data.x * this.TILE_SIZE,
             y: data.y * this.TILE_SIZE,
             duration: 250,
-            onUpdate: () => { 
-              this.updateHpBarPosition(data.id, sprite); 
+            onUpdate: () => {
+              this.updateHpBarPosition(data.id, sprite);
               if (this.currentTargetId === data.id) this.updateTargetSquare(sprite);
             }
         });
@@ -425,9 +953,50 @@ export class GameScene extends Phaser.Scene {
         if (data.id === this.chaseTargetId && data.isDead) {
             this.stopChase();
         }
-      }
-    }
-  }
+         // Se o alvo selecionado morreu, limpa target
+         if (data.id === this.currentTargetId && data.isDead) {
+             this.currentTargetId = undefined;
+             this.updateTargetSquare(null);
+             const targetInfo = document.getElementById('target-info');
+             if (targetInfo) targetInfo.style.display = 'none';
+         }
+       }
+     }
+
+     // Abre/fecha portões das safe zones baseado na distância de todos os players
+     this.updateGates();
+   }
+
+   /**
+    * Percorre todos os portões e os abre (alpha→0) se algum player estiver
+    * a até GATE_OPEN_DISTANCE tiles, ou os fecha (alpha→1) se ninguém estiver perto.
+    * Tudo client-side (puro visual): a colisão já está liberada no servidor.
+    */
+   private updateGates() {
+     if (this.gateSprites.length === 0) return;
+     // Coleta posições de todos os players conhecidos
+     const positions: Array<{ x: number, y: number }> = [];
+     if (this.localPlayerSprite) {
+       positions.push({
+         x: Math.round(this.localPlayerSprite.x / this.TILE_SIZE),
+         y: Math.round(this.localPlayerSprite.y / this.TILE_SIZE),
+       });
+     }
+     this.otherPlayersData.forEach(p => {
+       if (p.x !== undefined && p.y !== undefined) positions.push({ x: p.x, y: p.y });
+     });
+     for (const gate of this.gateSprites) {
+       const nearest = positions.reduce((min, pos) => {
+         const d = Math.abs(pos.x - gate.x) + Math.abs(pos.y - gate.y);
+         return d < min ? d : min;
+       }, Infinity);
+       const shouldOpen = nearest <= GameScene.GATE_OPEN_DISTANCE;
+       if (shouldOpen === gate.isOpen) continue;
+       gate.isOpen = shouldOpen;
+       // Troca textura: porta fechada <-> porta aberta (sem fade)
+       gate.sprite.setTexture(shouldOpen ? 'gate-door-open' : 'gate-door');
+     }
+   }
 
   /** Inicia a perseguição a um alvo — recalcula caminho até ficar adjacente */
   private startChase(targetId: string) {
@@ -462,10 +1031,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Tenta os 4 tiles adjacentes ao alvo e escolhe o mais próximo alcançável
+    const maxTileX = Math.floor(this.worldBounds.width / this.TILE_SIZE) - 1;
+    const maxTileY = Math.floor(this.worldBounds.height / this.TILE_SIZE) - 1;
     const adjacentTiles = [
         { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
         { x: tx - 1, y: ty }, { x: tx + 1, y: ty }
-    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= 149 && t.y >= 0 && t.y <= 149);
+    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= maxTileX && t.y >= 0 && t.y <= maxTileY);
 
     if (adjacentTiles.length === 0) return;
 
@@ -479,29 +1050,80 @@ export class GameScene extends Phaser.Scene {
     const dest = adjacentTiles[0];
     this.autoPath = this.calculatePath(playerX, playerY, dest.x, dest.y);
     if (this.autoPath.length > 0 && !this.isMoving) {
-        this.processNextAutoWalkStep();
+      this.processNextAutoWalkStep();
     }
   }
 
-  /** Cancela a perseguição atual */
+  /** Cancela a perseguição atual de monstro */
   private stopChase() {
     this.chaseTargetId = undefined;
     this.chaseTargetPos = undefined;
     this.autoPath = [];
+    if (this.socketManager?.socket) {
+      this.socketManager.socket.emit('playerCommand', { action: 'stopAttack' });
+    }
   }
 
+  /** Inicia um chase genérico: caminha até 1 célula de distância do alvo e dispara o callback. */
+  private startInteractionChase(x: number, y: number, onArrive: () => void) {
+    this.stopChase();
+    this.stopLootChase();
+    this.interactionChase = { pos: { x, y }, onArrive };
+    this.recalcInteractionChase();
+  }
+
+  private recalcInteractionChase() {
+    if (!this.interactionChase || !this.localPlayerSprite) return;
+
+    const playerX = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
+    const playerY = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
+    const tx = this.interactionChase.pos.x;
+    const ty = this.interactionChase.pos.y;
+
+    if (Math.abs(playerX - tx) <= 1 && Math.abs(playerY - ty) <= 1) {
+      this.autoPath = [];
+      const cb = this.interactionChase.onArrive;
+      this.interactionChase = undefined;
+      cb();
+      return;
+    }
+
+    const maxTileX = Math.floor(this.worldBounds.width / this.TILE_SIZE) - 1;
+    const maxTileY = Math.floor(this.worldBounds.height / this.TILE_SIZE) - 1;
+    const adjacentTiles = [
+      { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
+      { x: tx - 1, y: ty }, { x: tx + 1, y: ty }
+    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= maxTileX && t.y >= 0 && t.y <= maxTileY);
+
+    if (adjacentTiles.length === 0) return;
+
+    adjacentTiles.sort((a, b) => {
+      const da = Math.abs(a.x - playerX) + Math.abs(a.y - playerY);
+      const db = Math.abs(b.x - playerX) + Math.abs(b.y - playerY);
+      return da - db;
+    });
+
+    const dest = adjacentTiles[0];
+    this.autoPath = this.calculatePath(playerX, playerY, dest.x, dest.y);
+    if (this.autoPath.length > 0 && !this.isMoving) {
+      this.processNextAutoWalkStep();
+    }
+  }
+
+  /** Cancela a perseguição de recurso (gathering) */
+  private stopNodeChase() {
+    this.chaseNodeId = undefined;
+    this.chaseNodePos = undefined;
+    this.autoPath = [];
+  }
+
+  /** Inicia a perseguição de um nó de recurso */
   private startNodeChase(id: string, x: number, y: number) {
     this.stopChase();
     this.stopLootChase();
     this.chaseNodeId = id;
     this.chaseNodePos = { x, y };
     this.recalculateNodeChase();
-  }
-
-  private stopNodeChase() {
-    this.chaseNodeId = undefined;
-    this.chaseNodePos = undefined;
-    this.autoPath = [];
   }
 
   private recalculateNodeChase() {
@@ -520,10 +1142,12 @@ export class GameScene extends Phaser.Scene {
         return;
     }
 
+    const maxTileX = Math.floor(this.worldBounds.width / this.TILE_SIZE) - 1;
+    const maxTileY = Math.floor(this.worldBounds.height / this.TILE_SIZE) - 1;
     const adjacentTiles = [
         { x: tx, y: ty - 1 }, { x: tx, y: ty + 1 },
         { x: tx - 1, y: ty }, { x: tx + 1, y: ty }
-    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= 149 && t.y >= 0 && t.y <= 149);
+    ].filter(t => !this.collisionMap.has(`${t.x},${t.y}`) && t.x >= 0 && t.x <= maxTileX && t.y >= 0 && t.y <= maxTileY);
 
     if (adjacentTiles.length === 0) return;
 
@@ -563,7 +1187,16 @@ export class GameScene extends Phaser.Scene {
   public onPlayerDashed(data: PlayerData) {
     const isLocal = data.id === this.socketManager.getId();
     const sprite = isLocal ? this.localPlayerSprite : this.otherPlayers.get(data.id);
-    
+
+    if (!isLocal) {
+      const anim = this.otherPlayerAnim.get(data.id);
+      if (anim) {
+        if (data.facing && FACINGS.includes(data.facing as Facing)) anim.facing = data.facing as Facing;
+        if (data.spriteId && SPRITE_IDS.includes(data.spriteId as SpriteId)) anim.spriteId = data.spriteId as SpriteId;
+        anim.lastMoveTime = this.time.now;
+      }
+    }
+
     if (sprite) {
        // Animação super rápida (Dash)
        this.tweens.add({
@@ -691,18 +1324,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   public onPlayerSpoke(id: string, message: string) {
+    // Mensagens do sistema (sem sprite, vão para aba servidor)
+    if (id === '__system__') {
+        if ((window as any).addChatMessage) {
+            (window as any).addChatMessage('servidor', 'Sistema', message);
+        }
+        return;
+    }
+
     const sprite = id === this.socketManager.getId() ? this.localPlayerSprite : this.otherPlayers.get(id);
     if (!sprite) return;
 
+    // Floating text acima do personagem (mantém para imersão)
     const text = this.add.text(sprite.x, sprite.y - 40, message, {
         fontFamily: 'Courier New',
         fontSize: '14px',
-        color: '#ffff00', // Texto amarelo tradicional do Tibia
+        color: '#ffff00',
         stroke: '#000000',
         strokeThickness: 3
     }).setOrigin(0.5).setDepth(15);
 
-    // Texto sobe e some aos poucos
     this.tweens.add({
         targets: text,
         y: text.y - 20,
@@ -710,6 +1351,19 @@ export class GameScene extends Phaser.Scene {
         duration: 3000,
         onComplete: () => text.destroy()
     });
+
+    // Adiciona no chat box (aba Bate-Papo)
+    const playerName = this.otherPlayersData.get(id)?.name || 'Desconhecido';
+    const displayName = id === this.socketManager.getId() ? 'Você' : playerName;
+    if ((window as any).addChatMessage) {
+      (window as any).addChatMessage('global', displayName, message);
+    }
+  }
+
+  public addServerMessage(message: string, isBoss = false) {
+    if ((window as any).addChatMessage) {
+      (window as any).addChatMessage('servidor', '', message, true, isBoss);
+    }
   }
 
   public onSpellCast(data: { casterId: string, targetId?: string, spell: string }) {
@@ -784,6 +1438,12 @@ export class GameScene extends Phaser.Scene {
 
     public onItemDropped(item: any) {
      const key = item.id;
+     // Remove sprite existente com o mesmo ID (defesa contra duplicação)
+     const existing = this.floorItems.get(key);
+     if (existing) {
+          existing.destroy();
+          this.floorItems.delete(key);
+     }
      const textObj = this.add.text(item.x * this.TILE_SIZE, item.y * this.TILE_SIZE, item.emoji, {
          fontSize: '20px',
          fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
@@ -801,11 +1461,30 @@ export class GameScene extends Phaser.Scene {
      const tDesc = document.getElementById('tooltip-desc')!;
      
      textObj.on('pointerover', (pointer: Phaser.Input.Pointer) => {
-         const details = this.itemDetails[item.name] || { name: item.name, desc: 'Item caído no chão.', color: '#ffffff' };
-         tName.innerText = details.name;
-         tName.style.color = details.color;
-         tDesc.innerText = details.desc + '\n\nClique no chão para andar e pegá-lo.';
-         
+         const isSkull = item.name === 'Skull' && item.metadata;
+         const victimName = isSkull ? (item.metadata.victimName || '???') : null;
+         const victimColor = isSkull ? (item.metadata.color || '#ef4444') : null;
+         const kindLabel = isSkull ? (item.metadata.kind === 'boss' ? 'Boss' : 'Jogador') : null;
+
+         const baseName = (window as any).translateItem
+             ? (window as any).translateItem(item.name)
+             : item.name;
+
+         if (isSkull) {
+             // Exibe "Caveira de <victim>" com a cor do tipo
+             tName.innerHTML = `${baseName} de <span style="color:${victimColor}; font-weight:bold;">${victimName}</span>`;
+             tName.style.color = '#ffffff';
+         } else {
+             const details = this.itemDetails[item.name] || { name: item.name, desc: 'Item caído no chão.', color: '#ffffff' };
+             tName.innerText = details.name;
+             tName.style.color = details.color;
+         }
+
+         const desc = isSkull
+             ? `Caveira de ${kindLabel} derrotado em combate.\n\nClique no chão para andar e pegá-la.`
+             : ((this.itemDetails[item.name]?.desc) || 'Item caído no chão.') + '\n\nClique no chão para andar e pegá-lo.';
+         tDesc.innerText = desc;
+
          const rect = this.game.canvas.getBoundingClientRect();
          this.positionTooltip(pointer.x + rect.left + window.scrollX, pointer.y + rect.top + window.scrollY);
      });
@@ -835,8 +1514,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   public onItemPickedUp(item: any) {
-     // Apenas fala no chat
-     this.onPlayerSpoke(this.socketManager.getId()!, 'Got ' + item.name);
+     const qty = item.qty && item.qty > 1 ? ` x${item.qty}` : '';
+     const translated = (window as any).translateItem
+         ? (window as any).translateItem(item.name)
+         : item.name;
+     this.onTextEffect(
+         Math.round(this.localPlayerSprite!.x / this.TILE_SIZE),
+         Math.round(this.localPlayerSprite!.y / this.TILE_SIZE),
+         `${translated}${qty}`,
+         '#10b981'
+     );
   }
 
   public onEquipmentUpdate(eq: any) {
@@ -968,7 +1655,7 @@ export class GameScene extends Phaser.Scene {
          });
   }
 
-  private backpackData: string[] = []; // Armazena a bolsa localmente para facilitar a renderização da loja
+  public backpackData: string[] = []; // Armazena a bolsa localmente para facilitar a renderização da loja
 
   private getMaxBackpackSlotsClient(): number {
       if (!this.equipmentData || !this.equipmentData.backpack) {
@@ -1027,19 +1714,20 @@ export class GameScene extends Phaser.Scene {
                  count = parseInt(countStr) || 1;
              }
              
-             const emojis: Record<string, string> = { 
-                 'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪', 
-                 'Mana Potion': '💙', 'Blueberry': '🍇',
-                 'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                 'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                 'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-                 'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
-             };
-             
-             const isEmojiChar = baseItemName.length <= 4;
-             const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
-             
-             // Se tiver mais de 1 item, exibe o contador no canto inferior direito
+              const emojis: Record<string, string> = {
+                  'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪',
+                  'Mana Potion': '💙', 'Blueberry': '🍇',
+                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
+                  'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                   'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
+                  'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+                  'Skull': '💀'
+              };
+
+              const isEmojiChar = baseItemName.length <= 4;
+              const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
+
+              // Se tiver mais de 1 item, exibe o contador no canto inferior direito
              if (count > 1) {
                  htmlSlot.innerHTML = `
                      <div style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
@@ -1054,55 +1742,70 @@ export class GameScene extends Phaser.Scene {
              htmlSlot.style.cursor = 'pointer';
              htmlSlot.style.fontSize = '24px';
              
-             // Left-click = Depositar se o banco estiver aberto, senão Dropar item
-             htmlSlot.onclick = () => {
-                 const bankModal = document.getElementById('modal-bank');
-                 const isBankOpen = bankModal && bankModal.style.display === 'flex';
-                 if (isBankOpen) {
-                     const emptyIndex = this.bankItems.findIndex(item => !item || item === '');
-                     if (emptyIndex !== -1) {
-                         this.socketManager.socket.emit('bank:depositItem', { backpackIndex: index, bankIndex: emptyIndex });
-                     } else {
-                         this.onTextEffect(
-                             Math.round(this.localPlayerSprite!.x / this.TILE_SIZE),
-                             Math.round(this.localPlayerSprite!.y / this.TILE_SIZE),
-                             'Cofre Cheio!',
-                             '#ff5555'
-                         );
-                     }
-                 } else {
-                     if (count > 1) {
-                         const input = prompt(`Quantos deseja dropar? (1 a ${count})`, count.toString());
-                         if (input !== null) {
-                             const amount = parseInt(input);
-                             if (!isNaN(amount) && amount >= 1 && amount <= count) {
-                                 this.socketManager.sendDropItem(index, amount);
-                             }
-                         }
-                     } else {
-                         this.socketManager.sendDropItem(index, 1);
-                     }
+              // Left-click = Depositar se o banco estiver aberto, senão Dropar item
+              htmlSlot.onclick = () => {
+                  const bankModal = document.getElementById('modal-bank');
+                  const isBankOpen = bankModal && bankModal.style.display === 'flex';
+                  if (isBankOpen) {
+                      // Pergunta a quantidade se for stack; senão deposita tudo
+                      let qty = count;
+                      if (count > 1) {
+                          const input = prompt(`Quantos enviar para o cofre? (1 a ${count})`, count.toString());
+                          if (input === null) return;
+                          qty = parseInt(input);
+                          if (isNaN(qty) || qty < 1 || qty > count) {
+                              this.onTextEffect(
+                                  Math.round(this.localPlayerSprite!.x / this.TILE_SIZE),
+                                  Math.round(this.localPlayerSprite!.y / this.TILE_SIZE),
+                                  'Quantidade inválida!',
+                                  '#ff5555'
+                              );
+                              return;
+                          }
+                      }
+                      this.socketManager.socket.emit('bank:depositItem', { backpackIndex: index, amount: qty });
+                  } else {
+                      if (count > 1) {
+                          const input = prompt(`Quantos deseja dropar? (1 a ${count})`, count.toString());
+                          if (input !== null) {
+                              const amount = parseInt(input);
+                              if (!isNaN(amount) && amount >= 1 && amount <= count) {
+                                  this.socketManager.sendDropItem(index, amount);
+                              }
+                          }
+                      } else {
+                          this.socketManager.sendDropItem(index, 1);
+                      }
                  }
              };
              
-             // Right-click = Consumir ou Equipar
+              // Right-click = Abrir menu de contexto do item
              htmlSlot.oncontextmenu = (e: MouseEvent) => {
                  e.preventDefault();
-                 this.socketManager.sendUseItem(index);
+                 this.openBackpackContextMenu(e.clientX, e.clientY, index);
              };
 
-             if (this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
-                 htmlSlot.removeEventListener('mouseenter', this.showTooltipFn);
-                 htmlSlot.removeEventListener('mousemove', this.moveTooltipFn);
-                 htmlSlot.removeEventListener('mouseleave', this.hideTooltipFn);
-                 htmlSlot.addEventListener('mouseenter', this.showTooltipFn);
-                 htmlSlot.addEventListener('mousemove', this.moveTooltipFn);
-                 htmlSlot.addEventListener('mouseleave', this.hideTooltipFn);
-             }
-         } else {
-             htmlSlot.innerHTML = '';
-             htmlSlot.style.cursor = 'default';
-         }
+              if (this.showTooltipFn && this.moveTooltipFn && this.hideTooltipFn) {
+                  htmlSlot.removeEventListener('mouseenter', this.showTooltipFn);
+                  htmlSlot.removeEventListener('mousemove', this.moveTooltipFn);
+                  htmlSlot.removeEventListener('mouseleave', this.hideTooltipFn);
+                  htmlSlot.addEventListener('mouseenter', this.showTooltipFn);
+                  htmlSlot.addEventListener('mousemove', this.moveTooltipFn);
+                  htmlSlot.addEventListener('mouseleave', this.hideTooltipFn);
+              }
+
+              // Drag & Drop: começar arrasto
+              htmlSlot.draggable = true;
+              htmlSlot.ondragstart = (e: DragEvent) => {
+                  e.dataTransfer?.setData('text/plain', index.toString());
+                  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+              };
+          } else {
+              htmlSlot.innerHTML = '';
+              htmlSlot.style.cursor = 'default';
+              htmlSlot.draggable = false;
+              htmlSlot.ondragstart = null;
+          }
      });
      
      // Atualiza a aba Sell da loja se ela estiver aberta
@@ -1152,6 +1855,14 @@ export class GameScene extends Phaser.Scene {
                   this.socketManager.socket.emit('bank:withdrawGold', { amount });
                   goldInput.value = '';
               }
+          };
+      }
+
+      // Botão Organizar Banco
+      const btnSortBank = document.getElementById('btn-sort-bank') as HTMLButtonElement;
+      if (btnSortBank) {
+          btnSortBank.onclick = () => {
+              this.socketManager.socket.emit('bank:sort');
           };
       }
 
@@ -1214,17 +1925,18 @@ export class GameScene extends Phaser.Scene {
                   count = parseInt(countStr) || 1;
               }
 
-              const emojis: Record<string, string> = { 
-                  'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪', 
-                  'Mana Potion': '💙', 'Blueberry': '🍇',
-                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                  'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                  'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-                  'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
-              };
+               const emojis: Record<string, string> = {
+                   'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪',
+                   'Mana Potion': '💙', 'Blueberry': '🍇',
+                   'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
+                   'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                   'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
+                   'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+                   'Skull': '💀'
+               };
 
-              const isEmojiChar = baseItemName.length <= 4;
-              const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
+               const isEmojiChar = baseItemName.length <= 4;
+               const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
 
               if (count > 1) {
                   slotDiv.innerHTML = `
@@ -1262,10 +1974,11 @@ export class GameScene extends Phaser.Scene {
       if (!content) return;
       
       const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
-      const emojis: Record<string, string> = { 
-          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 
+      const emojis: Record<string, string> = {
+          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦'
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Skull': '💀'
       };
       
       content.innerHTML = '';
@@ -1360,6 +2073,12 @@ export class GameScene extends Phaser.Scene {
           if (goldEl) goldEl.innerText = data.gold.toString();
       }
       
+      // Atualiza localização no card do player (Gold à esquerda | Localização à direita)
+      if (data.x !== undefined && data.y !== undefined) {
+          const locEl = document.getElementById('player-location');
+          if (locEl) locEl.innerText = `Localização: ${data.x}, ${data.y}`;
+      }
+      
       if (data.stats) {
           ['FOR', 'AGI', 'VIT', 'INT', 'DES', 'SOR'].forEach(stat => {
               const valEl = document.getElementById(`val-${stat}`);
@@ -1440,13 +2159,15 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Update local professions & learned recipes
-      if (data.professionSmithingLevel !== undefined) this.professionSmithingLevel = data.professionSmithingLevel;
-      if (data.professionSmithingXp !== undefined) this.professionSmithingXp = data.professionSmithingXp;
-      if (data.professionAlchemyLevel !== undefined) this.professionAlchemyLevel = data.professionAlchemyLevel;
-      if (data.professionAlchemyXp !== undefined) this.professionAlchemyXp = data.professionAlchemyXp;
-      if (data.professionTanningLevel !== undefined) this.professionTanningLevel = data.professionTanningLevel;
-      if (data.professionTanningXp !== undefined) this.professionTanningXp = data.professionTanningXp;
+      let profChanged = false;
+      if (data.professionSmithingLevel !== undefined) { this.professionSmithingLevel = data.professionSmithingLevel; profChanged = true; }
+      if (data.professionSmithingXp !== undefined) { this.professionSmithingXp = data.professionSmithingXp; profChanged = true; }
+      if (data.professionAlchemyLevel !== undefined) { this.professionAlchemyLevel = data.professionAlchemyLevel; profChanged = true; }
+      if (data.professionAlchemyXp !== undefined) { this.professionAlchemyXp = data.professionAlchemyXp; profChanged = true; }
+      if (data.professionTanningLevel !== undefined) { this.professionTanningLevel = data.professionTanningLevel; profChanged = true; }
+      if (data.professionTanningXp !== undefined) { this.professionTanningXp = data.professionTanningXp; profChanged = true; }
       if (data.learnedRecipes !== undefined) this.learnedRecipes = data.learnedRecipes;
+      if (profChanged) this.refreshCraftingProfessionDisplay();
   }
 
   public onLevelUp(data: { id: string, level: number }) {
@@ -1520,6 +2241,21 @@ export class GameScene extends Phaser.Scene {
 
   private addOtherPlayer(data: PlayerData) {
     let texture = 'tiberius-sprite';
+    let isCharacterSprite = false;
+    let npcType: string | undefined = (data as any).npcType;
+    const isNpc = !!(data as any).isNPC;
+    // Fallback: se o servidor não mandou npcType, identifica pelo id
+    if (isNpc && !npcType) {
+      if (typeof data.id === 'string') {
+        if (data.id.startsWith('npc_teleporter_')) npcType = 'teleporter';
+        else if (data.id.startsWith('npc_vendor_')) npcType = 'vendor';
+        else if (data.id === 'npc_merchant') npcType = 'merchant';
+        else if (data.id === 'npc_banker') npcType = 'banker';
+      }
+    }
+    if (isNpc) {
+      console.log(`[NPC] addOtherPlayer id=${data.id} name="${data.name}" isNPC=${isNpc} npcType=${npcType}`);
+    }
     if (data.isMonster) {
         if (data.name === 'Orc') texture = 'orc-sprite';
         else if (data.name === 'Rotworm') texture = 'rotworm-sprite';
@@ -1530,18 +2266,45 @@ export class GameScene extends Phaser.Scene {
         texture = 'merchant-sprite';
     } else if (data.name === 'Banker') {
         texture = 'banker-sprite';
+    } else if (npcType === 'teleporter') {
+        texture = 'teleporter-sprite';
+    } else if (npcType === 'vendor') {
+        texture = 'vendor-sprite';
+    } else {
+        // Personagem de jogador: usa o sprite selecionado
+        texture = 'characters';
+        isCharacterSprite = true;
     }
 
     const sprite = this.add.sprite(
-      data.x * this.TILE_SIZE, 
-      data.y * this.TILE_SIZE, 
-      texture
+      data.x * this.TILE_SIZE,
+      data.y * this.TILE_SIZE,
+      texture,
+      isCharacterSprite ? getFrameIndex((data.spriteId as SpriteId) || 'm1', (data.facing as Facing) || 'down', 0) : 0
     );
-    
-    if (data.name === 'Nightmare Skeleton') {
+
+    // Inicializa estado de animação de outros jogadores
+    if (isCharacterSprite) {
+      this.otherPlayerAnim.set(data.id, {
+        walkFrame: 0,
+        walkTimer: 0,
+        lastMoveTime: 0,
+        facing: (data.facing as Facing) || 'down',
+        spriteId: (data.spriteId as SpriteId) || 'm1'
+      });
+      sprite.flipX = ((data.facing as Facing) || 'down') === 'right';
+    }
+
+    if (isCharacterSprite) {
+        sprite.setScale(2);
+    } else if (data.name === 'Nightmare Skeleton') {
         sprite.setScale(2);
         sprite.setTint(0xff00ff); // Roxo demoníaco
-    } else if (!data.isMonster && data.name !== 'Merchant' && data.name !== 'Banker') {
+    } else if (npcType === 'teleporter') {
+        // Mago teleportador: mantém cor natural (azul-royal)
+    } else if (npcType === 'vendor') {
+        // Vendedor: mantém cor natural
+    } else if (!data.isMonster && !isNpc) {
         sprite.setTint(0xff0000); // Jogadores inimigos em vermelho
     }
     sprite.setDepth(10);
@@ -1554,12 +2317,15 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Demon Skeleton') nameColor = '#ef4444';
     else if (data.name === 'Nightmare Skeleton') nameColor = '#ff00ff';
     else if (data.name === 'Merchant') nameColor = '#fbbf24';
-    else if (data.name === 'Banker') nameColor = '#10b981'; // Verde esmeralda para Banqueiro
+    else if (data.name === 'Banker') nameColor = '#10b981';
+    else if (npcType === 'teleporter') nameColor = '#60a5fa';
+    else if (npcType === 'vendor') nameColor = '#d97706';
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
-    const nameLabel = this.add.text(sprite.x, sprite.y - 30, `[Lv.${data.level || 1}] ${displayName}`, { 
-        fontSize: '10px', 
+    const coordText = `(${data.x}, ${data.y})`;
+    const nameLabel = this.add.text(sprite.x, sprite.y - 30, `[Lv.${data.level || 1}] ${displayName} ${coordText}`, {
+        fontSize: '10px',
         color: nameColor,
         fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", sans-serif'
     }).setOrigin(0.5).setVisible(false);
@@ -1567,42 +2333,42 @@ export class GameScene extends Phaser.Scene {
 
     // Botão ESQUERDO = selecionar (marcar target), sem atacar
     sprite.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (isNpc) console.log(`[NPC] clique em ${data.id} (npcType=${npcType})`);
       if (data.name === 'Merchant') {
-          const myPos = this.localPlayerSprite;
-          if (myPos) {
-              const dist = Math.abs(myPos.x - sprite.x) + Math.abs(myPos.y - sprite.y);
-              if (dist / this.TILE_SIZE <= 1.5) {
-                  this.socketManager.openShop();
-              } else {
-                  this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Muito longe!', '#ff0000');
-              }
-          }
+          this.startInteractionChase(data.x, data.y, () => this.socketManager.openShop());
       } else if (data.name === 'Banker') {
-          const myPos = this.localPlayerSprite;
-          if (myPos) {
-              const dist = Math.abs(myPos.x - sprite.x) + Math.abs(myPos.y - sprite.y);
-              if (dist / this.TILE_SIZE <= 1.5) {
-                  this.openBankUI();
-              } else {
-                  this.onTextEffect(Math.round(myPos.x/this.TILE_SIZE), Math.round(myPos.y/this.TILE_SIZE), 'Muito longe!', '#ff0000');
-              }
-          }
+          this.startInteractionChase(data.x, data.y, () => this.openBankUI());
+      } else if (npcType === 'teleporter') {
+          this.startInteractionChase(data.x, data.y, () => {
+            console.log(`[NPC] chegou no teleporter ${data.id}, emitindo npc:interact`);
+            this.socketManager.interactNPC(data.id);
+          });
+      } else if (npcType === 'vendor') {
+          this.startInteractionChase(data.x, data.y, () => {
+            console.log(`[NPC] chegou no vendor ${data.id}, emitindo npc:interact`);
+            this.socketManager.interactNPC(data.id);
+          });
       } else if (pointer.rightButtonDown()) {
-          // Botão DIREITO = perseguir e atacar
-          this.currentTargetId = data.id;
-          this.updateTargetSquare(sprite);
-          this.startChase(data.id); // Inicia perseguição automática
+          if (!isNpc) {
+              this.currentTargetId = data.id;
+              const sp = this.otherPlayers.get(data.id);
+              this.updateTargetSquare(sp || null);
+              this.startChase(data.id);
+          }
       } else {
-          // Botão ESQUERDO = apenas selecionar o target
-          this.stopChase(); // Para perseguição anterior
+          this.stopChase();
           this.currentTargetId = data.id;
           this.updateTargetSquare(sprite);
       }
     });
 
-    // DUPLO CLIQUE esquerdo = perseguir e atacar
+    // DUPLO CLIQUE esquerdo = perseguir e atacar (somente inimigos)
     sprite.on('pointerdblclick', () => {
-      if (data.name !== 'Merchant' && data.name !== 'Banker') {
+      if (!isNpc && !data.isMonster) {
+          this.currentTargetId = data.id;
+          this.updateTargetSquare(sprite);
+          this.startChase(data.id);
+      } else if (data.isMonster) {
           this.currentTargetId = data.id;
           this.updateTargetSquare(sprite);
           this.startChase(data.id);
@@ -1626,24 +2392,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHpBar(data: PlayerData) {
-     let hpBar = this.hpBars.get(data.id);
-     if (!hpBar) {
-        hpBar = this.add.graphics();
-        hpBar.setDepth(12);
-        this.hpBars.set(data.id, hpBar);
-     }
-     
-     hpBar.clear();
-     
-     // Barra preta de fundo
-     hpBar.fillStyle(0x000000);
-     hpBar.fillRect(-14, -20, 28, 4);
+      let hpBar = this.hpBars.get(data.id);
+      if (!hpBar) {
+         hpBar = this.add.graphics();
+         hpBar.setDepth(12);
+         this.hpBars.set(data.id, hpBar);
+      }
+      
+      hpBar.clear();
+      
+      // Fallback: se maxHealth não veio, assume health como maxHealth (evita barra preta)
+      const maxHealth = data.maxHealth || data.health || 1;
+      const health = data.health || 0;
+      
+      // Barra preta de fundo
+      hpBar.fillStyle(0x000000);
+      hpBar.fillRect(-14, -20, 28, 4);
 
-     // Barra verde de vida
-     const pct = Math.max(0, data.health / data.maxHealth);
-     const color = pct > 0.5 ? 0x22c55e : (pct > 0.2 ? 0xeab308 : 0xef4444); // Verde -> Amarelo -> Vermelho
-     hpBar.fillStyle(color);
-     hpBar.fillRect(-14, -20, 28 * pct, 4);
+      // Barra verde de vida
+      const pct = Math.max(0, health / maxHealth);
+      const color = pct > 0.5 ? 0x22c55e : (pct > 0.2 ? 0xeab308 : 0xef4444); // Verde -> Amarelo -> Vermelho
+      hpBar.fillStyle(color);
+      hpBar.fillRect(-14, -20, 28 * pct, 4);
 
      // Atualiza a barra de vida do HUD (barra inferior direita) se for o jogador local
      if (data.id === this.socketManager.getId()) {
@@ -1671,6 +2441,68 @@ export class GameScene extends Phaser.Scene {
   // --- Lógica de Input Básico ---
   private setupInput() {
     const chatInput = document.getElementById('chat-input') as HTMLInputElement;
+
+    // Listeners do Right-click Context Menu (Fase 4b) — usa delegação de evento
+    document.getElementById('context-menu')?.addEventListener('click', (e: Event) => {
+      const btn = (e.target as HTMLElement).closest('[data-action]') as HTMLElement;
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const menu = document.getElementById('context-menu')!;
+      const ctxType = menu.getAttribute('data-ctx-type') || 'entity';
+
+      if (ctxType === 'backpack') {
+          const slotIndex = (menu as any).__backpackSlot;
+          if (slotIndex === undefined) return;
+          if (action === 'useItem') {
+              this.socketManager.sendUseItem(slotIndex);
+          } else if (action === 'dropItem') {
+              this.socketManager.sendDropItem(slotIndex, 1);
+          }
+          this.closeContextMenu();
+          return;
+      }
+
+      const targetId = this.contextMenuTargetId;
+      const data = targetId ? this.otherPlayersData.get(targetId) : null;
+      if (!data || !targetId) return;
+
+      if (action === 'attack') {
+          this.currentTargetId = targetId;
+          const sprite = this.otherPlayers.get(targetId);
+          this.updateTargetSquare(sprite || null);
+          this.startChase(targetId);
+      } else if (action === 'target') {
+          this.currentTargetId = targetId;
+          const sprite = this.otherPlayers.get(targetId);
+          this.updateTargetSquare(sprite || null);
+      } else if (action === 'inspect') {
+          this.socketManager.socket.emit('entity:query', targetId);
+      }
+      this.closeContextMenu();
+    });
+
+    // Fecha menu ao clicar fora
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('context-menu');
+      if (menu && menu.style.display === 'block' && !(e.target as HTMLElement).closest('#context-menu')) {
+        this.closeContextMenu();
+      }
+    });
+
+    // Fecha modal de inspeção
+    document.getElementById('inspect-close')?.addEventListener('click', () => {
+      const modal = document.getElementById('inspect-modal');
+      if (modal) modal.style.display = 'none';
+    });
+
+    // Toggle collapsed mode do HUD player
+    const hudPlayer = document.getElementById('hud-player');
+    if (hudPlayer) {
+      hudPlayer.querySelector('.hud-header')?.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('#btn-logout-game')) return;
+        hudPlayer.classList.toggle('collapsed');
+      });
+    }
 
     // Clique para andar (Pathfinding)
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, currentlyOver: any[]) => {
@@ -1705,6 +2537,7 @@ export class GameScene extends Phaser.Scene {
 
     // Adiciona tecla de Dash
     this.input.keyboard!.on('keydown-SPACE', () => {
+        if (document.activeElement === chatInput) return;
         if (!this.isMoving) {
             this.socketManager.sendDash();
             this.isMoving = true;
@@ -1727,23 +2560,100 @@ export class GameScene extends Phaser.Scene {
     // Teclas 1-8 são tratadas no handler genérico keydown abaixo (usa event.key nativo)
     // para evitar conflito com o sistema Phaser de keydown-ONE, keydown-TWO etc.
 
-    // ENTER: abre/fecha chat
-    this.input.keyboard?.on('keydown-ENTER', () => {
-        if (document.activeElement === chatInput) {
-            if (chatInput.value.trim() !== '') {
-                this.socketManager.sendChat(chatInput.value);
-            }
-            chatInput.value = '';
-            chatInput.blur();
-            chatInput.style.display = 'none';
-        } else {
-            chatInput.style.display = 'block';
-            chatInput.focus();
-        }
-    });
-
     // Desativa menu de contexto do botão direito no canvas (para usar right-click para atacar)
     this.game.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // ===== Mobile: utilidades =====
+    // Clampa posição de modais para ficarem dentro do viewport (útil no mobile)
+    const clampModalToViewport = (modal: HTMLElement) => {
+      const rect = modal.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      let left = rect.left, top = rect.top;
+      if (rect.right > vw) left = vw - rect.width - 8;
+      if (rect.bottom > vh) top = vh - rect.height - 8;
+      if (left < 8) left = 8;
+      if (top < 8) top = 8;
+      modal.style.left = left + 'px';
+      modal.style.top = top + 'px';
+      modal.style.transform = 'none'; // remove translate(-50%, -50%)
+    };
+
+    // Torna um modal arrastável pelo header (desktop + touch)
+    const makeDraggable = (modal: HTMLElement, handle: HTMLElement) => {
+      let isDragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+      const onDown = (clientX: number, clientY: number) => {
+        isDragging = true;
+        const rect = modal.getBoundingClientRect();
+        origLeft = rect.left; origTop = rect.top;
+        startX = clientX; startY = clientY;
+        modal.style.transform = 'none';
+        document.body.style.userSelect = 'none';
+      };
+      const onMove = (clientX: number, clientY: number) => {
+        if (!isDragging) return;
+        const dx = clientX - startX, dy = clientY - startY;
+        let newLeft = origLeft + dx, newTop = origTop + dy;
+        // clamp ao viewport
+        const vw = window.innerWidth, vh = window.innerHeight;
+        const rw = modal.offsetWidth, rh = modal.offsetHeight;
+        if (newLeft < 8) newLeft = 8;
+        if (newTop < 8) newTop = 8;
+        if (newLeft + rw > vw - 8) newLeft = vw - rw - 8;
+        if (newTop + rh > vh - 8) newTop = vh - rh - 8;
+        modal.style.left = newLeft + 'px';
+        modal.style.top = newTop + 'px';
+      };
+      const onUp = () => { isDragging = false; document.body.style.userSelect = ''; };
+      // Mouse
+      handle.addEventListener('mousedown', (e) => { onDown(e.clientX, e.clientY); e.preventDefault(); });
+      document.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+      document.addEventListener('mouseup', onUp);
+      // Touch
+      handle.addEventListener('touchstart', (e) => { const t = e.touches[0]; onDown(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+      document.addEventListener('touchmove', (e) => { if (isDragging) { const t = e.touches[0]; onMove(t.clientX, t.clientY); e.preventDefault(); } }, { passive: false });
+      document.addEventListener('touchend', onUp);
+    };
+
+    // Aplica clamp + draggable nos modais conhecidos
+    const modalIds = ['shop-ui', 'teleporter-ui', 'vendor-ui', 'crafting-ui', 'modal-bank', 'chat-box'];
+    modalIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // Clampa ao abrir (MutationObserver detecta display change)
+      const observer = new MutationObserver(() => {
+        if (el.style.display === 'flex' || el.style.display === 'block') {
+          setTimeout(() => clampModalToViewport(el), 0);
+        }
+      });
+      observer.observe(el, { attributes: true, attributeFilter: ['style'] });
+      // Draggable pelo header (primeiro child com cursor:move ou classe .modal-header)
+      const header = el.querySelector('[style*="cursor: move"]') || el.querySelector('.modal-header') || el.firstElementChild;
+      if (header) makeDraggable(el, header as HTMLElement);
+    });
+
+    // Long-press (hold) = right-click no mobile
+    // Detecta hold de ~500ms em elementos interativos (NPCs, tiles, etc.)
+    let holdTimer: ReturnType<typeof setTimeout> | null = null;
+    const startHold = (target: HTMLElement, clientX: number, clientY: number) => {
+      holdTimer = setTimeout(() => {
+        // Dispara evento customizado 'longpress' no target
+        const evt = new CustomEvent('longpress', { detail: { clientX, clientY } });
+        target.dispatchEvent(evt);
+      }, 500);
+    };
+    const cancelHold = () => {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    };
+    document.addEventListener('touchstart', (e) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.closest('.pointer-events-auto') || target.closest('[style*="pointer-events:auto"]') || target === document.getElementById('game-container'))) {
+        const t = e.touches[0];
+        startHold(target, t.clientX, t.clientY);
+      }
+    }, { passive: true });
+    document.addEventListener('touchmove', cancelHold, { passive: true });
+    document.addEventListener('touchend', cancelHold, { passive: true });
+    document.addEventListener('touchcancel', cancelHold, { passive: true });
 
     this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
       if (document.activeElement === chatInput) return;
@@ -1967,6 +2877,10 @@ export class GameScene extends Phaser.Scene {
       const visited = new Set<string>();
       visited.add(`${startX},${startY}`);
       
+      // Limites dinâmicos baseados no worldBounds
+      const maxTileX = Math.floor(this.worldBounds.width / this.TILE_SIZE) - 1;
+      const maxTileY = Math.floor(this.worldBounds.height / this.TILE_SIZE) - 1;
+      
       // Limite de segurança para não travar o browser
       let iterations = 0;
       
@@ -1981,7 +2895,7 @@ export class GameScene extends Phaser.Scene {
           
           for (const n of neighbors) {
               const key = `${n.x},${n.y}`;
-              if (!visited.has(key) && !this.collisionMap.has(key) && n.x >= 0 && n.x <= 149 && n.y >= 0 && n.y <= 149) {
+              if (!visited.has(key) && !this.collisionMap.has(key) && n.x >= 0 && n.x <= maxTileX && n.y >= 0 && n.y <= maxTileY) {
                   visited.add(key);
                   queue.push({ x: n.x, y: n.y, path: [...curr.path, {x: n.x, y: n.y}] });
               }
@@ -2055,7 +2969,7 @@ export class GameScene extends Phaser.Scene {
       const tName = document.getElementById('tooltip-name')!;
       const tDesc = document.getElementById('tooltip-desc')!;
 
-      const getTooltipData = (slotEl: HTMLElement): { name: string, desc: string, color: string } | null => {
+       const getTooltipData = (slotEl: HTMLElement): { name: string, desc: string, color: string, html?: string } | null => {
           const QUALITY_NAMES_PT: Record<string, string> = {
               'comum': 'Comum',
               'raro': 'Raro',
@@ -2149,22 +3063,38 @@ export class GameScene extends Phaser.Scene {
                   let durability: number | undefined;
                   let maxDurability: number | undefined;
                   
-                  if (itemString.startsWith('{')) {
-                      try {
-                          const parsed = JSON.parse(itemString);
-                          itemName = parsed.name;
-                          quality = parsed.quality || 'comum';
-                          stats = parsed.stats;
-                          durability = parsed.durability;
-                          maxDurability = parsed.maxDurability;
-                      } catch (e) {}
-                  } else if (itemString.includes(':')) {
-                      const [name, countStr] = itemString.split(':');
-                      itemName = name;
-                      count = parseInt(countStr) || 1;
-                  }
-                  
-                  const details = this.itemDetails[itemName];
+                   if (itemString.startsWith('{')) {
+                       try {
+                           const parsed = JSON.parse(itemString);
+                           itemName = parsed.name;
+                           quality = parsed.quality || 'comum';
+                           stats = parsed.stats;
+                           durability = parsed.durability;
+                           maxDurability = parsed.maxDurability;
+                       } catch (e) {}
+                   } else if (itemString.includes(':')) {
+                       const [name, countStr] = itemString.split(':');
+                       itemName = name;
+                       count = parseInt(countStr) || 1;
+                   }
+
+                   // ===== Skull: exibe nome da vítima com cor (vermelha=player, roxa=boss) =====
+                   if (itemName === 'Skull' && itemString.startsWith('{')) {
+                       try {
+                           const parsed = JSON.parse(itemString);
+                           const victimName = parsed.victimName || '???';
+                           const victimColor = parsed.color || '#ef4444';
+                           const kindLabel = parsed.kind === 'boss' ? 'Boss' : 'Jogador';
+                           return {
+                               name: '',
+                               desc: `Troféu de combate contra ${kindLabel.toLowerCase()}.`,
+                               color: '#ffffff',
+                               html: `Caveira de <span style="color:${victimColor}; font-weight:bold;">${victimName}</span> <span style="color:#888; font-size:11px;">(${kindLabel})</span>`
+                           };
+                       } catch (e) {}
+                   }
+
+                   const details = this.itemDetails[itemName];
                   if (details) {
                       let displayName = details.name;
                       let displayDesc = details.desc;
@@ -2210,17 +3140,22 @@ export class GameScene extends Phaser.Scene {
           return null;
       };
 
-      this.showTooltipFn = (e: MouseEvent) => {
-          const slotEl = e.currentTarget as HTMLElement;
-          const data = getTooltipData(slotEl);
-          if (data) {
-              tName.innerText = data.name;
-              tName.style.color = data.color;
-              tDesc.innerText = data.desc;
-              
-              this.positionTooltip(e.pageX, e.pageY);
-          }
-      };
+       this.showTooltipFn = (e: MouseEvent) => {
+           const slotEl = e.currentTarget as HTMLElement;
+           const data = getTooltipData(slotEl) as any;
+           if (data) {
+               if (data.html) {
+                   tName.innerHTML = data.html;
+                   tName.style.color = data.color || '#ffffff';
+               } else {
+                   tName.innerText = data.name;
+                   tName.style.color = data.color;
+               }
+               tDesc.innerText = data.desc;
+
+               this.positionTooltip(e.pageX, e.pageY);
+           }
+       };
 
       this.moveTooltipFn = (e: MouseEvent) => {
           this.positionTooltip(e.pageX, e.pageY);
@@ -2284,6 +3219,46 @@ export class GameScene extends Phaser.Scene {
           this.lightBrush.setScale(scale);
       }
 
+      // === Animação de andar: jogador local ===
+      if (this.localPlayerSprite) {
+          const facing = (this.localFacing as Facing) || 'down';
+          if (this.isMoving) {
+              this.localWalkTimer += 1000 / 60;
+              if (this.localWalkTimer >= this.WALK_FRAME_MS) {
+                  this.localWalkTimer = 0;
+                  this.localWalkFrame = (this.localWalkFrame + 1) % 3;
+              }
+          } else {
+              this.localWalkFrame = 0;
+              this.localWalkTimer = 0;
+          }
+          if (facing !== this.localLastFacing || this.localWalkFrame !== 0) {
+              this.localLastFacing = facing;
+              this.localPlayerSprite.setFrame(getFrameIndex(this.localSpriteId, facing, this.localWalkFrame));
+              this.localPlayerSprite.flipX = (facing === 'right');
+          }
+      }
+
+      // === Animação de andar: outros jogadores ===
+      const now2 = this.time.now;
+      this.otherPlayerAnim.forEach((anim, id) => {
+          const sprite = this.otherPlayers.get(id);
+          if (!sprite) return;
+          const isMoving = (now2 - anim.lastMoveTime) < 200; // considera "andando" se moveu nos últimos 200ms
+          if (isMoving) {
+              anim.walkTimer += 1000 / 60;
+              if (anim.walkTimer >= this.WALK_FRAME_MS) {
+                  anim.walkTimer = 0;
+                  anim.walkFrame = (anim.walkFrame + 1) % 3;
+              }
+          } else {
+              anim.walkFrame = 0;
+              anim.walkTimer = 0;
+          }
+          sprite.setFrame(getFrameIndex(anim.spriteId, anim.facing, anim.walkFrame));
+          sprite.flipX = (anim.facing === 'right');
+      });
+
       // Visibilidade de nomes baseada em distância (5 tiles)
       if (this.localPlayerSprite) {
           const px = this.localPlayerSprite.x;
@@ -2295,10 +3270,11 @@ export class GameScene extends Phaser.Scene {
               const label = this.otherPlayerLabels.get(id);
               if (label) {
                   const displayName = (window as any).translateMonster ? (window as any).translateMonster(p.name) : p.name;
+                  const coordText = `(${p.x}, ${p.y})`;
                   if (p.isMonster) {
-                      label.setText(`${p.level || 1}`);
+                      label.setText(`${p.level || 1} ${coordText}`);
                   } else {
-                      label.setText(`[Lv.${p.level || 1}] ${displayName}`);
+                      label.setText(`[Lv.${p.level || 1}] ${displayName} ${coordText}`);
                   }
                   
                   const dist = Math.abs(px - p.x * this.TILE_SIZE) + Math.abs(py - p.y * this.TILE_SIZE);
@@ -2372,6 +3348,7 @@ export class GameScene extends Phaser.Scene {
 
   public toggleAutofarm() {
       if (this.localPlayerDead) return;
+      if (!this.localPlayerSprite) return;
       this.isAutofarmEnabled = !this.isAutofarmEnabled;
       
       const btn = document.getElementById('btn-toggle-autofarm');
@@ -2588,6 +3565,14 @@ export class GameScene extends Phaser.Scene {
           }
       }
 
+      // 3.5. Chase genérico de interação (NPC, bancada, etc.) - anda até 1 célula e dispara onArrive
+      if (this.interactionChase) {
+          if (this.autoPath.length === 0 && !this.isMoving) {
+              this.recalcInteractionChase();
+          }
+          return;
+      }
+
       // 4. Processamento de Combate com Monstros (Monster Chase)
       let currentTargetAlive = false;
       if (this.chaseTargetId) {
@@ -2719,17 +3704,9 @@ export class GameScene extends Phaser.Scene {
               this.onTextEffect(node.x, node.y, 'Esgotado!', '#ff5555');
               return;
           }
-          // Verifica distância (1 tile)
-          if (this.localPlayerSprite) {
-              const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
-              const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
-              const dist = Math.abs(px - node.x) + Math.abs(py - node.y);
-              if (dist > 1) {
-                  this.onTextEffect(px, py, 'Muito longe!', '#ff0000');
-                  return;
-              }
-          }
-          this.socketManager.socket.emit('startGathering', { nodeId: node.id });
+          this.startInteractionChase(node.x, node.y, () => {
+              this.socketManager.socket.emit('startGathering', { nodeId: node.id });
+          });
       });
 
       this.resourceNodesMap.set(node.id, { sprite, label, data: node });
@@ -2768,17 +3745,9 @@ export class GameScene extends Phaser.Scene {
 
       sprite.setInteractive({ useHandCursor: true });
       sprite.on('pointerdown', () => {
-          // Verifica distância (1 tile)
-          if (this.localPlayerSprite) {
-              const px = Math.round(this.localPlayerSprite.x / this.TILE_SIZE);
-              const py = Math.round(this.localPlayerSprite.y / this.TILE_SIZE);
-              const dist = Math.abs(px - station.x) + Math.abs(py - station.y);
-              if (dist > 1) {
-                  this.onTextEffect(px, py, 'Muito longe!', '#ff0000');
-                  return;
-              }
-          }
-          this.openCraftingUI(station);
+          this.startInteractionChase(station.x, station.y, () => {
+              this.openCraftingUI(station);
+          });
       });
 
       this.craftingStationsMap.set(station.id, { sprite, label, data: station });
@@ -2940,9 +3909,32 @@ export class GameScene extends Phaser.Scene {
       this.onRecallCancelled();
   }
 
+  private refreshCraftingProfessionDisplay() {
+      const ui = document.getElementById('crafting-ui');
+      if (!ui || ui.style.display !== 'flex') return;
+      const stationType = this.currentCraftingStationType;
+      const profNameEl = document.getElementById('crafting-prof-name');
+      const profLvlEl = document.getElementById('crafting-prof-level');
+      let profName = 'Ferraria';
+      let profLvl = this.professionSmithingLevel;
+      let profXp = this.professionSmithingXp;
+      if (stationType === 'alchemy') {
+          profName = 'Alquimia';
+          profLvl = this.professionAlchemyLevel;
+          profXp = this.professionAlchemyXp;
+      } else if (stationType === 'tanning') {
+          profName = 'Alfaiataria';
+          profLvl = this.professionTanningLevel;
+          profXp = this.professionTanningXp;
+      }
+      if (profNameEl) profNameEl.innerText = profName;
+      if (profLvlEl) profLvlEl.innerText = `Lvl ${profLvl} (${profXp}/${profLvl * 100} XP)`;
+  }
+
   public openCraftingUI(station: CraftingStation) {
       const ui = document.getElementById('crafting-ui');
       if (!ui) return;
+      this.currentCraftingStationType = station.type;
 
       ui.style.display = 'flex';
       
@@ -3016,12 +4008,13 @@ export class GameScene extends Phaser.Scene {
       const detailsEl = document.getElementById('crafting-recipe-details');
       if (!detailsEl) return;
 
-      const emojis: Record<string, string> = { 
+      const emojis: Record<string, string> = {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🫘',
+          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+          'Skull': '💀'
       };
 
       const resultEmoji = emojis[recipe.resultItem] || '📦';
@@ -3107,12 +4100,13 @@ export class GameScene extends Phaser.Scene {
       const content = document.getElementById('shop-content');
       if (!content) return;
 
-      const emojis: Record<string, string> = { 
+      const emojis: Record<string, string> = {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🫘',
+          'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+          'Skull': '💀'
       };
 
       let html = '<div style="display:flex; flex-direction:column; gap:10px; font-family:monospace;">';

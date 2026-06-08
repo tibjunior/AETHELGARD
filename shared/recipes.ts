@@ -7,9 +7,10 @@ export interface Recipe {
   ingredients: { itemName: string, count: number }[];
   resultItem: string;
   craftTimeMs: number;
+  craftFee?: number;
 }
 
-export const CRAFTING_RECIPES: Recipe[] = [
+export let CRAFTING_RECIPES: Recipe[] = [
   {
     id: 'recipe_wood_sword',
     name: 'Espada de Madeira',
@@ -20,7 +21,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Wood Log', count: 3 }
     ],
     resultItem: 'Wood Sword',
-    craftTimeMs: 2000
+    craftTimeMs: 2000,
+    craftFee: 0
   },
   {
     id: 'recipe_torch',
@@ -33,7 +35,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Medicinal Herb', count: 1 }
     ],
     resultItem: 'Torch',
-    craftTimeMs: 2000
+    craftTimeMs: 2000,
+    craftFee: 0
   },
   {
     id: 'recipe_pants',
@@ -45,7 +48,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Leather Hide', count: 3 }
     ],
     resultItem: 'Pants',
-    craftTimeMs: 3000
+    craftTimeMs: 3000,
+    craftFee: 0
   },
   {
     id: 'recipe_leather_boots',
@@ -57,7 +61,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Leather Hide', count: 2 }
     ],
     resultItem: 'Leather Boots',
-    craftTimeMs: 2500
+    craftTimeMs: 2500,
+    craftFee: 0
   },
   {
     id: 'recipe_steel_sword',
@@ -70,7 +75,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Wood Log', count: 2 }
     ],
     resultItem: 'Steel Sword',
-    craftTimeMs: 3000
+    craftTimeMs: 3000,
+    craftFee: 0
   },
   {
     id: 'recipe_helmet',
@@ -82,7 +88,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Iron Ore', count: 4 }
     ],
     resultItem: 'Helmet',
-    craftTimeMs: 3000
+    craftTimeMs: 3000,
+    craftFee: 0
   },
   {
     id: 'recipe_armor',
@@ -95,7 +102,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Leather Hide', count: 2 }
     ],
     resultItem: 'Armor',
-    craftTimeMs: 4000
+    craftTimeMs: 4000,
+    craftFee: 0
   },
   {
     id: 'recipe_health_potion',
@@ -108,7 +116,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Blueberry', count: 1 }
     ],
     resultItem: 'Health Potion',
-    craftTimeMs: 2000
+    craftTimeMs: 2000,
+    craftFee: 0
   },
   {
     id: 'recipe_mana_potion',
@@ -121,7 +130,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Blueberry', count: 2 }
     ],
     resultItem: 'Mana Potion',
-    craftTimeMs: 2000
+    craftTimeMs: 2000,
+    craftFee: 0
   },
   {
     id: 'recipe_leather_backpack',
@@ -134,7 +144,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Wood Log', count: 2 }
     ],
     resultItem: 'Leather Backpack',
-    craftTimeMs: 3000
+    craftTimeMs: 3000,
+    craftFee: 0
   },
   {
     id: 'recipe_wooden_backpack',
@@ -147,7 +158,8 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Leather Hide', count: 4 }
     ],
     resultItem: 'Wooden Backpack',
-    craftTimeMs: 3000
+    craftTimeMs: 3000,
+    craftFee: 0
   },
   {
     id: 'recipe_iron_backpack',
@@ -161,6 +173,7 @@ export const CRAFTING_RECIPES: Recipe[] = [
       { itemName: 'Leather Hide', count: 5 }
     ],
     resultItem: 'Iron Backpack',
-    craftTimeMs: 4000
+    craftTimeMs: 4000,
+    craftFee: 0
   }
 ];

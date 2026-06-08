@@ -1,7 +1,8 @@
 import { Server, Socket } from 'socket.io';
 import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
-import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold } from './database';
+import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold, saveConfigToDB, loadConfigFromDB, loadAllConfigFromDB, getAccountFromDB, createAccountInDB, listCharactersForAccount, deleteCharacterFromAccount, countCharactersForAccount, setAccountPassword, AccountRow } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
+import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDefaults, MONSTER_CITIES, MonsterCity, PLAZA_BOUNDS, PLAZA_TELEPORTER, CAVERNA_TELEPORTER, CAVERNA_SAFE_ZONE_CENTER, CAVERNA_SAFE_ZONE_GATE, CITY_TELEPORTERS, CITY_VENDORS, getCityAt, getTeleporterAt, getVendorAt, isInPlaza, isInSafeZone, getHubDestinations, getTeleporterDestination, getSafeZoneWallRing, SAFE_ZONE_RADIUS } from './serverConfig';
 
 export const ITEM_WEIGHTS: Record<string, number> = {
     'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
@@ -16,9 +17,22 @@ export const ITEM_EMOJIS: Record<string, string> = {
     'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
     'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Blueberry': '🍇',
     'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-    'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-    'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳'
+    'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿',
+    'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+    'Skull': '💀'
 };
+
+/**
+ * Ícones de item baseados em imagens (URLs servidas pelo Vite a partir de /client/public).
+ * Quando um item está aqui, o cliente renderiza <img src=...> em vez de texto emoji.
+ */
+export const ITEM_ICONS: Record<string, string> = {
+};
+
+/** Retorna o ícone do item: URL de imagem (se existir) ou emoji. */
+export function getItemIcon(itemName: string): string {
+    return ITEM_ICONS[itemName] || ITEM_EMOJIS[itemName] || '📦';
+}
 
 export const ITEM_NAMES_PT: Record<string, string> = {
     'Torch': 'Tocha',
@@ -43,30 +57,61 @@ export const ITEM_NAMES_PT: Record<string, string> = {
     'Iron Backpack': 'Mochila de Ferro'
 };
 
+// Stats base dos monstros (usado pelas cidades de monstros - Fase 3)
+export const MONSTER_BASE_STATS: Record<string, { health: number; attack: number; speed: number; level: number }> = {
+    'Giant Rat':         { health: 50,  attack: 8,  speed: 150, level: 1 },
+    'Orc':               { health: 120, attack: 15, speed: 100, level: 3 },
+    'Rotworm':           { health: 200, attack: 22, speed: 120, level: 5 },
+    'Demon Skeleton':    { health: 400, attack: 38, speed: 90,  level: 10 },
+};
+
 export class Game {
   private io: Server;
   private players: Map<string, PlayerData> = new Map();
   private projectiles: any[] = []; // { id, casterId, x, y, dx, dy, speed }
   private walls: Set<string> = new Set();
+  /** Paredes extras para monstros (inclui portões e outras barreiras só pra eles). */
+  private monsterWalls: Set<string> = new Set();
   private itemsOnFloor: Map<string, ItemData> = new Map(); // Chave: "x,y"
   private tickRate: number = 1000 / 20; // 20 Ticks por segundo
   private lastUpdate: number = Date.now();
   private ticks: number = 0;
-  private isNight: boolean = false; 
+  private isNight: boolean = false;
   private resourceNodes: Map<string, ResourceNode> = new Map();
   private activeGatherings: Map<string, NodeJS.Timeout> = new Map();
+
+  // Respawn gradual de monstros (Fase 4a)
+  private pendingRespawns: Map<string, number> = new Map();   // monsterId -> Date.now() quando revive
+  private monsterSpawnData: Map<string, { x: number; y: number; bounds?: { xMin: number; xMax: number; yMin: number; yMax: number } }> = new Map();
   private activeRecalls: Map<string, NodeJS.Timeout> = new Map();
   private craftingStations: Map<string, CraftingStation> = new Map();
 
   constructor(io: Server) {
     this.io = io;
+    this.loadServerConfig();
     this.setupMap();
     this.setupResourceNodes();
     this.setupCraftingStations();
     this.setupNetwork();
-    
-    // Auto-save no DB a cada 10 segundos
-    setInterval(() => this.saveAllPlayers(), 10000);
+
+    // Auto-save no DB (intervalo configurável)
+    setInterval(() => this.saveAllPlayers(), CONFIG.autoSaveIntervalMs);
+  }
+
+  private loadServerConfig() {
+      const saved = loadAllConfigFromDB();
+      if (saved.main) {
+          try {
+              Object.assign(CONFIG, saved.main);
+              console.log('[CONFIG] Configuração carregada do banco.');
+          } catch (e) {
+              console.error('[CONFIG] Erro ao carregar config salva, usando defaults:', e);
+          }
+      } else {
+          // Primeira execução: salvar os defaults
+          saveConfigToDB('main', CONFIG);
+          console.log('[CONFIG] Configuração padrão persistida pela primeira vez.');
+      }
   }
 
   private async saveAllPlayers() {
@@ -82,17 +127,12 @@ export class Game {
   }
 
   private setupMap() {
-    // Sala 40x40 com pilares
+    // Sala 40x40 com pilares (caverna/mapa antigo) — totalmente fechada
     for (let x = 0; x <= 40; x++) {
       for (let y = 0; y <= 40; y++) {
-        // Paredes externas
+        // Paredes externas (sem buracos — portais foram removidos)
         if (x === 0 || y === 0 || x === 40 || y === 40) {
-          // Deixa um buraco para o portal na parede norte (x=10, y=0)
-          if (x === 10 && y === 0) {
-              // não é parede
-          } else {
-              this.walls.add(`${x},${y}`);
-          }
+          this.walls.add(`${x},${y}`);
         }
         // Pilares internos (formato +)
         else if (x % 8 === 0 && y % 8 === 0) {
@@ -105,26 +145,14 @@ export class Game {
       }
     }
 
-    // Sala da Cidade (Safe Zone): 100,100 até 140,140
-    for (let x = 100; x <= 140; x++) {
-      for (let y = 100; y <= 140; y++) {
-        if (x === 100 || y === 100 || x === 140 || y === 140) {
-          // Deixa um buraco pro portal de volta (x=120, y=140)
-          if (x === 120 && y === 140) {
-              // portal de volta
-          } else {
-              this.walls.add(`${x},${y}`);
-          }
-        }
-      }
-    }
-
-    // Spawna o Mercador na Cidade
+    // Sala da Cidade (Safe Zone): agora é a Praça Central (Fase 3)
+    // Os portais e paredes da praça são criados mais abaixo.
+    // Spawna o Mercador na Praça Central
     const merchant: PlayerData = {
         id: 'npc_merchant',
         name: 'Merchant',
-        x: 120,
-        y: 110,
+        x: 110,
+        y: 115,
         health: 9999,
         maxHealth: 9999,
         speed: 0,
@@ -132,17 +160,16 @@ export class Game {
         level: 100,
         experience: 0
     };
-    // Adicionamos uma tag especial para NPCs pacíficos
     (merchant as any).isNPC = true;
     this.players.set(merchant.id, merchant);
-    this.walls.add('120,110');
+    this.walls.add('110,115');
 
-    // Spawna o Banqueiro na Cidade
+    // Spawna o Banqueiro na Praça Central
     const banker: PlayerData = {
         id: 'npc_banker',
         name: 'Banker',
-        x: 115,
-        y: 110,
+        x: 120,
+        y: 115,
         health: 9999,
         maxHealth: 9999,
         speed: 0,
@@ -152,7 +179,7 @@ export class Game {
     };
     (banker as any).isNPC = true;
     this.players.set(banker.id, banker);
-    this.walls.add('115,110');
+    this.walls.add('120,115');
 
     // Spawna múltiplos monstros
     for (let i = 1; i <= 8; i++) {
@@ -170,8 +197,9 @@ export class Game {
           attack: 8
         };
         this.players.set(rat.id, rat);
+        this.monsterSpawnData.set(rat.id, { x: rat.x, y: rat.y });
     }
-    
+
     // Spawna Orcs (Fase 13)
     for (let i = 1; i <= 4; i++) {
         const orc: PlayerData = {
@@ -188,6 +216,7 @@ export class Game {
           attack: 15
         };
         this.players.set(orc.id, orc);
+        this.monsterSpawnData.set(orc.id, { x: orc.x, y: orc.y });
     }
 
     // Spawna Rotworms (Level 5)
@@ -206,6 +235,7 @@ export class Game {
           attack: 22
         };
         this.players.set(rotworm.id, rotworm);
+        this.monsterSpawnData.set(rotworm.id, { x: rotworm.x, y: rotworm.y });
     }
 
     // Spawna Demon Skeletons (Level 10)
@@ -224,133 +254,463 @@ export class Game {
           attack: 38
         };
         this.players.set(ds.id, ds);
+        this.monsterSpawnData.set(ds.id, { x: ds.x, y: ds.y });
+    }
+
+    // ===========================================================
+    // ===== Praça Central (Hub entre as 4 cidades de monstro) ====
+    // ===========================================================
+    for (let x = PLAZA_BOUNDS.xMin; x <= PLAZA_BOUNDS.xMax; x++) {
+        for (let y = PLAZA_BOUNDS.yMin; y <= PLAZA_BOUNDS.yMax; y++) {
+            // Borda da praça vira parede (sem buracos — portais foram removidos)
+            if (x === PLAZA_BOUNDS.xMin || y === PLAZA_BOUNDS.yMin ||
+                x === PLAZA_BOUNDS.xMax || y === PLAZA_BOUNDS.yMax) {
+                this.walls.add(`${x},${y}`);
+            }
+        }
+    }
+
+    // ===========================================================
+    // ===== 4 Cidades de Monstros (Fase 3) =====================
+    // ===========================================================
+    for (const city of MONSTER_CITIES) {
+        // Cria as paredes da cidade (sem buracos — portais foram removidos)
+        for (let x = city.bounds.xMin; x <= city.bounds.xMax; x++) {
+            for (let y = city.bounds.yMin; y <= city.bounds.yMax; y++) {
+                if (x === city.bounds.xMin || y === city.bounds.yMin ||
+                    x === city.bounds.xMax || y === city.bounds.yMax) {
+                    this.walls.add(`${x},${y}`);
+                }
+            }
+        }
+
+        // Muro em volta da safe zone (ring externo) — bloqueia monstros
+        // de se aproximarem dos NPCs de teleporte/venda da cidade.
+        for (const t of getSafeZoneWallRing(city)) {
+            this.walls.add(`${t.x},${t.y}`);
+        }
+
+        // Spawna os monstros temáticos dentro da cidade
+        city.spawnPositions.forEach((pos, i) => {
+            const baseStats = MONSTER_BASE_STATS[city.monster];
+            if (!baseStats) return;
+            const m: PlayerData = {
+                id: `${city.id}_monster_${i}`,
+                name: city.monster,
+                x: pos.x,
+                y: pos.y,
+                health: baseStats.health,
+                maxHealth: baseStats.health,
+                speed: baseStats.speed,
+                isMonster: true,
+                level: baseStats.level,
+                experience: 0,
+                attack: baseStats.attack
+            };
+            this.players.set(m.id, m);
+            // Salva dados de spawn (com bounds da cidade para respawn aleatório dentro)
+            this.monsterSpawnData.set(m.id, {
+                x: pos.x,
+                y: pos.y,
+                bounds: { ...city.bounds }
+            });
+        });
+    }
+
+    // ===========================================================
+    // ===== NPCs de Teleporte (substituem os portais físicos) ===
+    // ===========================================================
+
+    // Mago Teleportador Hub na praça central
+    const hubNpc: PlayerData = {
+        id: PLAZA_TELEPORTER.id,
+        name: PLAZA_TELEPORTER.name,
+        x: PLAZA_TELEPORTER.x,
+        y: PLAZA_TELEPORTER.y,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0,
+    };
+    (hubNpc as any).isNPC = true;
+    (hubNpc as any).npcType = 'teleporter';
+    this.players.set(hubNpc.id, hubNpc);
+    this.walls.add(`${PLAZA_TELEPORTER.x},${PLAZA_TELEPORTER.y}`);
+
+    // Mago Teleportador da Caverna (mapa antigo 40x40)
+    const cavernaNpc: PlayerData = {
+        id: CAVERNA_TELEPORTER.id,
+        name: CAVERNA_TELEPORTER.name,
+        x: CAVERNA_TELEPORTER.x,
+        y: CAVERNA_TELEPORTER.y,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0,
+    };
+    (cavernaNpc as any).isNPC = true;
+    (cavernaNpc as any).npcType = 'teleporter';
+    this.players.set(cavernaNpc.id, cavernaNpc);
+    this.walls.add(`${CAVERNA_TELEPORTER.x},${CAVERNA_TELEPORTER.y}`);
+
+    // Teleporters de retorno em cada cidade
+    for (const t of CITY_TELEPORTERS) {
+        const n: PlayerData = {
+            id: t.id,
+            name: t.name,
+            x: t.x,
+            y: t.y,
+            health: 9999,
+            maxHealth: 9999,
+            speed: 0,
+            isMonster: false,
+            level: 100,
+            experience: 0,
+        };
+        (n as any).isNPC = true;
+        (n as any).npcType = 'teleporter';
+        this.players.set(n.id, n);
+        this.walls.add(`${t.x},${t.y}`);
+    }
+
+    // Vendedores temáticos em cada cidade
+    for (const v of CITY_VENDORS) {
+        const n: PlayerData = {
+            id: v.id,
+            name: v.name,
+            x: v.x,
+            y: v.y,
+            health: 9999,
+            maxHealth: 9999,
+            speed: 0,
+            isMonster: false,
+            level: 100,
+            experience: 0,
+        };
+        (n as any).isNPC = true;
+        (n as any).npcType = 'vendor';
+        this.players.set(n.id, n);
+        this.walls.add(`${v.x},${v.y}`);
+    }
+
+    // =====================================================================
+    // ===== Safe Zone da Caverna (5x5 ao redor do teleporter) ===========
+    // =====================================================================
+    // Muro em volta (mesma lógica das cidades)
+    for (let dx = -SAFE_ZONE_RADIUS - 1; dx <= SAFE_ZONE_RADIUS + 1; dx++) {
+        for (let dy = -SAFE_ZONE_RADIUS - 1; dy <= SAFE_ZONE_RADIUS + 1; dy++) {
+            // Só o ring externo (|dx| === r+1 OU |dy| === r+1)
+            const r = SAFE_ZONE_RADIUS + 1;
+            if (Math.abs(dx) === r || Math.abs(dy) === r) {
+                this.walls.add(`${CAVERNA_SAFE_ZONE_CENTER.x + dx},${CAVERNA_SAFE_ZONE_CENTER.y + dy}`);
+            }
+        }
+    }
+
+    // =====================================================================
+    // ===== monsterWalls: copia de walls + portões (gate tiles) ==========
+    // =====================================================================
+    // monsterWalls = walls + portões. Os portões são paredes SÓ para
+    // monstros: o player passa pelo portão, o monstro não.
+    this.monsterWalls = new Set(this.walls);
+    // Portão da caverna
+    this.monsterWalls.add(`${CAVERNA_SAFE_ZONE_GATE.x},${CAVERNA_SAFE_ZONE_GATE.y}`);
+    // Portão de cada cidade
+    for (const city of MONSTER_CITIES) {
+        this.monsterWalls.add(`${city.gate.x},${city.gate.y}`);
+    }
+    // Remove os portões de 'walls' (player passa), mas mantém no monsterWalls (monstro não passa)
+    this.walls.delete(`${CAVERNA_SAFE_ZONE_GATE.x},${CAVERNA_SAFE_ZONE_GATE.y}`);
+    for (const city of MONSTER_CITIES) {
+        this.walls.delete(`${city.gate.x},${city.gate.y}`);
     }
   }
 
   private setupNetwork() {
     this.io.on('connection', async (socket: Socket) => {
-      const playerName = socket.handshake.auth.name || 'Unknown';
-      const playerPassword = socket.handshake.auth.password || '';
-      console.log(`Aventureiro tentando conectar: ${playerName} (${socket.id})`);
+      const accountName = socket.handshake.auth.name || 'Unknown';
+      const accountPassword = socket.handshake.auth.password || '';
+      console.log(`Aventureiro tentando conectar: ${accountName} (${socket.id})`);
       this.registerAdminEvents(socket);
-      if (playerName === "AdminGM") {
-          console.log("Sessão AdminGM sem avatar iniciada.");
-          return;
-      }
-
-      let newPlayer: PlayerData;
-      
-      // Procura se o jogador já está em memória (pra evitar race condition no F5)
-      let existingPlayerId: string | undefined;
-      for (const [id, p] of this.players.entries()) {
-          if (p.name === playerName && !p.isMonster) {
-              existingPlayerId = id;
-              break;
-          }
-      }
-
-      if (existingPlayerId) {
-          const oldP = this.players.get(existingPlayerId)!;
-          if (oldP.password && oldP.password !== playerPassword) {
-              socket.emit('loginFailed', { message: 'Senha incorreta.' });
+      if (accountName === "AdminGM") {
+          const expected = process.env.ADMIN_PASSWORD || 'admin';
+          if (accountPassword && accountPassword !== expected) {
+              socket.emit('admin:loginResult', { ok: false, reason: 'Senha de administrador incorreta.' });
               socket.disconnect(true);
               return;
           }
+          console.log("Sessão AdminGM sem avatar iniciada.");
+          socket.emit('admin:loginResult', { ok: true });
+          socket.on('disconnect', () => {
+              console.log(`Admin desconectado: ${socket.id}`);
+          });
+          return;
+      }
 
-          console.log(`Sessão transferida para ${playerName} do socket antigo para o novo.`);
-          newPlayer = { ...oldP, id: socket.id };
-          this.players.delete(existingPlayerId);
-          
-          // Desconecta o socket antigo e marca pra não salvar em cima
-          const oldSocket = this.io.sockets.sockets.get(existingPlayerId);
-          if (oldSocket) {
-              (oldSocket as any).sessionTransferred = true;
-              oldSocket.disconnect(true);
+      // Autentica a CONTA (não o personagem).
+      // Auto-cria a conta se não existir; se existir, valida a senha.
+      // Migração: contas antigas com senha vazia aceitam a primeira senha fornecida.
+      let account = await getAccountFromDB(accountName);
+      if (!account) {
+          const created = await createAccountInDB(accountName, accountPassword);
+          if (!created.ok) {
+              socket.emit('loginFailed', { message: created.reason || 'Erro ao autenticar.' });
+              socket.disconnect(true);
+              return;
           }
-          this.io.emit('playerLeft', existingPlayerId);
-      } else {
-          // Carrega do Banco ou Cria Novo
-          const dbPlayer = await getPlayerFromDB(playerName);
-          if (dbPlayer) {
-              if (dbPlayer.password && dbPlayer.password !== playerPassword) {
-                  socket.emit('loginFailed', { message: 'Senha incorreta.' });
+          account = await getAccountFromDB(accountName);
+          if (!account) {
+              socket.emit('loginFailed', { message: 'Erro ao criar conta.' });
+              socket.disconnect(true);
+              return;
+          }
+      } else if (account.password === '') {
+          // Migração: conta antiga sem senha → define a senha fornecida
+          if (accountPassword && accountPassword.length >= 3 && accountPassword.length <= 8) {
+              const result = await setAccountPassword(accountName, accountPassword);
+              if (!result.ok) {
+                  socket.emit('loginFailed', { message: result.reason || 'Erro ao definir senha.' });
                   socket.disconnect(true);
                   return;
               }
-              newPlayer = { ...dbPlayer, id: socket.id }; // Preserva o ID do socket
-              
-              // Suporte a personagens antigos (Retroatividade)
-              if (!newPlayer.stats) {
-                  newPlayer.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
-              newPlayer.statPoints = (newPlayer.level - 1) * 5;
+              account.password = accountPassword;
+              console.log(`Conta ${accountName} migrada com nova senha.`);
+          } else {
+              socket.emit('loginFailed', { message: 'Senha deve ter 3-8 caracteres.' });
+              socket.disconnect(true);
+              return;
           }
-          if (newPlayer.sp === undefined) newPlayer.sp = 50;
-          if (newPlayer.weight === undefined) newPlayer.weight = 0;
-          this.recalculateStats(newPlayer);
-      } else {
-          newPlayer = {
-            id: socket.id,
-            name: playerName,
-            password: playerPassword,
-            x: 10,
-            y: 10,
-            health: 150,
-            maxHealth: 150,
-            speed: 200,
-            equipment: {
-               head: 'Helmet',
-               body: 'Armor',
-               legs: 'Pants',
-               boots: 'Leather Boots',
-               leftHand: 'Torch', 
-               rightHand: 'Wood Sword'
-            },
-            level: 1,
-            experience: 0,
-            gold: 0,
-            backpack: [],
-            stats: { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 },
-            statPoints: 0,
-            sp: 50,
-            weight: 0
-          };
-          this.recalculateStats(newPlayer);
-          newPlayer.health = newPlayer.maxHealth;
-          newPlayer.facing = 'down';
-              await savePlayerToDB(newPlayer);
+      } else if (account.password !== accountPassword) {
+          socket.emit('loginFailed', { message: 'Senha incorreta.' });
+          socket.disconnect(true);
+          return;
+      }
+
+      (socket as any).data = { accountName, accountPassword };
+      console.log(`Conta autenticada: ${accountName} (${socket.id})`);
+
+      // Envia a lista de personagens imediatamente para o cliente
+      await this.sendCharacterList(socket, account);
+
+      // Desconexão antes de escolher personagem: nada para salvar
+      socket.on('disconnect', () => {
+          console.log(`Socket desconectado (sem personagem): ${socket.id}`);
+      });
+
+      this.registerCharacterHandlers(socket, account);
+    });
+  }
+
+  // ============================================================
+  // Character Selection (multi-personagem por conta)
+  // ============================================================
+
+  private async sendCharacterList(socket: Socket, account: AccountRow): Promise<void> {
+      const characters = await listCharactersForAccount(account.accountName);
+      socket.emit('account:characters', {
+          accountName: account.accountName,
+          characters,
+          maxCharacters: account.maxCharacters
+      });
+  }
+
+  private async createCharacterForAccount(accountName: string, data: { name: string; spriteId: string }): Promise<{ ok: boolean; reason?: string; character?: { slot: number; name: string; level: number; spriteId: string } }> {
+      const name = (data.name || '').trim();
+      const spriteId = data.spriteId || 'm1';
+      if (!name || name.length < 3 || name.length > 20) return { ok: false, reason: 'Nome deve ter 3-20 caracteres.' };
+      if (!/^[a-zA-Z0-9_]+$/.test(name)) return { ok: false, reason: 'Use apenas letras, números e underscore.' };
+      const count = await countCharactersForAccount(accountName);
+      const account = await getAccountFromDB(accountName);
+      if (!account) return { ok: false, reason: 'Conta não encontrada.' };
+      if (count >= account.maxCharacters) return { ok: false, reason: `Limite de ${account.maxCharacters} personagens atingido.` };
+      const existing = await getPlayerFromDB(name);
+      if (existing) return { ok: false, reason: 'Já existe um personagem com esse nome.' };
+
+      const newPlayer: PlayerData = {
+          id: 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          name,
+          x: 10,
+          y: 10,
+          health: 150,
+          maxHealth: 150,
+          speed: 200,
+          password: '',
+          equipment: {
+              head: 'Helmet',
+              body: 'Armor',
+              legs: 'Pants',
+              boots: 'Leather Boots',
+              leftHand: 'Torch',
+              rightHand: 'Wood Sword'
+          },
+          level: 1,
+          experience: 0,
+          gold: 0,
+          backpack: [],
+          stats: { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 },
+          statPoints: 0,
+          sp: 50,
+          weight: 0,
+          accountName,
+          spriteId
+      };
+      this.recalculateStats(newPlayer);
+      newPlayer.health = newPlayer.maxHealth;
+      newPlayer.facing = 'down';
+      newPlayer.bankGold = 0;
+      newPlayer.bankDebtDays = 0;
+      newPlayer.bankItems = Array(50).fill('');
+      try {
+          await savePlayerToDB(newPlayer);
+      } catch (e) {
+          console.error('Erro ao salvar novo personagem:', e);
+          return { ok: false, reason: 'Erro ao salvar personagem.' };
+      }
+      return { ok: true, character: { slot: count + 1, name, level: 1, spriteId } };
+  }
+
+  private registerCharacterHandlers(socket: Socket, account: AccountRow): void {
+      const accountName = account.accountName;
+
+      socket.on('character:list', async () => {
+          // Voltar ao lobby = liberar personagem da memória
+          this.cancelGathering(socket.id);
+          const p = this.players.get(socket.id);
+          if (p && !p.isMonster) {
+              try { await savePlayerToDB(p); } catch (e) { console.error('Erro ao salvar ao voltar ao lobby:', e); }
           }
+          this.players.delete(socket.id);
+          this.io.emit('playerLeft', socket.id);
+          await this.sendCharacterList(socket, account);
+      });
+
+      socket.on('character:create', async (data: { name: string; spriteId: string }) => {
+          const result = await this.createCharacterForAccount(accountName, data);
+          socket.emit('character:createResult', { ok: result.ok, reason: result.reason, character: result.character });
+          if (result.ok) {
+              await this.sendCharacterList(socket, account);
+          }
+      });
+
+      socket.on('character:delete', async (data: { name: string }) => {
+          if (!data || !data.name) {
+              socket.emit('character:deleteResult', { ok: false, reason: 'Nome inválido.' });
+              return;
+          }
+          const result = await deleteCharacterFromAccount(accountName, data.name);
+          socket.emit('character:deleteResult', { ok: result.ok, reason: result.reason });
+          if (result.ok) {
+              await this.sendCharacterList(socket, account);
+          }
+      });
+
+      socket.on('character:select', async (data: { name: string }) => {
+          if (this.players.has(socket.id)) {
+              socket.emit('character:selectResult', { ok: false, reason: 'Personagem já carregado.' });
+              return;
+          }
+          if (!data || !data.name) {
+              socket.emit('character:selectResult', { ok: false, reason: 'Nome inválido.' });
+              return;
+          }
+          const dbPlayer = await getPlayerFromDB(data.name);
+          if (!dbPlayer) {
+              socket.emit('character:selectResult', { ok: false, reason: 'Personagem não encontrado.' });
+              return;
+          }
+          if (dbPlayer.accountName && dbPlayer.accountName !== accountName) {
+              socket.emit('character:selectResult', { ok: false, reason: 'Este personagem não pertence à sua conta.' });
+              return;
+          }
+          // Compat: personagens antigos sem accountName ficam vinculados a esta conta
+          if (!dbPlayer.accountName) {
+              dbPlayer.accountName = accountName;
+              try { await savePlayerToDB(dbPlayer); } catch (e) { console.warn('Falha ao retro-vincular accountName:', e); }
+          }
+
+          // Se o jogador já está em memória (F5 rápido), transfere a sessão
+          let existingPlayerId: string | undefined;
+          for (const [id, p] of this.players.entries()) {
+              if (p.name === dbPlayer.name && !p.isMonster) {
+                  existingPlayerId = id;
+                  break;
+              }
+          }
+          if (existingPlayerId) {
+              const oldP = this.players.get(existingPlayerId)!;
+              const newPlayer: PlayerData = { ...oldP, id: socket.id };
+              this.players.delete(existingPlayerId);
+              const oldSocket = this.io.sockets.sockets.get(existingPlayerId);
+              if (oldSocket) {
+                  (oldSocket as any).sessionTransferred = true;
+                  oldSocket.disconnect(true);
+              }
+              this.io.emit('playerLeft', existingPlayerId);
+              this.applyPlayerDefaultsAndRegister(newPlayer, socket);
+              socket.emit('character:selectResult', { ok: true });
+              return;
+          }
+
+          const newPlayer: PlayerData = { ...dbPlayer, id: socket.id };
+          this.applyPlayerDefaultsAndRegister(newPlayer, socket);
+          socket.emit('character:selectResult', { ok: true });
+      });
+  }
+
+  private applyPlayerDefaultsAndRegister(newPlayer: PlayerData, socket: Socket): void {
+      if (!newPlayer.stats) {
+          newPlayer.stats = { FOR: 5, AGI: 5, VIT: 5, INT: 5, DES: 5, SOR: 5 };
+          newPlayer.statPoints = (newPlayer.level - 1) * 5;
+      }
+      if (newPlayer.sp === undefined) newPlayer.sp = 50;
+      if (newPlayer.weight === undefined) newPlayer.weight = 0;
+      this.recalculateStats(newPlayer);
       if (newPlayer.bankGold === undefined) newPlayer.bankGold = 0;
       if (newPlayer.bankDebtDays === undefined) newPlayer.bankDebtDays = 0;
       if (!newPlayer.bankItems || newPlayer.bankItems.length !== 50) {
           newPlayer.bankItems = Array(50).fill('');
       }
-      }
-
+      newPlayer.facing = newPlayer.facing || 'down';
       this.players.set(socket.id, newPlayer);
+      this.registerGameplayHandlers(socket);
+      this.sendInitAndWorld(socket, newPlayer);
+  }
 
-      // Envia os dados iniciais do jogador para o cliente
+  private sendInitAndWorld(socket: Socket, newPlayer: PlayerData): void {
       socket.emit('init', newPlayer);
-
+      // Coleta os portões (4 cidades + caverna) para enviar ao client
+      const gates: Position[] = [
+          CAVERNA_SAFE_ZONE_GATE,
+          ...MONSTER_CITIES.map(c => c.gate),
+      ];
       const mapData: MapData = {
-        walls: Array.from(this.walls).map(w => {
-          const [x, y] = w.split(',');
-          return { x: parseInt(x), y: parseInt(y) };
-        }),
-        itemsOnFloor: Array.from(this.itemsOnFloor.values()),
-        resourceNodes: Array.from(this.resourceNodes.values()),
-        craftingStations: Array.from(this.craftingStations.values())
+          walls: Array.from(this.walls).map(w => {
+              const [x, y] = w.split(',');
+              return { x: parseInt(x), y: parseInt(y) };
+          }),
+          gates,
+          itemsOnFloor: Array.from(this.itemsOnFloor.values()),
+          resourceNodes: Array.from(this.resourceNodes.values()),
+          craftingStations: Array.from(this.craftingStations.values())
       };
       socket.emit('mapData', mapData);
-      
-      // Envia o clima (Dia/Noite)
       socket.emit('timeUpdate', { isNight: this.isNight });
-
-      // Avisa a todos os outros clientes sobre o novo jogador
       socket.broadcast.emit('playerJoined', newPlayer);
-
-      // Envia todos os jogadores existentes para o cliente recém-conectado
       socket.emit('currentPlayers', Array.from(this.players.values()));
+      socket.emit('cities:data', MONSTER_CITIES);
+      socket.emit('plaza:data', PLAZA_BOUNDS);
       this.io.emit('newPlayer', newPlayer);
+  }
+
+  // ============================================================
+  // Handlers de gameplay (chamados após character:select)
+  // ============================================================
+
+  private registerGameplayHandlers(socket: Socket): void {
 
       // Movimentação (com validação básica de colisão)
       socket.on('move', (data: { position: Position, facing: string }) => {
@@ -376,22 +736,21 @@ export class Game {
              socket.emit('playerMoved', player); 
              return; 
           }
-          
+
+          // Salva posição anterior para detecção de mudança de área
+          const prevX = player.x;
+          const prevY = player.y;
+          const wasInCity = getCityAt(prevX, prevY);
+
           player.x = targetPosition.x;
           player.y = targetPosition.y;
 
-          // PORTAL: Mundo -> Cidade
-          if (player.x === 10 && player.y === 0) {
-              player.x = 120;
-              player.y = 139; // Coloca logo acima da parede de saída
-              player.facing = 'up';
+          // Mensagem ao entrar em uma cidade (primeira vez) — informativo
+          const targetCity = getCityAt(targetPosition.x, targetPosition.y);
+          if (targetCity && !wasInCity) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: `Entrou em: ${targetCity.name}`, color: '#fbbf24' });
           }
-          // PORTAL: Cidade -> Mundo
-          else if (player.x === 120 && player.y === 140) {
-              player.x = 10;
-              player.y = 1; // Coloca logo abaixo do portão do mercador
-              player.facing = 'down';
-          }
+          // (portais físicos foram removidos — teleporte agora é feito pelos NPCs)
 
           // Verifica se pegou algum item no chão (procura por qualquer item nas coordenadas do player)
           const itemsAtCoord = Array.from(this.itemsOnFloor.values()).filter(item => item.x === player.x && item.y === player.y);
@@ -482,6 +841,37 @@ export class Game {
         }
       });
 
+      // Right-click context menu: inspecionar entidade (Fase 4b)
+      socket.on('entity:query', (targetId: string) => {
+        const target = this.players.get(targetId);
+        if (!target) {
+          socket.emit('entity:info', { id: targetId, error: 'Entidade não encontrada' });
+          return;
+        }
+        const info: any = {
+          id: target.id,
+          name: target.name,
+          level: target.level,
+          health: target.health,
+          maxHealth: target.maxHealth,
+          isMonster: !!target.isMonster,
+          isNPC: !!(target as any).isNPC,
+          isDead: !!target.isDead,
+          x: target.x,
+          y: target.y,
+        };
+        // Só revela gold/stats de players (PvP inspection)
+        if (!target.isMonster && !(target as any).isNPC && target.id !== socket.id) {
+          info.gold = target.gold;
+        }
+        // Bosses de cidade ganham flag visual
+        if (target.id.startsWith('city_boss_')) {
+          const city = MONSTER_CITIES.find(c => `city_boss_${c.id}` === target.id);
+          if (city) info.bossOfCity = city.name;
+        }
+        socket.emit('entity:info', info);
+      });
+
       // Handler de Chat e Magias
       socket.on('chatMessage', (msg: string) => {
         const player = this.players.get(socket.id);
@@ -494,7 +884,11 @@ export class Game {
                if (target) {
                   // Safe zone check
                   if (!player.isMonster && !target.isMonster) {
-                      if ((player.x >= 100 && player.y >= 100) || (target.x >= 100 && target.y >= 100)) {
+                           const inCity = (x: number, y: number) => {
+                               const cb = CONFIG.cityBounds;
+                               return x >= cb.xMin && x <= cb.xMax && y >= cb.yMin && y <= cb.yMax;
+                           };
+                      if (inCity(player.x, player.y) || inCity(target.x, target.y)) {
                           return;
                       }
                   }
@@ -709,6 +1103,13 @@ export class Game {
               const count = parseInt(countStr) || 1;
               let consumed = false;
 
+              // Garante durabilidade em itens equipáveis que não têm (plain string)
+              const equipableItems = ['Steel Sword', 'Wood Sword', 'Torch', 'Helmet', 'Armor', 'Pants', 'Leather Boots', 'Leather Backpack', 'Wooden Backpack', 'Iron Backpack'];
+              let itemToEquip = item;
+              if (equipableItems.includes(itemName) && !item.startsWith('{')) {
+                  itemToEquip = JSON.stringify({ name: itemName, durability: 100, maxDurability: 100, quality: parsed.quality || 'common' });
+              }
+
               // Validação: HP cheia para consumíveis de vida
               const hpConsumables = ['Cheese', 'Apple', 'Health Potion'];
               if (hpConsumables.includes(itemName) && player.health >= player.maxHealth) {
@@ -751,29 +1152,27 @@ export class Game {
                   consumed = true;
               } else if (itemName === 'Steel Sword') {
                   if (!player.equipment) player.equipment = {};
-                  
-                  // Se já tiver arma, joga pra bolsa (swap) e avisa se inferior
-                  if (player.equipment && player.equipment.rightHand) {
+                  if (player.equipment.rightHand) {
                       const currentParsed = this.parseItem(player.equipment.rightHand);
                       if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
                           this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
                       }
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
-                  if (player.equipment) player.equipment.rightHand = item;
+                  player.equipment.rightHand = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Wood Sword') {
                   if (!player.equipment) player.equipment = {};
-                  if (player.equipment && player.equipment.rightHand) {
+                  if (player.equipment.rightHand) {
                       const currentParsed = this.parseItem(player.equipment.rightHand);
                       if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
                           this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Item inferior ao equipado!', color: '#fbbf24' });
                       }
                       this.addItemToBackpack(player, player.equipment.rightHand);
                   }
-                  if (player.equipment) player.equipment.rightHand = item;
+                  player.equipment.rightHand = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
@@ -781,7 +1180,7 @@ export class Game {
                   if (player.equipment && player.equipment.leftHand) {
                       this.addItemToBackpack(player, player.equipment.leftHand);
                   }
-                  if (player.equipment) player.equipment.leftHand = item;
+                  player.equipment.leftHand = itemToEquip;
                   this.recalculateStats(player);
                   this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Luz!', color: '#ffaa00' });
                   socket.emit('equipmentUpdate', player.equipment);
@@ -794,7 +1193,7 @@ export class Game {
                       }
                       this.addItemToBackpack(player, player.equipment.head);
                   }
-                  if (player.equipment) player.equipment.head = item;
+                  player.equipment.head = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
@@ -806,7 +1205,7 @@ export class Game {
                       }
                       this.addItemToBackpack(player, player.equipment.body);
                   }
-                  if (player.equipment) player.equipment.body = item;
+                  player.equipment.body = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
@@ -818,7 +1217,7 @@ export class Game {
                       }
                       this.addItemToBackpack(player, player.equipment.legs);
                   }
-                  if (player.equipment) player.equipment.legs = item;
+                  player.equipment.legs = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
@@ -830,16 +1229,16 @@ export class Game {
                       }
                       this.addItemToBackpack(player, player.equipment.boots);
                   }
-                  if (player.equipment) player.equipment.boots = item;
+                  player.equipment.boots = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Leather Backpack' || itemName === 'Wooden Backpack' || itemName === 'Iron Backpack') {
                   if (!player.equipment) player.equipment = {};
-                  if (player.equipment && player.equipment.backpack) {
+                  if (player.equipment.backpack) {
                       this.addItemToBackpack(player, player.equipment.backpack);
                   }
-                  player.equipment.backpack = item;
+                  player.equipment.backpack = itemToEquip;
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
@@ -908,7 +1307,7 @@ export class Game {
               // Cria itens no chão (para stacks, cria um item com o nome base)
               for (let i = 0; i < amount; i++) {
                   const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${i}`;
-                  const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+                   const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: getItemIcon(itemName) };
                   this.itemsOnFloor.set(dropId, dropItem);
                   this.io.emit('itemDropped', dropItem);
               }
@@ -916,14 +1315,14 @@ export class Game {
               // Item JSON (equipamento com stats) — dropa inteiro
               player.backpack.splice(data.index, 1);
               const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: getItemIcon(itemName) };
               this.itemsOnFloor.set(dropId, dropItem);
               this.io.emit('itemDropped', dropItem);
           } else {
               // Item simples sem stack
               player.backpack.splice(data.index, 1);
               const dropId = `drop_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+              const dropItem = { id: dropId, name: itemName, x: player.x, y: player.y, emoji: getItemIcon(itemName) };
               this.itemsOnFloor.set(dropId, dropItem);
               this.io.emit('itemDropped', dropItem);
           }
@@ -945,20 +1344,30 @@ export class Game {
       // Loja: Comprar Item
       socket.on('buyItem', (itemName: string) => {
           const player = this.players.get(socket.id);
-          const merchant = this.players.get('npc_merchant');
-          
-          if (!player || !merchant) return;
+          if (!player) return;
           if (!player.backpack) player.backpack = [];
           if (!player.gold) player.gold = 0;
-          
-          // Checa distância
-          const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
-          if (dist > 2) return;
-          
+
+          // Valida que o jogador está próximo de ALGUM vendedor (merchant da praça ou vendor de cidade)
+          const vendors: Array<{ x: number; y: number }> = [];
+          const merchant = this.players.get('npc_merchant');
+          if (merchant) vendors.push({ x: merchant.x, y: merchant.y });
+          for (const v of CITY_VENDORS) {
+              const npc = this.players.get(v.id);
+              if (npc) vendors.push({ x: npc.x, y: npc.y });
+          }
+          let nearVendor = false;
+          for (const v of vendors) {
+              const dist = Math.abs(player.x - v.x) + Math.abs(player.y - v.y);
+              if (dist <= CONFIG.bankDistanceCheck) { nearVendor = true; break; }
+          }
+          if (!nearVendor) return;
+
           // Preços
           const prices: Record<string, number> = {
               'Torch': 5, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100,
-              'Leather Backpack': 500, 'Wooden Backpack': 1500, 'Iron Backpack': 4000
+              'Leather Backpack': 500, 'Wooden Backpack': 1500, 'Iron Backpack': 4000,
+              'Apple': 3, 'Cheese': 5, 'Blueberry': 4, 'Medicinal Herb': 8, 'Leather Hide': 15,
           };
           const cost = prices[itemName];
           
@@ -995,26 +1404,36 @@ export class Game {
       // Loja: Vender Item
       socket.on('sellItem', (invIndex: number) => {
           const player = this.players.get(socket.id);
+          if (!player || !player.backpack) return;
+
+          // Valida que o jogador está próximo de ALGUM vendedor
+          const vendors: Array<{ x: number; y: number }> = [];
           const merchant = this.players.get('npc_merchant');
-          
-          if (!player || !merchant || !player.backpack) return;
-          
-          const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
-          if (dist > 2) return;
-          
+          if (merchant) vendors.push({ x: merchant.x, y: merchant.y });
+          for (const v of CITY_VENDORS) {
+              const npc = this.players.get(v.id);
+              if (npc) vendors.push({ x: npc.x, y: npc.y });
+          }
+          let nearVendor = false;
+          for (const v of vendors) {
+              const dist = Math.abs(player.x - v.x) + Math.abs(player.y - v.y);
+              if (dist <= CONFIG.bankDistanceCheck) { nearVendor = true; break; }
+          }
+          if (!nearVendor) return;
+
           const itemString = player.backpack[invIndex];
           if (!itemString) return;
-          
+
           let baseName = itemString.startsWith('{') ? JSON.parse(itemString).name : itemString.split(':')[0];
           if (baseName === 'Leather Backpack' || baseName === 'Wooden Backpack' || baseName === 'Iron Backpack') {
               socket.emit('textEffect', { x: player.x, y: player.y, message: 'Não pode ser vendido!', color: '#ff5555' });
               return;
           }
-          
+
           const [itemName, countStr] = itemString.split(':');
           const count = parseInt(countStr) || 1;
-          
-          const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
+
+          const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1, 'Medicinal Herb': 4, 'Leather Hide': 7 };
           const sellValue = sellPrices[itemName] || 1;
           
           if (count > 1) {
@@ -1048,7 +1467,7 @@ export class Game {
           const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
           if (!banker) return;
           const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
-          if (dist > 2) {
+          if (dist > CONFIG.bankDistanceCheck) {
               socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
               return;
           }
@@ -1106,7 +1525,7 @@ export class Game {
           const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
           if (!banker) return;
           const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
-          if (dist > 2) {
+          if (dist > CONFIG.bankDistanceCheck) {
               socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
               return;
           }
@@ -1148,7 +1567,7 @@ export class Game {
       });
 
       // Banco: Depositar Item
-      socket.on('bank:depositItem', (data: { backpackIndex: number, bankIndex: number }) => {
+      socket.on('bank:depositItem', (data: { backpackIndex: number, amount: number }) => {
           const player = this.players.get(socket.id);
           if (!player || player.isDead || !player.backpack || !player.bankItems) return;
 
@@ -1156,7 +1575,7 @@ export class Game {
           const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
           if (!banker) return;
           const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
-          if (dist > 2) {
+          if (dist > CONFIG.bankDistanceCheck) {
               socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
               return;
           }
@@ -1167,19 +1586,75 @@ export class Game {
               return;
           }
 
-          const { backpackIndex, bankIndex } = data;
+          const { backpackIndex, amount } = data;
           if (backpackIndex < 0 || backpackIndex >= player.backpack.length) return;
-          if (bankIndex < 0 || bankIndex >= 50) return;
+          if (!amount || amount < 1) return;
 
           const bpItem = player.backpack[backpackIndex];
-          const bankItem = player.bankItems[bankIndex];
+          if (!bpItem) return;
 
-          // Troca os itens de lugar
-          player.backpack[backpackIndex] = bankItem; // pode ser string vazia/null ou outro item
-          player.bankItems[bankIndex] = bpItem;
+          // Parse do item: pode ser "Nome:count" ou "Nome" (count=1) ou JSON (não-stackable)
+          const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin'];
+          let itemName = bpItem;
+          let bpCount = 1;
+          let isJsonItem = false;
 
-          // Limpa slots vazios do backpack
-          player.backpack = player.backpack.filter(slot => slot !== '' && slot !== null);
+          if (bpItem.startsWith('{')) {
+              // Equipamento com stats - não pode ser parcialmente empilhado
+              isJsonItem = true;
+              try { itemName = JSON.parse(bpItem).name; } catch(e) {}
+              bpCount = 1;
+          } else if (bpItem.includes(':')) {
+              const [n, c] = bpItem.split(':');
+              itemName = n;
+              bpCount = parseInt(c) || 1;
+          }
+
+          if (amount > bpCount) return;
+          if (isJsonItem && amount > 1) return; // Equipamentos são sempre 1 por slot
+
+          // Subtrai `amount` do backpack
+          if (amount === bpCount) {
+              player.backpack.splice(backpackIndex, 1);
+          } else {
+              player.backpack[backpackIndex] = `${itemName}:${bpCount - amount}`;
+          }
+
+          // Tenta empilhar em um slot existente do banco
+          let remaining = amount;
+          if (stackableItems.includes(itemName)) {
+              for (let i = 0; i < player.bankItems.length && remaining > 0; i++) {
+                  const slot = player.bankItems[i];
+                  if (!slot) continue;
+                  const [bName, bCountStr] = slot.split(':');
+                  const bCount = parseInt(bCountStr) || 1;
+                  if (bName === itemName && bCount < 99) {
+                      const newCount = Math.min(99, bCount + remaining);
+                      player.bankItems[i] = `${itemName}:${newCount}`;
+                      remaining -= (newCount - bCount);
+                  }
+              }
+          }
+
+          // Se sobrou (item não-stackable OU todas as pilhas cheias), coloca em um slot vazio
+          if (remaining > 0) {
+              // Garante que bankItems tem 50 slots
+              while (player.bankItems.length < 50) player.bankItems.push('');
+              const emptyIdx = player.bankItems.findIndex(s => !s);
+              if (emptyIdx === -1) {
+                  // Cofre cheio: devolve tudo para a mochila
+                  this.addItemToBackpack(player, bpItem);
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Cofre Cheio!', color: '#ff5555' });
+                  return;
+              }
+              if (isJsonItem) {
+                  player.bankItems[emptyIdx] = bpItem;
+              } else if (stackableItems.includes(itemName) && remaining > 1) {
+                  player.bankItems[emptyIdx] = `${itemName}:${remaining}`;
+              } else {
+                  player.bankItems[emptyIdx] = itemName;
+              }
+          }
 
           // Recalcula peso
           this.recalculateWeight(player);
@@ -1188,7 +1663,7 @@ export class Game {
           // Salva no banco de dados
           savePlayerToDB(player).catch(e => console.error('Error saving bank item:', e));
 
-          socket.emit('statsUpdate', { 
+          socket.emit('statsUpdate', {
               id: player.id, level: player.level, experience: player.experience, gold: player.gold,
               stats: player.stats, statPoints: player.statPoints,
               attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
@@ -1205,6 +1680,43 @@ export class Game {
           });
       });
 
+      // Banco: Organizar Itens
+      socket.on('bank:sort', () => {
+          const player = this.players.get(socket.id);
+          if (!player || !player.bankItems) return;
+
+          // Valida distância do Banqueiro
+          const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
+          if (!banker) return;
+          const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
+          if (dist > CONFIG.bankDistanceCheck) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
+              return;
+          }
+
+          player.bankItems = this.sortItemList(player.bankItems, 50);
+          savePlayerToDB(player).catch(e => console.error('Error saving sorted bank:', e));
+          socket.emit('bank:update', {
+              bankGold: player.bankGold,
+              bankItems: player.bankItems,
+              bankDebtDays: player.bankDebtDays
+          });
+      });
+
+      // Mochila: Organizar Itens
+      socket.on('backpack:sort', () => {
+          const player = this.players.get(socket.id);
+          if (!player || !player.backpack) return;
+
+          const maxSlots = this.getMaxBackpackSlots(player);
+          player.backpack = this.sortItemList(player.backpack, maxSlots);
+          this.recalculateWeight(player);
+
+          savePlayerToDB(player).catch(e => console.error('Error saving sorted backpack:', e));
+          socket.emit('inventoryUpdate', player.backpack);
+          socket.emit('statsUpdate', { id: player.id, weight: player.weight, maxWeight: player.maxWeight });
+      });
+
       // Banco: Retirar Item
       socket.on('bank:withdrawItem', (data: { bankIndex: number, backpackIndex: number }) => {
           const player = this.players.get(socket.id);
@@ -1214,7 +1726,7 @@ export class Game {
           const banker = Array.from(this.players.values()).find(p => p.name === 'Banker');
           if (!banker) return;
           const dist = Math.abs(player.x - banker.x) + Math.abs(player.y - banker.y);
-          if (dist > 2) {
+          if (dist > CONFIG.bankDistanceCheck) {
               socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito longe!', color: '#ff5555' });
               return;
           }
@@ -1226,7 +1738,7 @@ export class Game {
           }
 
           const { bankIndex, backpackIndex } = data;
-          if (bankIndex < 0 || bankIndex >= 50) return;
+          if (bankIndex < 0 || bankIndex >= CONFIG.bankSlots) return;
 
           const bankItem = player.bankItems[bankIndex];
           if (!bankItem) return;
@@ -1517,6 +2029,16 @@ export class Game {
               this.removeItemFromBackpack(player, ing.itemName, ing.count);
           });
           
+          // Taxa de serviço
+          const fee = recipe.craftFee || 0;
+          if (fee > 0) {
+              if ((player.gold || 0) < fee) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Gold insuficiente!', color: '#ff5555' });
+                  return;
+              }
+              player.gold = (player.gold || 0) - fee;
+          }
+          
           // Sucesso rate:
           const levelDiff = playerProfLvl - recipe.levelRequired;
           const successChance = Math.min(100, 85 + levelDiff * 5);
@@ -1601,6 +2123,7 @@ export class Game {
                   id: player.id,
                   weight: player.weight,
                   maxWeight: player.maxWeight,
+                  gold: player.gold,
                   [xpField]: player[xpField],
                   [lvlField]: player[lvlField]
               });
@@ -1649,6 +2172,28 @@ export class Game {
               refunded.push(`${qty}x ${namePt}`);
           });
           
+          // XP de profissão ao desmontar
+          let xpField: 'professionSmithingXp' | 'professionAlchemyXp' | 'professionTanningXp' | null = null;
+          let lvlField: 'professionSmithingLevel' | 'professionAlchemyLevel' | 'professionTanningLevel' | null = null;
+          if (recipe.profession === 'smithing') { xpField = 'professionSmithingXp'; lvlField = 'professionSmithingLevel'; }
+          else if (recipe.profession === 'alchemy') { xpField = 'professionAlchemyXp'; lvlField = 'professionAlchemyLevel'; }
+          else if (recipe.profession === 'tanning') { xpField = 'professionTanningXp'; lvlField = 'professionTanningLevel'; }
+          if (xpField && lvlField) {
+              const currentLvl = player[lvlField] || 1;
+              const currentXp = player[xpField] || 0;
+              const xpGained = 8;
+              const nextLvlXp = currentLvl * 100;
+              let newXp = currentXp + xpGained;
+              let newLvl = currentLvl;
+              if (newXp >= nextLvlXp) {
+                  newXp -= nextLvlXp;
+                  newLvl++;
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Nível de Profissão Subiu!', color: '#eab308' });
+              }
+              player[xpField] = newXp;
+              player[lvlField] = newLvl;
+          }
+
           this.recalculateWeight(player);
           this.recalculateStats(player);
           
@@ -1670,7 +2215,7 @@ export class Game {
           if (!player || !merchant) return;
           
           const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
-          if (dist > 2) return;
+          if (dist > CONFIG.bankDistanceCheck) return;
           
           let totalCost = 0;
           const slots = ['head', 'body', 'legs', 'boots', 'rightHand', 'leftHand'] as const;
@@ -1845,7 +2390,6 @@ export class Game {
         this.players.delete(socket.id);
         this.io.emit('playerLeft', socket.id);
       });
-    });
   }
 
   public start() {
@@ -1860,6 +2404,11 @@ export class Game {
     const dt = now - this.lastUpdate;
     this.lastUpdate = now;
     this.ticks++;
+
+    // Respawn gradual de monstros (Fase 4a) — a cada 20 ticks (1s)
+    if (this.ticks % 20 === 0) {
+        this.processPendingRespawns();
+    }
 
     // Respawn dos nós de recursos esgotados a cada 20 ticks (1 segundo)
     if (this.ticks % 20 === 0) {
@@ -1886,8 +2435,11 @@ export class Game {
         });
     }
 
-    // Sistema de Ciclo de Dia e Noite (5 min dia = 6000 ticks, 2 min noite = 2400 ticks. Total = 8400)
-    const cycle = this.ticks % 8400;
+    // Sistema de Ciclo de Dia e Noite (configurável via CONFIG.dayDurationTicks / nightDurationTicks)
+    const dayTicks = CONFIG.dayDurationTicks;
+    const nightTicks = CONFIG.nightDurationTicks;
+    const cycleTotal = dayTicks + nightTicks;
+    const cycle = this.ticks % cycleTotal;
     
     if (cycle === 0) {
         this.isNight = false;
@@ -1903,10 +2455,10 @@ export class Game {
                 let bankDebtDays = p.bankDebtDays ?? 0;
 
                 if (bankGold > 0) {
-                    bankGold -= 1;
+                    bankGold -= CONFIG.bankDailyFee;
                 } else {
-                    if (bankDebtDays > -20) {
-                        bankDebtDays -= 1; // max -20 debt days
+                    if (bankDebtDays > CONFIG.bankMaxDebtDays) {
+                        bankDebtDays -= 1; // limite de CONFIG.bankMaxDebtDays
                     }
                 }
                 p.bankGold = bankGold;
@@ -1919,19 +2471,19 @@ export class Game {
                         bankItems: p.bankItems || [],
                         bankDebtDays: p.bankDebtDays
                     });
-                    playerSocket.emit('textEffect', { x: p.x, y: p.y, message: 'Tarifa do Banco (-1 Ouro)', color: '#ffaa00' });
+                    playerSocket.emit('textEffect', { x: p.x, y: p.y, message: `Tarifa do Banco (-${CONFIG.bankDailyFee} Ouro)`, color: '#ffaa00' });
                 }
             }
         });
 
         // Dedução para jogadores offline no banco de dados
-        deductOfflineBankGold(onlineNames).catch(err => console.error('Erro ao debitar banco offline:', err));
+        deductOfflineBankGold(onlineNames, CONFIG.bankMaxDebtDays, CONFIG.bankDailyFee).catch(err => console.error('Erro ao debitar banco offline:', err));
 
-        this.players.forEach(p => { 
+        this.players.forEach(p => {
             if (!p.isMonster) {
-                this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' }); 
-            } else if (p.id.startsWith('night_')) {
-                // Remove monstros da noite
+                this.io.emit('textEffect', { x: p.x, y: p.y, message: msg, color: '#ffff00' });
+            } else if (p.id.startsWith('night_') || p.id.startsWith('city_boss_')) {
+                // Remove monstros da noite e bosses de cidade
                 if (!p.isDead) {
                     p.isDead = true;
                     // Se for o Boss e estiver vivo de dia, morre e vira caveira normal
@@ -1947,7 +2499,7 @@ export class Game {
                 this.players.delete(p.id);
             }
         });
-    } else if (cycle === 6000) {
+    } else if (cycle === dayTicks) {
         this.isNight = true;
         this.io.emit('timeUpdate', { isNight: this.isNight });
         const msg = 'O sol se põe. Os monstros ficam mais fortes...';
@@ -1990,6 +2542,35 @@ export class Game {
         };
         this.players.set(boss.id, boss);
         this.io.emit('newPlayer', boss);
+
+        // ===== Bosses Noturnos por Cidade de Monstro (Fase 3) =====
+        for (const city of MONSTER_CITIES) {
+            if (Math.random() > CONFIG.cityBossSpawnChance) continue; // chance de spawn
+            // Posição: centro da cidade
+            const cx = Math.floor((city.bounds.xMin + city.bounds.xMax) / 2);
+            const cy = Math.floor((city.bounds.yMin + city.bounds.yMax) / 2);
+            const cityBoss: PlayerData = {
+                id: `city_boss_${city.id}`,
+                name: city.bossName,
+                x: cx,
+                y: cy,
+                health: city.bossStats.health,
+                maxHealth: city.bossStats.health,
+                speed: city.bossStats.speed,
+                isMonster: true,
+                level: 5 + city.minLevel, // nível proporcional
+                experience: 0,
+                attack: city.bossStats.attack
+            };
+            this.players.set(cityBoss.id, cityBoss);
+            this.io.emit('newPlayer', cityBoss);
+            // Anúncio global
+            this.players.forEach(p => {
+                if (!p.isMonster) {
+                    this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: `👹 ${city.bossName} apareceu em ${city.name}!`, color: '#ef4444' });
+                }
+            });
+        }
     }
 
     // Inteligência Artificial do Monstro (Mover a cada 10 ticks = ~0.5 segundos)
@@ -2004,7 +2585,8 @@ export class Game {
                   // Boss passivo: não procura ninguém até ser atacado
               } else {
                   this.players.forEach((p) => {
-                      if (!p.isMonster) {
+                      // NPCs são imunes a monstros (teleporter, vendor, banker, merchant)
+                      if (!p.isMonster && !(p as any).isNPC) {
                           const dist = Math.abs(p.x - entity.x) + Math.abs(p.y - entity.y); // Manhattan
                           if (dist < minDistance) {
                               minDistance = dist;
@@ -2029,22 +2611,23 @@ export class Game {
                       else if (closestPlayer.y > entity.y) targetY++;
                       else if (closestPlayer.y < entity.y) targetY--;
                   }
-                  
+
                   entity.targetId = closestPlayer.id;
               } else {
                   entity.targetId = undefined;
                   // Random Wander (Andar aleatoriamente)
                   const directions = [
-                      { x: 0, y: -1 }, { x: 0, y: 1 }, 
+                      { x: 0, y: -1 }, { x: 0, y: 1 },
                       { x: -1, y: 0 }, { x: 1, y: 0 }
                   ];
                   const move = directions[Math.floor(Math.random() * directions.length)];
                   targetX = entity.x + move.x;
                   targetY = entity.y + move.y;
               }
-              
-              // Verifica colisão
-              if (!this.walls.has(`${targetX},${targetY}`)) {
+
+              // Verifica colisão: monsterWalls (paredes + portões) + safe zones
+              // (monstros não entram na safe zone nem passam por portões)
+              if (!this.monsterWalls.has(`${targetX},${targetY}`) && !isInSafeZone(targetX, targetY)) {
                   entity.x = targetX;
                   entity.y = targetY;
                   this.io.emit('playerMoved', entity);
@@ -2053,28 +2636,45 @@ export class Game {
       });
     }
 
-    // Regeneração Passiva do Jogador a cada 2 segundos (40 ticks)
-    if (this.ticks % 40 === 0) {
+    // Regeneração Passiva do Jogador (intervalo configurável)
+    if (this.ticks % CONFIG.regenIntervalTicks === 0) {
         this.players.forEach((entity) => {
             if (!entity.isMonster && !entity.isDead && !(entity as any).isNPC) {
                 let updated = false;
 
-                // Regenera HP
-                if (entity.health < entity.maxHealth) {
-                    const vit = entity.stats?.VIT || 5;
-                    const regen = 2 + Math.floor(vit / 5);
-                    entity.health = Math.min(entity.maxHealth, entity.health + regen);
-                    this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: -regen });
-                    updated = true;
-                }
-
-                // Regenera SP (Mana)
+                // Safe Zone da Cidade: regenera HP e Mana a 100% (segue bounds do CONFIG)
+                const cb = CONFIG.cityBounds;
+                const inCity = entity.x >= cb.xMin && entity.x <= cb.xMax && entity.y >= cb.yMin && entity.y <= cb.yMax;
                 const maxSp = entity.maxSp || 50;
-                if ((entity.sp || 0) < maxSp) {
-                    const intVal = entity.stats?.INT || 5;
-                    const regenSp = 1 + Math.floor(intVal / 5);
-                    entity.sp = Math.min(maxSp, (entity.sp || 0) + regenSp);
-                    updated = true;
+
+                if (inCity) {
+                    if (entity.health < entity.maxHealth) {
+                        const healed = entity.maxHealth - entity.health;
+                        entity.health = entity.maxHealth;
+                        this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: -healed });
+                        updated = true;
+                    }
+                    if ((entity.sp || 0) < maxSp) {
+                        entity.sp = maxSp;
+                        updated = true;
+                    }
+                } else {
+                    // Regenera HP (campo aberto) - usa rates do CONFIG
+                    if (entity.health < entity.maxHealth) {
+                        const vit = entity.stats?.VIT || 5;
+                        const regen = CONFIG.hpRegenBase + Math.floor(vit / CONFIG.hpRegenPerVit);
+                        entity.health = Math.min(entity.maxHealth, entity.health + regen);
+                        this.io.emit('playerDamaged', { id: entity.id, health: entity.health, maxHealth: entity.maxHealth, amount: -regen });
+                        updated = true;
+                    }
+
+                    // Regenera SP (Mana) - usa rates do CONFIG
+                    if ((entity.sp || 0) < maxSp) {
+                        const intVal = entity.stats?.INT || 5;
+                        const regenSp = CONFIG.spRegenBase + Math.floor(intVal / CONFIG.spRegenPerInt);
+                        entity.sp = Math.min(maxSp, (entity.sp || 0) + regenSp);
+                        updated = true;
+                    }
                 }
 
                 if (updated) {
@@ -2106,13 +2706,17 @@ export class Game {
             if (this.walls.has(`${p.x},${p.y}`) || p.x < 0 || p.x > 40 || p.y < 0 || p.y > 40) {
                 hit = true;
             } else {
-                // Colisão com entidades (monstros ou players)
+                // Colisão com entidades (monstros ou players) — NPCs são imunes
                 for (const [id, entity] of this.players.entries()) {
-                    if (entity.id !== p.casterId && entity.x === p.x && entity.y === p.y && !entity.isDead) {
+                    if (entity.id !== p.casterId && entity.x === p.x && entity.y === p.y && !entity.isDead && !(entity as any).isNPC) {
                         // Safe zone check para projeteis
                         const casterPlayer = this.players.get(p.casterId);
                         if (!entity.isMonster && casterPlayer && !casterPlayer.isMonster) {
-                            if (entity.x >= 100 && entity.y >= 100) continue;
+                             const inCity = (x: number, y: number) => {
+                           const cb = CONFIG.cityBounds;
+                           return x >= cb.xMin && x <= cb.xMax && y >= cb.yMin && y <= cb.yMax;
+                       };
+                             if (inCity(entity.x, entity.y)) continue;
                         }
 
                         // Acertou
@@ -2153,16 +2757,20 @@ export class Game {
                 if (dx <= 1 && dy <= 1) {
                    const now = Date.now();
                    const lastAttack = (player as any).lastAttackTime || 0;
-                   const cooldown = player.aspd || (player.isMonster ? (player.name === 'Orc' ? 2000 : 1500) : 1500);
+                   const cooldown = player.aspd || (player.isMonster ? CONFIG.baseMonsterCooldownMs : CONFIG.basePlayerCooldownMs);
                    
                    if (now - lastAttack >= cooldown) {
                       // Safe zone check PvP
                       if (!player.isMonster && !target.isMonster) {
-                          if ((player.x >= 100 && player.y >= 100) || (target.x >= 100 && target.y >= 100)) {
-                              player.targetId = undefined; // Para de atacar
-                              return; // Cancela hit no forEach
-                          }
-                      }
+                           const inCity = (x: number, y: number) => {
+                           const cb = CONFIG.cityBounds;
+                           return x >= cb.xMin && x <= cb.xMax && y >= cb.yMin && y <= cb.yMax;
+                       };
+                           if (inCity(player.x, player.y) || inCity(target.x, target.y)) {
+                               player.targetId = undefined; // Para de atacar
+                               return; // Cancela hit no forEach
+                           }
+                       }
 
                       (player as any).lastAttackTime = now;
                       
@@ -2198,31 +2806,94 @@ export class Game {
           }
        });
        
-       // Sincroniza o relógio a cada 1 segundo (20 ticks)
-       if (this.ticks % 20 === 0) {
-           const cycle = this.ticks % 8400;
-           const isNight = cycle >= 6000;
-           const ticksInPhase = isNight ? (cycle - 6000) : cycle;
-           const phaseDuration = isNight ? 2400 : 6000;
+        // Sincroniza o relógio a cada 1 segundo (20 ticks)
+        if (this.ticks % 20 === 0) {
+            const dayTicks = CONFIG.dayDurationTicks;
+            const nightTicks = CONFIG.nightDurationTicks;
+            const cycleTotal = dayTicks + nightTicks;
+            const cycle = this.ticks % cycleTotal;
+            const isNight = cycle >= dayTicks;
+            const ticksInPhase = isNight ? (cycle - dayTicks) : cycle;
+            const phaseDuration = isNight ? nightTicks : dayTicks;
            const secondsLeft = Math.floor((phaseDuration - ticksInPhase) / 20);
            this.io.emit('timeSync', { isNight, secondsLeft });
        }
     }
   }
+  /**
+   * Processa a fila de monstros pendentes de respawn. A cada 1s, revive
+   * os que já cumpriram o timer. (Fase 4a — Respawn gradual)
+   */
+  private processPendingRespawns() {
+      const now = Date.now();
+      const toRespawn: string[] = [];
+      this.pendingRespawns.forEach((respawnAt, id) => {
+          if (now >= respawnAt) toRespawn.push(id);
+      });
+      for (const id of toRespawn) {
+          const m = this.players.get(id);
+          if (!m) { this.pendingRespawns.delete(id); continue; }
+          const spawn = this.monsterSpawnData.get(id);
+          if (!spawn) { this.pendingRespawns.delete(id); continue; }
+          // Calcula posição de respawn
+          let newX = spawn.x;
+          let newY = spawn.y;
+          if (spawn.bounds) {
+              // Cidade: spawn aleatório dentro dos bounds (evita paredes + portões)
+              let attempts = 0;
+              do {
+                  newX = Math.floor(Math.random() * (spawn.bounds.xMax - spawn.bounds.xMin + 1)) + spawn.bounds.xMin;
+                  newY = Math.floor(Math.random() * (spawn.bounds.yMax - spawn.bounds.yMin + 1)) + spawn.bounds.yMin;
+                  attempts++;
+              } while (this.monsterWalls.has(`${newX},${newY}`) && attempts < 20);
+          }
+          // Revive o monstro
+          m.isDead = false;
+          m.health = m.maxHealth;
+          m.x = newX;
+          m.y = newY;
+          m.targetId = undefined;
+          this.pendingRespawns.delete(id);
+          // Anuncia para todos
+          this.io.emit('playerMoved', m);
+          this.io.emit('textEffect', { x: newX, y: newY, message: `👹 ${m.name} reviveu`, color: '#888888' });
+      }
+  }
+
   private checkDeath(attacker: PlayerData, target: PlayerData) {
      if (target.health <= 0 && !target.isDead) {
         target.isDead = true;
         
         // Lógica de Respawn e Loot
         if (target.isMonster) {
-            // Da Experiencia dependendo do monstro
-            let expReward = 50;
-            if (target.name === 'Orc') expReward = 150;
-            else if (target.name === 'Rotworm') expReward = 250;
-            else if (target.name === 'Demon Skeleton') expReward = 600;
-            else if (target.name === 'Nightmare Skeleton') expReward = 5000;
+            // Da Experiencia dependendo do monstro (configurável)
+            let expReward = CONFIG.expByMonster[target.name] ?? 50;
+            // Boss de cidade dá EXP extra (definida em bossStats)
+            const isBoss = target.id.startsWith('city_boss_') || target.id === 'night_boss';
+            if (target.id.startsWith('city_boss_')) {
+                const city = MONSTER_CITIES.find(c => `city_boss_${c.id}` === target.id);
+                if (city) expReward = city.bossStats.exp;
+            }
+            // Anúncio global quando um Boss é morto
+            if (isBoss) {
+                const bossName = target.name;
+                const heroName = attacker.name;
+                const msg = `${heroName} matou ${bossName}!`;
+                this.players.forEach(p => {
+                    if (!p.isMonster) {
+                        this.io.to(p.id).emit('textEffect', { x: p.x, y: p.y, message: `🔥 ${msg}`, color: '#ef4444' });
+                    }
+                });
+                this.io.emit('playerSpoke', { id: '__system__', message: `🔥 ${msg}` });
+            }
             attacker.experience += expReward;
-            
+
+            // Ouro direto = nível do monstro * multiplicador (não dropa Gold Coin)
+            const goldReward = (target.level || 1) * CONFIG.goldByLevel;
+            attacker.gold = (attacker.gold || 0) + goldReward;
+            this.io.emit('textEffect', { x: target.x, y: target.y, message: `+${goldReward} Ouro`, color: '#fbbf24' });
+            this.io.to(attacker.id).emit('statsUpdate', { id: attacker.id, gold: attacker.gold });
+
             let leveledUp = false;
             while (attacker.experience >= attacker.level * 100) {
                attacker.experience -= attacker.level * 100;
@@ -2231,163 +2902,124 @@ export class Game {
                attacker.statPoints = (attacker.statPoints || 0) + 5;
                leveledUp = true;
             }
-            
+
             if (leveledUp) {
                this.recalculateStats(attacker);
                attacker.health = attacker.maxHealth; // Cura total ao upar
-               
+
                this.io.emit('levelUp', { id: attacker.id, level: attacker.level });
                this.io.emit('textEffect', { x: attacker.x, y: attacker.y, message: 'Subiu de Nível!', color: '#ffff00' });
             }
-            
+
             // Sempre enviar a atualização completa pro cliente
-            this.io.emit('statsUpdate', { 
-                id: attacker.id, level: attacker.level, experience: attacker.experience, gold: attacker.gold, 
+            this.io.emit('statsUpdate', {
+                id: attacker.id, level: attacker.level, experience: attacker.experience, gold: attacker.gold,
                 stats: attacker.stats, statPoints: attacker.statPoints,
                 attack: attacker.attack, matk: attacker.matk, def: attacker.def, mdef: attacker.mdef,
                 hit: attacker.hit, dodge: attacker.dodge, crit: attacker.crit, aspd: attacker.aspd,
                 sp: attacker.sp, maxSp: attacker.maxSp, weight: attacker.weight, maxWeight: attacker.maxWeight
             });
-            
+
             // Texto visual de XP ganha em cima do corpo do monstro
             this.io.emit('textEffect', { x: target.x, y: target.y, text: `+${expReward} EXP`, color: '#fbbf24' });
 
-            // Expande Loot baseado no monstro
-            const roll = Math.random();
-            let itemName = '';
-            
-            if (target.name === 'Orc') {
-                if (roll < 0.10) itemName = 'Steel Sword';  // 10%
-                else if (roll < 0.25) itemName = 'Health Potion'; // 15%
-                else if (roll < 0.38) itemName = 'Mana Potion';   // 13%
-                else if (roll < 0.65) itemName = 'Apple';         // 27%
-                else itemName = 'Gold Coin';                      // 35%
-            } else if (target.name === 'Rotworm') {
-                // Rotworm drops: Gold Coin 50%, Apple 20%, Cheese 15%, Health Potion 8%, Wood Sword 5%, Steel Sword 2%
-                if (roll < 0.02) itemName = 'Steel Sword'; // 2%
-                else if (roll < 0.07) itemName = 'Wood Sword'; // 5%
-                else if (roll < 0.15) itemName = 'Health Potion'; // 8%
-                else if (roll < 0.30) itemName = 'Cheese'; // 15%
-                else if (roll < 0.50) itemName = 'Apple'; // 20%
-                else itemName = 'Gold Coin'; // 50%
-            } else if (target.name === 'Demon Skeleton') {
-                // Demon Skeleton drops: Gold Coin 70% direct. Others in remaining 30%:
-                if (Math.random() < 0.70) {
-                    itemName = 'Gold Coin';
-                } else {
-                    const eqRoll = Math.random();
-                    if (eqRoll < 0.05) itemName = 'Armor'; // 5%
-                    else if (eqRoll < 0.10) itemName = 'Leather Boots'; // 5%
-                    else if (eqRoll < 0.18) itemName = 'Steel Sword'; // 8%
-                    else if (eqRoll < 0.26) itemName = 'Pants'; // 8%
-                    else if (eqRoll < 0.36) itemName = 'Helmet'; // 10%
-                    else if (eqRoll < 0.51) itemName = 'Health Potion'; // 15%
-                    else if (eqRoll < 0.66) itemName = 'Mana Potion'; // 15%
-                    else itemName = 'Gold Coin'; // Fallback
-                }
-            } else if (target.name === 'Nightmare Skeleton') {
-                itemName = 'Armor'; // Drop do boss: Armadura Forte
-                // Drop extra de Gold garantido
-                const dropId2 = `item_${Math.random().toString(36).substring(2, 9)}`;
-                const dropItem2 = { id: dropId2, name: 'Gold Coin', x: target.x, y: target.y, emoji: ITEM_EMOJIS['Gold Coin'] || '📦' };
-                this.itemsOnFloor.set(dropId2, dropItem2);
-                this.io.emit('itemDropped', dropItem2);
-            } else {
-                // Giant Rat
-                if (roll < 0.04) itemName = 'Steel Sword';   // 4%
-                else if (roll < 0.08) itemName = 'Torch';    // 4%
-                else if (roll < 0.16) itemName = 'Health Potion'; // 8%
-                else if (roll < 0.23) itemName = 'Mana Potion';   // 7%
-                else if (roll < 0.36) itemName = 'Apple';         // 13%
-                else if (roll < 0.52) itemName = 'Cheese';        // 16%
-                else if (roll < 0.65) itemName = 'Blueberry';     // 13%
-                else itemName = 'Gold Coin';                      // 35%
-            }
-            
-            const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
-            const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
-            this.itemsOnFloor.set(dropId, dropItem);
-            this.io.emit('itemDropped', dropItem);
-            
-            // Auto-pickup: verifica se algum jogador está exatamente na coordenada do drop
-            this.players.forEach((p) => {
-                if (!p.isMonster && !p.isDead && p.x === dropItem.x && p.y === dropItem.y) {
-                    if (dropItem.name === 'Gold Coin') {
-                        this.itemsOnFloor.delete(dropId);
-                        p.gold = (p.gold || 0) + 1;
-                        this.io.to(p.id).emit('statsUpdate', { id: p.id, level: p.level, experience: p.experience, gold: p.gold });
-                        this.io.to(p.id).emit('itemPickedUp', dropItem);
-                        this.io.emit('itemRemoved', dropId);
-                    } else if (p.backpack) {
-                        const weight = ITEM_WEIGHTS[dropItem.name] || 5;
-                        if (p.weight + weight <= (p.maxWeight || 250)) {
-                            const added = this.addItemToBackpack(p, dropItem.name);
-                            if (added) {
-                                this.itemsOnFloor.delete(dropId);
-                                this.recalculateWeight(p);
-                                this.io.to(p.id).emit('itemPickedUp', dropItem);
-                                this.io.to(p.id).emit('inventoryUpdate', p.backpack);
-                                this.io.to(p.id).emit('statsUpdate', { id: p.id, weight: p.weight, maxWeight: p.maxWeight });
-                                this.io.emit('itemRemoved', dropId);
+            // Loot via drop table configurável
+            const itemName = rollDropTable(target.name);
+            if (itemName) {
+                const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
+                const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: getItemIcon(itemName) };
+                this.itemsOnFloor.set(dropId, dropItem);
+                this.io.emit('itemDropped', dropItem);
+
+                // Auto-pickup: verifica se algum jogador está exatamente na coordenada do drop
+                this.players.forEach((p) => {
+                    if (!p.isMonster && !p.isDead && p.x === dropItem.x && p.y === dropItem.y) {
+                        if (dropItem.name === 'Gold Coin') {
+                            this.itemsOnFloor.delete(dropId);
+                            p.gold = (p.gold || 0) + 1;
+                            this.io.to(p.id).emit('statsUpdate', { id: p.id, level: p.level, experience: p.experience, gold: p.gold });
+                            this.io.to(p.id).emit('itemPickedUp', dropItem);
+                            this.io.emit('itemRemoved', dropId);
+                        } else if (p.backpack) {
+                            const weight = ITEM_WEIGHTS[dropItem.name] || 5;
+                            if (p.weight + weight <= (p.maxWeight || CONFIG.maxWeightBase)) {
+                                const added = this.addItemToBackpack(p, dropItem.name);
+                                if (added) {
+                                    this.itemsOnFloor.delete(dropId);
+                                    this.recalculateWeight(p);
+                                    this.io.to(p.id).emit('itemPickedUp', dropItem);
+                                    this.io.to(p.id).emit('inventoryUpdate', p.backpack);
+                                    this.io.to(p.id).emit('statsUpdate', { id: p.id, weight: p.weight, maxWeight: p.maxWeight });
+                                    this.io.emit('itemRemoved', dropId);
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
             
             // Tira do mapa
             target.x = -100;
             target.y = -100;
             this.io.emit('playerMoved', target);
 
-            setTimeout(() => {
-                target.isDead = false;
-                target.health = target.maxHealth;
-                // Random Respawn
-                let newX = Math.floor(Math.random() * 38) + 1;
-                let newY = Math.floor(Math.random() * 38) + 1;
-                while (this.walls.has(`${newX},${newY}`)) {
-                    newX = Math.floor(Math.random() * 38) + 1;
-                    newY = Math.floor(Math.random() * 38) + 1;
-                }
-                target.x = newX;
-                target.y = newY;
-                this.io.emit('playerMoved', target);
-            }, 5000); // 5 segs pra reviver
+            // Agenda respawn gradual (Fase 4a)
+            const jitter = Math.floor(Math.random() * CONFIG.monsterRespawnJitterMs);
+            const respawnAt = Date.now() + CONFIG.monsterRespawnMs + jitter;
+            this.pendingRespawns.set(target.id, respawnAt);
         } else {
-            // Player morreu!
+            // Player morreu (PvP)!
             target.isDead = true;
             target.health = 0;
             attacker.targetId = undefined; // Atacante perde o target
-            
+
+            // PvP: 10 ouro direto para o vencedor
+            const pvpGold = CONFIG.pvpGoldReward;
+            attacker.gold = (attacker.gold || 0) + pvpGold;
+            this.io.to(attacker.id).emit('statsUpdate', { id: attacker.id, gold: attacker.gold });
+            this.io.emit('textEffect', { x: attacker.x, y: attacker.y, message: `+${pvpGold} Ouro (PvP)`, color: '#fbbf24' });
+
+            // PvP: Skull com nome do derrotado no chão
+            const skullId = `item_${Math.random().toString(36).substring(2, 9)}`;
+            const skullItem = {
+                id: skullId,
+                name: 'Skull',
+                x: target.x,
+                y: target.y,
+                emoji: '💀',
+                metadata: { ofPlayer: target.name }
+            };
+            this.itemsOnFloor.set(skullId, skullItem);
+            this.io.emit('itemDropped', skullItem);
+
             // Lógica de perder itens do inventário (30% de chance de perder cada slot de item)
             const lostItems: string[] = [];
             if (target.backpack && target.backpack.length > 0) {
                 for (let i = target.backpack.length - 1; i >= 0; i--) {
-                    if (Math.random() < 0.30) { // 30% de chance de perder o slot
+                    if (Math.random() < CONFIG.pvpItemLossChance) { // chance configurável de perder o slot
                         const itemString = target.backpack[i];
                         const [itemName, countStr] = itemString.split(':');
                         target.backpack.splice(i, 1);
-                        
+
                         // Spawna no chão onde o jogador morreu
                         const dropId = `item_${Math.random().toString(36).substring(2, 9)}`;
-                        const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: ITEM_EMOJIS[itemName] || '📦' };
+                        const dropItem = { id: dropId, name: itemName, x: target.x, y: target.y, emoji: getItemIcon(itemName) };
                         this.itemsOnFloor.set(dropId, dropItem);
                         this.io.emit('itemDropped', dropItem);
-                        
+
                         lostItems.push(itemName);
                     }
                 }
             }
-            
+
             this.recalculateWeight(target);
-            
+
             // Envia o sinal de morte e os itens perdidos para o jogador local
-            this.io.to(target.id).emit('playerDied', { lostItems });
-            
+            this.io.to(target.id).emit('playerDied', { lostItems, killer: attacker.name });
+
             // Notifica todos que o jogador está morto (deitado na mesma coordenada)
             this.io.emit('playerMoved', target);
-            
+
             // Sincroniza a barra lateral do HUD local com HP 0
             this.io.to(target.id).emit('statsUpdate', { id: target.id, health: 0, weight: target.weight });
             this.io.to(target.id).emit('inventoryUpdate', target.backpack);
@@ -2460,6 +3092,63 @@ export class Game {
           return sum + (ITEM_WEIGHTS[name] || 5) * count;
       }, 0);
       player.weight = currentWeight;
+  }
+
+  /**
+   * Organiza uma lista de itens: empilha stacks do mesmo item (até 99),
+   * mantém a ordem de prioridade (stackables primeiro, depois alfabético).
+   * Preenche o restante com strings vazias até o maxSlots.
+   */
+  private sortItemList(items: string[], maxSlots: number): string[] {
+      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin'];
+
+      type Entry = { name: string; count: number; isJson: boolean; jsonStr?: string };
+      const stackMap = new Map<string, number>();
+      const unique: Entry[] = [];
+
+      for (const raw of items) {
+          if (!raw) continue;
+          let name = raw;
+          let count = 1;
+          let isJson = false;
+          let jsonStr: string | undefined;
+          if (raw.startsWith('{')) {
+              isJson = true;
+              jsonStr = raw;
+              try { name = JSON.parse(raw).name; } catch (e) {}
+          } else if (raw.includes(':')) {
+              const [n, c] = raw.split(':');
+              name = n;
+              count = parseInt(c) || 1;
+          }
+
+          if (stackableItems.includes(name) && !isJson) {
+              stackMap.set(name, (stackMap.get(name) || 0) + count);
+          } else {
+              unique.push({ name, count, isJson, jsonStr });
+          }
+      }
+
+      // Constrói stacks (até 99 por slot)
+      const result: string[] = [];
+      for (const [name, total] of stackMap) {
+          let remaining = total;
+          while (remaining > 0) {
+              const chunk = Math.min(99, remaining);
+              result.push(`${name}:${chunk}`);
+              remaining -= chunk;
+          }
+      }
+      // Itens únicos (não-stackable ou JSON) ordenados por nome
+      unique.sort((a, b) => a.name.localeCompare(b.name));
+      for (const u of unique) {
+          result.push(u.isJson ? u.jsonStr! : u.name);
+      }
+
+      // Preenche até maxSlots com vazios
+      while (result.length < maxSlots) result.push('');
+      // Trunca se passou do limite
+      return result.slice(0, maxSlots);
   }
 
   private recalculateStats(player: PlayerData) {
@@ -2698,6 +3387,36 @@ export class Game {
           this.io.emit('playerSpoke', { id: 'npc_merchant', message: `[GM]: ${msg}` }); // Mensagem de chat global
       });
 
+      // ============ Config do Servidor (página admin) ============
+      socket.on('admin:getConfig', () => {
+          socket.emit('admin:configData', CONFIG);
+      });
+
+      socket.on('admin:setConfig', (partial: Partial<ServerConfig>) => {
+          try {
+              // Aplica cada chave recebida (campos top-level + dropTables + expByMonster + cityBounds)
+              for (const key of Object.keys(partial) as (keyof ServerConfig)[]) {
+                  if (key in CONFIG) {
+                      (CONFIG as any)[key] = (partial as any)[key];
+                  }
+              }
+              saveConfigToDB('main', CONFIG);
+              this.io.emit('admin:configData', CONFIG); // broadcast pra todos os GMs conectados
+              this.io.emit('textEffect', { x: 20, y: 15, message: '[CONFIG] Configuração atualizada pelo GM', color: '#fbbf24' });
+              console.log('[CONFIG] Atualizado pelo GM:', Object.keys(partial).join(', '));
+          } catch (err) {
+              console.error('admin:setConfig error:', err);
+              socket.emit('textEffect', { x: 20, y: 15, message: 'Erro ao salvar config!', color: '#ff5555' });
+          }
+      });
+
+      socket.on('admin:resetConfig', () => {
+          resetConfigToDefaults();
+          saveConfigToDB('main', CONFIG);
+          this.io.emit('admin:configData', CONFIG);
+          this.io.emit('textEffect', { x: 20, y: 15, message: '[CONFIG] Resetado para os padrões', color: '#fbbf24' });
+      });
+
       socket.on('admin:setTime', (isNight: boolean) => {
           this.isNight = isNight;
           this.io.emit('timeUpdate', { isNight: this.isNight });
@@ -2759,24 +3478,107 @@ export class Game {
            this.io.emit('admin:playerUpdated');
        });
 
-       socket.on('admin:spawnItem', (data: { name: string, x?: number, y?: number }) => {
-           let spawnX = data.x;
-           let spawnY = data.y;
+        socket.on('admin:spawnItem', (data: { name: string, x?: number, y?: number }) => {
+            let spawnX = data.x;
+            let spawnY = data.y;
 
-           if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
-               spawnX = Math.floor(Math.random() * 38) + 1;
-               spawnY = Math.floor(Math.random() * 38) + 1;
-               while (this.walls.has(`${spawnX},${spawnY}`)) {
-                   spawnX = Math.floor(Math.random() * 38) + 1;
-                   spawnY = Math.floor(Math.random() * 38) + 1;
-               }
-           }
+            if (spawnX === undefined || spawnY === undefined || spawnX === null || spawnY === null || isNaN(spawnX) || isNaN(spawnY)) {
+                spawnX = Math.floor(Math.random() * 38) + 1;
+                spawnY = Math.floor(Math.random() * 38) + 1;
+                while (this.walls.has(`${spawnX},${spawnY}`)) {
+                    spawnX = Math.floor(Math.random() * 38) + 1;
+                    spawnY = Math.floor(Math.random() * 38) + 1;
+                }
+            }
 
-           const dropId = `item_gm_${Math.random().toString(36).substring(2, 7)}`;
-           const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: ITEM_EMOJIS[data.name] || '📦' };
-           this.itemsOnFloor.set(dropId, dropItem);
-           this.io.emit('itemDropped', dropItem);
-       });
+            const dropId = `item_gm_${Math.random().toString(36).substring(2, 7)}`;
+            const dropItem = { id: dropId, name: data.name, x: spawnX, y: spawnY, emoji: getItemIcon(data.name) };
+            this.itemsOnFloor.set(dropId, dropItem);
+            this.io.emit('itemDropped', dropItem);
+        });
+
+        // ============ Admin: NPC Vendors ============
+        socket.on('admin:getVendors', () => {
+            // Retorna a configuração atual dos vendors (inclui os da praça se houver)
+            const vendors = CITY_VENDORS.map(v => ({
+                id: v.id,
+                name: v.name,
+                x: v.x,
+                y: v.y,
+                cityId: v.cityId || 'plaza',
+                stock: v.stock.map(s => ({ ...s }))
+            }));
+            socket.emit('admin:vendorsData', vendors);
+        });
+
+        socket.on('admin:setVendorStock', (data: { vendorId: string, stock: Array<{ name: string, emoji: string, price: number }> }) => {
+            const vendorIdx = CITY_VENDORS.findIndex(v => v.id === data.vendorId);
+            if (vendorIdx >= 0) {
+                CITY_VENDORS[vendorIdx].stock = data.stock.map(s => ({ name: s.name, emoji: s.emoji || '📦', price: Math.max(1, s.price || 1) }));
+                this.io.emit('admin:vendorsData', CITY_VENDORS.map(v => ({
+                    id: v.id,
+                    name: v.name,
+                    x: v.x,
+                    y: v.y,
+                    cityId: v.cityId || 'plaza',
+                    stock: v.stock.map(s => ({ ...s }))
+                })));
+                // Atualiza o NPC vendor online se estiver conectado
+                const vendorNpc = this.players.get(data.vendorId);
+                if (vendorNpc && (vendorNpc as any).isNPC && (vendorNpc as any).npcType === 'vendor') {
+                    // O estoque é lido direto do CITY_VENDORS na interação, não precisa atualizar o NPC
+                }
+                socket.emit('textEffect', { x: 0, y: 0, message: `✅ Estoque de ${CITY_VENDORS[vendorIdx]?.name || data.vendorId} atualizado!`, color: '#10b981' });
+            } else {
+                socket.emit('textEffect', { x: 0, y: 0, message: `❌ Vendor ${data.vendorId} não encontrado!`, color: '#ef4444' });
+            }
+        });
+
+        // ============ Admin: NPC Crafting Stations ============
+        socket.on('admin:getCrafters', () => {
+            const stations = Array.from(this.craftingStations.values()).map(s => ({
+                id: s.id,
+                type: s.type,
+                name: s.name,
+                emoji: s.emoji,
+                x: s.x,
+                y: s.y
+            }));
+            socket.emit('admin:craftersData', {
+                stations,
+                recipes: CRAFTING_RECIPES.map(r => ({ ...r }))
+            });
+        });
+
+        // ============ Admin: Save Recipe ============
+        socket.on('admin:setRecipe', (data: { recipe: Recipe }) => {
+            const idx = CRAFTING_RECIPES.findIndex(r => r.id === data.recipe.id);
+            if (idx >= 0) {
+                CRAFTING_RECIPES[idx] = data.recipe;
+            } else {
+                CRAFTING_RECIPES.push(data.recipe);
+            }
+            socket.emit('textEffect', { x: 0, y: 0, message: `✅ Receita ${data.recipe.name} salva!`, color: '#10b981' });
+        });
+
+        // ============ Admin: Delete Recipe ============
+        socket.on('admin:deleteRecipe', (data: { recipeId: string }) => {
+            const idx = CRAFTING_RECIPES.findIndex(r => r.id === data.recipeId);
+            if (idx >= 0) {
+                CRAFTING_RECIPES.splice(idx, 1);
+                socket.emit('textEffect', { x: 0, y: 0, message: `✅ Receita removida!`, color: '#10b981' });
+            }
+        });
+
+        // ============ Admin: NPC Teleporters ============
+        socket.on('admin:getTeleporters', () => {
+            const teleporters = [
+                { id: PLAZA_TELEPORTER.id, name: PLAZA_TELEPORTER.name, x: PLAZA_TELEPORTER.x, y: PLAZA_TELEPORTER.y, kind: PLAZA_TELEPORTER.kind },
+                { id: CAVERNA_TELEPORTER.id, name: CAVERNA_TELEPORTER.name, x: CAVERNA_TELEPORTER.x, y: CAVERNA_TELEPORTER.y, kind: CAVERNA_TELEPORTER.kind },
+                ...CITY_TELEPORTERS.map(t => ({ id: t.id, name: t.name, x: t.x, y: t.y, kind: t.kind, cityId: t.cityId }))
+            ];
+            socket.emit('admin:teleportersData', teleporters);
+        });
 
         socket.on('startGathering', (data: { nodeId: string }) => {
             const player = this.players.get(socket.id);
@@ -2830,6 +3632,106 @@ export class Game {
              this.activeRecalls.set(socket.id, timeout);
          });
 
+         // ============================================================
+         // Interação com NPCs (teleporter / vendor) — substitui portais
+         // ============================================================
+
+         // Cliente clicou num NPC; servidor valida proximidade e responde
+         socket.on('npc:interact', (data: { npcId: string }) => {
+             console.log(`[NPC] npc:interact de ${socket.id} npcId=${data.npcId}`);
+             const player = this.players.get(socket.id);
+             if (!player || player.isDead) return;
+             const npc = this.players.get(data.npcId);
+             if (!npc || !(npc as any).isNPC) {
+                 console.log(`[NPC] NPC inválido: npc=${!!npc} isNPC=${npc ? (npc as any).isNPC : 'n/a'}`);
+                 socket.emit('textEffect', { x: player.x, y: player.y, message: 'NPC inválido.', color: '#ff5555' });
+                 return;
+             }
+             const npcType = (npc as any).npcType;
+             console.log(`[NPC] npc:interact válido npcId=${data.npcId} npcType=${npcType} pos=(${npc.x},${npc.y}) playerPos=(${player.x},${player.y})`);
+             // Valida distância (≤ 2 tiles)
+             const dist = Math.abs(npc.x - player.x) + Math.abs(npc.y - player.y);
+             if (dist > 2) {
+                 socket.emit('textEffect', { x: player.x, y: player.y, message: 'Chegue mais perto!', color: '#ff5555' });
+                 return;
+             }
+              if (npcType === 'teleporter') {
+                  // Identifica qual teleporter é este NPC
+                  const teleporter = getTeleporterAt(npc.x, npc.y);
+                  if (!teleporter) return;
+                  if (teleporter.kind === 'hub') {
+                      // Hub: envia lista de destinos
+                      socket.emit('teleporter:destinations', {
+                          npcId: npc.id,
+                          destinations: getHubDestinations(),
+                      });
+                   } else {
+                       // cityReturn / cavernaReturn: volta instantânea para a praça central
+                       // (kind=hub aciona a getTeleporterDestination que retorna o centro da praça)
+                       this.performTeleport(socket, { kind: 'hub' });
+                   }
+             } else if (npcType === 'vendor') {
+                 const vendor = getVendorAt(npc.x, npc.y);
+                 if (!vendor) return;
+                 socket.emit('vendor:open', {
+                     npcId: npc.id,
+                     name: vendor.name,
+                     stock: vendor.stock,
+                 });
+             }
+         });
+
+         // Cliente escolheu um destino no menu do teleporter hub
+         socket.on('teleporter:teleport', (data: { destinationId: string }) => {
+             const player = this.players.get(socket.id);
+             if (!player || player.isDead) return;
+             const dest = data.destinationId;
+             // caverna
+             if (dest === 'caverna') {
+                 this.performTeleport(socket, { kind: 'cavernaReturn' });
+                 return;
+             }
+             // cidade
+             const city = MONSTER_CITIES.find(c => c.id === dest);
+             if (city) {
+                 if (player.level < city.minLevel) {
+                     socket.emit('textEffect', { x: player.x, y: player.y, message: `Requer nível ${city.minLevel} para entrar!`, color: '#ff5555' });
+                     return;
+                 }
+                 this.performTeleport(socket, { kind: 'cityReturn', cityId: city.id });
+             }
+         });
+  }
+
+  /** Move o player para o destino do teleporter e notifica todos. */
+  private performTeleport(socket: Socket, target: { kind: 'hub' | 'cityReturn' | 'cavernaReturn'; cityId?: string }) {
+      const player = this.players.get(socket.id);
+      if (!player || player.isDead) return;
+      const dest = getTeleporterDestination(target);
+      // Garante que a posição de destino não é parede
+      if (this.walls.has(`${dest.x},${dest.y}`)) {
+          // Procura tile adjacente livre
+          const offsets = [[0,0],[1,0],[-1,0],[0,1],[0,-1]];
+          let found: { x: number; y: number } | null = null;
+          for (const [dx, dy] of offsets) {
+              const tx = dest.x + dx, ty = dest.y + dy;
+              const occupied = Array.from(this.players.values()).some(p => p.x === tx && p.y === ty);
+              if (!this.walls.has(`${tx},${ty}`) && !occupied) {
+                  found = { x: tx, y: ty };
+                  break;
+              }
+          }
+          if (!found) return;
+          player.x = found.x;
+          player.y = found.y;
+      } else {
+          player.x = dest.x;
+          player.y = dest.y;
+      }
+      player.facing = 'down';
+      player.targetId = undefined;
+      this.io.emit('playerMoved', player);
+      socket.emit('textEffect', { x: player.x, y: player.y, message: '✨ Teleportado!', color: '#60a5fa' });
   }
 
   private setupResourceNodes() {
@@ -2977,6 +3879,28 @@ export class Game {
           player[lvlField] = newLvl;
       }
 
+      // XP de profissão ao coletar (minério → Smithing, madeira → Tanning, ervas → Alchemy)
+      let profXpField: 'professionSmithingXp' | 'professionAlchemyXp' | 'professionTanningXp' | null = null;
+      let profLvlField: 'professionSmithingLevel' | 'professionAlchemyLevel' | 'professionTanningLevel' | null = null;
+      if (node.type === 'ore') { profXpField = 'professionSmithingXp'; profLvlField = 'professionSmithingLevel'; }
+      else if (node.type === 'herb') { profXpField = 'professionAlchemyXp'; profLvlField = 'professionAlchemyLevel'; }
+      else if (node.type === 'tree') { profXpField = 'professionTanningXp'; profLvlField = 'professionTanningLevel'; }
+      if (profXpField && profLvlField) {
+          const currentLvl = player[profLvlField] || 1;
+          const currentXp = player[profXpField] || 0;
+          const xpGained = 6;
+          const nextLvlXp = currentLvl * 100;
+          let newXp = currentXp + xpGained;
+          let newLvl = currentLvl;
+          if (newXp >= nextLvlXp) {
+              newXp -= nextLvlXp;
+              newLvl++;
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Nível de Profissão Subiu!', color: '#eab308' });
+          }
+          player[profXpField] = newXp;
+          player[profLvlField] = newLvl;
+      }
+
       this.recalculateWeight(player);
 
       const displayItemName = ITEM_NAMES_PT[itemName] || itemName;
@@ -2991,7 +3915,13 @@ export class Game {
           gatheringHerbalismLevel: player.gatheringHerbalismLevel,
           gatheringHerbalismXp: player.gatheringHerbalismXp,
           gatheringWoodcuttingLevel: player.gatheringWoodcuttingLevel,
-          gatheringWoodcuttingXp: player.gatheringWoodcuttingXp
+          gatheringWoodcuttingXp: player.gatheringWoodcuttingXp,
+          professionSmithingLevel: player.professionSmithingLevel,
+          professionSmithingXp: player.professionSmithingXp,
+          professionAlchemyLevel: player.professionAlchemyLevel,
+          professionAlchemyXp: player.professionAlchemyXp,
+          professionTanningLevel: player.professionTanningLevel,
+          professionTanningXp: player.professionTanningXp
       });
   }
 

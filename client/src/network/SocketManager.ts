@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import { GameScene } from '../scenes/GameScene';
-import { PlayerData, Position } from '../../../shared/types';
+import { Position } from '../../../shared/types';
 
 export class SocketManager {
   public socket!: Socket;
@@ -11,16 +11,18 @@ export class SocketManager {
   }
 
   public connect(playerName: string) {
-    // Detecta se estamos em ambiente local. Caso contrario, busca a variavel VITE_SERVER_URL ou usa o placeholder de producao.
+    // Em localhost, usa o proxy do Vite (mesma origem) — elimina CORS no desenvolvimento.
+    // Em produção (acesso externo), usa VITE_SERVER_URL.
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const defaultUrl = isLocal ? 'http://localhost:3000' : 'https://aethelgard-server-9go1.onrender.com';
+    const defaultUrl = isLocal ? window.location.origin : 'https://aethelgard-server-9go1.onrender.com';
     const serverUrl = (import.meta as any).env.VITE_SERVER_URL || defaultUrl;
 
     this.socket = io(serverUrl, {
-        auth: { 
+        auth: {
             name: playerName,
             password: (window as any).playerPassword
-        }
+        },
+        transports: ['websocket', 'polling']
     });
 
     this.setupListeners();
@@ -29,6 +31,68 @@ export class SocketManager {
     (window as any).sendAddStat = (statName: string) => {
         if (this.socket) this.socket.emit('addStat', statName);
     };
+  }
+
+  public attachExisting(existingSocket: Socket) {
+    this.socket = existingSocket;
+    this.setupListeners();
+    (window as any).sendAddStat = (statName: string) => {
+      if (this.socket) this.socket.emit('addStat', statName);
+    };
+    console.log('[SocketManager] attached existing socket', this.socket.id);
+    // Conecta um handler global que recebe TODOS os eventos do jogo (incluindo os bufferados)
+    (window as any).__onGameEvent = (event: string, data: any) => this.routeGameEvent(event, data);
+    // Drena o buffer de eventos que chegaram antes do attach
+    if ((window as any).__flushGameEvents) {
+      (window as any).__flushGameEvents((evt: string, data: any) => this.routeGameEvent(evt, data));
+    }
+  }
+
+  private routeGameEvent(event: string, data: any) {
+    switch (event) {
+      case 'init': this.scene.onLocalPlayerInit(data); break;
+      case 'mapData': this.scene.onMapData(data); break;
+      case 'cities:data': this.scene.onCitiesData(data); break;
+      case 'plaza:data': this.scene.onPlazaData(data); break;
+      case 'timeUpdate': {
+        this.scene.setNight(data.isNight);
+        this.scene.addServerMessage(data.isNight ? 'Anoiteceu nas terras de Aethelgard' : 'Amanheceu nas terras de Aethelgard');
+        break;
+      }
+      case 'currentPlayers': this.scene.onCurrentPlayers(data); break;
+      case 'playerJoined': this.scene.onPlayerJoined(data); break;
+      case 'playerMoved': this.scene.onPlayerMoved(data); break;
+      case 'playerDashed': this.scene.onPlayerDashed(data); break;
+      case 'itemDropped': this.scene.onItemDropped(data); break;
+      case 'itemRemoved': this.scene.onItemRemoved(data); break;
+      case 'itemPickedUp': this.scene.onItemPickedUp(data); break;
+      case 'inventoryUpdate': {
+        this.scene.onInventoryUpdate(data);
+        if ((window as any).updateHotkeyBar) {
+          (window as any).updateHotkeyBar(data);
+        }
+        break;
+      }
+      case 'equipmentUpdate': this.scene.onEquipmentUpdate(data); break;
+      case 'statsUpdate': {
+        this.scene.onStatsUpdate(data);
+        if (data.id === this.socket.id && data.level !== undefined) {
+          const levelEl = document.getElementById('player-level-display');
+          if (levelEl) levelEl.innerText = `Level ${data.level}`;
+        }
+        break;
+      }
+      case 'bank:update': this.scene.onBankUpdate(data); break;
+      case 'textEffect': this.scene.onTextEffect(data.x, data.y, data.text || data.message || '', data.color); break;
+      case 'levelUp': this.scene.onLevelUp(data); break;
+      case 'playerDamaged': this.scene.onPlayerDamaged(data); break;
+      case 'entity:info': this.scene.onEntityInfo(data); break;
+      case 'timeSync': /* clock handled by main UI */ break;
+      case 'bossSpawned': this.scene.addServerMessage(`O aterrorizante ${data.name} nasceu`, true); break;
+      case 'teleporter:destinations': console.log('[NPC] evento teleporter:destinations recebido', data); this.openTeleporter(data.destinations); break;
+      case 'vendor:open': console.log('[NPC] evento vendor:open recebido', data); this.openVendor(data.name, data.stock); break;
+      default: console.warn('[SocketManager] unhandled game event:', event);
+    }
   }
 
   public getId(): string | undefined {
@@ -42,13 +106,8 @@ export class SocketManager {
 
     this.socket.on('disconnect', (reason) => {
       console.log('Desconectado:', reason);
-      if (reason === 'io server disconnect') {
-        // the disconnection was initiated by the server, you need to reconnect manually
-        // We handle loginFailed explicitly below.
-      } else {
-          // Reconnect automatically para manter a sessão
-          window.location.reload();
-      }
+      // NÃO recarregar a página — isso destruía o estado do usuário.
+      // Apenas loga. O main.ts cuida de mostrar toast e reconectar.
     });
 
     this.socket.on('loginFailed', (data: { message: string }) => {
@@ -57,30 +116,6 @@ export class SocketManager {
         // Remove from global
         (window as any).playerName = undefined;
         (window as any).playerPassword = undefined;
-    });
-
-    this.socket.on('init', (data: PlayerData) => {
-      this.scene.onLocalPlayerInit(data);
-    });
-
-    this.socket.on('mapData', (data: any) => {
-      this.scene.onMapData(data);
-    });
-
-    this.socket.on('currentPlayers', (data: PlayerData[]) => {
-      this.scene.onCurrentPlayers(data);
-    });
-
-    this.socket.on('playerJoined', (data: PlayerData) => {
-      this.scene.onPlayerJoined(data);
-    });
-
-    this.socket.on('playerMoved', (data: PlayerData) => {
-      this.scene.onPlayerMoved(data);
-    });
-
-    this.socket.on('playerDashed', (data: PlayerData) => {
-      this.scene.onPlayerDashed(data);
     });
 
     this.socket.on('projectileCreated', (data: any) => {
@@ -97,24 +132,12 @@ export class SocketManager {
       this.scene.onPlayerLeft(id);
     });
 
-    this.socket.on('playerDamaged', (data: { id: string, health: number, maxHealth: number, amount?: number }) => {
-      this.scene.onPlayerDamaged(data);
-    });
-
     this.socket.on('playerSpoke', (data: { id: string, message: string }) => {
       this.scene.onPlayerSpoke(data.id, data.message);
     });
 
     this.socket.on('spellCast', (data: {casterId: string, targetId?: string, spell: string}) => {
         this.scene.onSpellCast(data);
-    });
-    
-    this.socket.on('levelUp', (data: {id: string, level: number}) => {
-        this.scene.onLevelUp(data);
-    });
-
-    this.socket.on('timeUpdate', (data: { isNight: boolean }) => {
-        this.scene.setNight(data.isNight);
     });
     
     this.socket.on('timeSync', (data: { isNight: boolean, secondsLeft: number }) => {
@@ -131,26 +154,6 @@ export class SocketManager {
             clockTime.innerText = timeStr;
             clockTime.style.color = sec <= 5 ? '#ff4444' : '#ffffff'; // Fica vermelho nos ultimos 5 segundos
         }
-    });
-
-    this.socket.on('itemDropped', (data: any) => {
-      this.scene.onItemDropped(data);
-    });
-
-    this.socket.on('itemRemoved', (key: string) => {
-      this.scene.onItemRemoved(key);
-    });
-
-    this.socket.on('itemPickedUp', (data: any) => {
-      this.scene.onItemPickedUp(data);
-    });
-
-    this.socket.on('inventoryUpdate', (backpack: string[]) => {
-      this.scene.onInventoryUpdate(backpack);
-      // Sincroniza a barra de hotkeys visual (Q = HP, E = MP)
-      if ((window as any).updateHotkeyBar) {
-        (window as any).updateHotkeyBar(backpack);
-      }
     });
 
     this.socket.on('resourceNodeUpdated', (data: any) => {
@@ -177,34 +180,12 @@ export class SocketManager {
       this.scene.onRecallCompleted();
     });
 
-    this.socket.on('equipmentUpdate', (eq: any) => {
-        this.scene.onEquipmentUpdate(eq);
-    });
-
-    this.socket.on('statsUpdate', (data: any) => {
-      this.scene.onStatsUpdate(data);
-      
-      // Update local level text
-      if (data.id === this.socket.id && data.level !== undefined) {
-          const levelEl = document.getElementById('player-level-display');
-          if (levelEl) levelEl.innerText = `Level ${data.level}`;
-      }
-    });
-
     this.socket.on('playerDied', (data: { lostItems: string[] }) => {
       this.scene.onLocalPlayerDeath(data.lostItems);
     });
 
-    this.socket.on('textEffect', (data: { x: number, y: number, text?: string, message?: string, color: string }) => {
-      this.scene.onTextEffect(data.x, data.y, data.text || data.message || '', data.color);
-    });
-
     this.socket.on('auctionList', (list: any[]) => {
       this.scene.renderAuctionList(list);
-    });
-
-    this.socket.on('bank:update', (data: { bankGold: number, bankItems: string[], bankDebtDays: number }) => {
-        this.scene.onBankUpdate(data);
     });
   }
 
@@ -257,15 +238,15 @@ export class SocketManager {
   }
   
   // --- Funções de Loja ---
-  
+
   public openShop() {
       const ui = document.getElementById('shop-ui');
       if (ui) {
           ui.style.display = 'flex';
           this.renderShopBuy();
-          
+
           document.getElementById('close-shop')!.onclick = () => ui.style.display = 'none';
-          
+
           const resetTabs = () => {
               ['tab-buy', 'tab-sell', 'tab-repair', 'tab-auction'].forEach(id => {
                   const el = document.getElementById(id);
@@ -278,7 +259,7 @@ export class SocketManager {
               document.getElementById('tab-buy')!.style.background = '#333';
               this.renderShopBuy();
           };
-          
+
           document.getElementById('tab-sell')!.onclick = () => {
               resetTabs();
               document.getElementById('tab-sell')!.style.background = '#333';
@@ -302,6 +283,137 @@ export class SocketManager {
                   this.socket.emit('getAuctions');
               };
           }
+      }
+  }
+
+  // --- Interação com NPCs (teleporter / vendor) ---
+
+  public interactNPC(npcId: string) {
+      console.log(`[NPC] emitindo npc:interact npcId=${npcId}`);
+      this.socket.emit('npc:interact', { npcId });
+  }
+
+  public openTeleporter(destinations: Array<{ id: string; name: string; minLevel: number; emoji: string }>) {
+      console.log(`[NPC] openTeleporter chamado com ${destinations.length} destinos`);
+      const ui = document.getElementById('teleporter-ui');
+      const content = document.getElementById('teleporter-content');
+      if (!ui || !content) {
+          console.warn('[NPC] openTeleporter: elementos do DOM não encontrados', { ui: !!ui, content: !!content });
+          return;
+      }
+      content.innerHTML = '';
+      destinations.forEach(dest => {
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.alignItems = 'center';
+          row.style.padding = '10px';
+          row.style.borderBottom = '1px solid #1e3a8a';
+          row.style.fontSize = '12px';
+          row.innerHTML = `
+              <span style="color: #e2e8f0;">${dest.emoji} ${dest.name} ${dest.minLevel > 1 ? `<span style="color: #94a3b8; font-size: 10px;">(Requer Lv.${dest.minLevel})</span>` : ''}</span>
+              <button data-dest="${dest.id}" style="background: #3b82f6; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;">Ir ✨</button>
+          `;
+          content.appendChild(row);
+          const btn = row.querySelector('button') as HTMLButtonElement;
+          btn.onclick = () => {
+              this.socket.emit('teleporter:teleport', { destinationId: dest.id });
+              ui.style.display = 'none';
+          };
+      });
+      ui.style.display = 'flex';
+      const closeBtn = document.getElementById('close-teleporter');
+      if (closeBtn) closeBtn.onclick = () => { ui.style.display = 'none'; };
+  }
+
+  private _vendorStock: Array<{ name: string; emoji: string; price: number }> = [];
+
+  public openVendor(name: string, stock: Array<{ name: string; emoji: string; price: number }>) {
+      const ui = document.getElementById('vendor-ui');
+      const titleEl = document.getElementById('vendor-title');
+      if (!ui) return;
+      this._vendorStock = stock;
+      if (titleEl) titleEl.textContent = `🛒 ${name}`;
+      ui.style.display = 'flex';
+      const closeBtn = document.getElementById('close-vendor');
+      if (closeBtn) closeBtn.onclick = () => { ui.style.display = 'none'; };
+      document.getElementById('vendor-tab-buy')!.onclick = () => {
+          document.getElementById('vendor-tab-buy')!.style.background = '#92400e';
+          document.getElementById('vendor-tab-sell')!.style.background = '#451a03';
+          this.renderVendorBuy();
+      };
+      document.getElementById('vendor-tab-sell')!.onclick = () => {
+          document.getElementById('vendor-tab-sell')!.style.background = '#92400e';
+          document.getElementById('vendor-tab-buy')!.style.background = '#451a03';
+          this.renderVendorSell();
+      };
+      this.renderVendorBuy();
+  }
+
+  private renderVendorBuy() {
+      const content = document.getElementById('vendor-content');
+      if (!content) return;
+      content.innerHTML = '';
+      this._vendorStock.forEach(item => {
+          const displayItemName = (window as any).translateItem ? (window as any).translateItem(item.name) : item.name;
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.alignItems = 'center';
+          row.style.padding = '8px';
+          row.style.borderBottom = '1px solid #451a03';
+          row.innerHTML = `
+              <span style="color: #e2e8f0;">${item.emoji} ${displayItemName}</span>
+              <button data-item="${item.name}" style="background: #d97706; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;">Comprar (${item.price} Ouro)</button>
+          `;
+          content.appendChild(row);
+          const btn = row.querySelector('button') as HTMLButtonElement;
+          btn.onclick = () => {
+              this.socket.emit('buyItem', item.name);
+          };
+      });
+  }
+
+  private renderVendorSell() {
+      const content = document.getElementById('vendor-content');
+      if (!content) return;
+      content.innerHTML = '';
+      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
+      const emojis: Record<string, string> = {
+          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️',
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Skull': '💀'
+      };
+      let hasItems = false;
+      this.scene.backpackData.forEach((itemString, index) => {
+          if (!itemString || itemString === '') return;
+          hasItems = true;
+          let baseItemName = itemString;
+          let count = 1;
+          if (itemString.startsWith('{')) {
+              try { const parsed = JSON.parse(itemString); baseItemName = parsed.name; } catch (e) {}
+          } else if (itemString.includes(':')) {
+              const [name, countStr] = itemString.split(':'); baseItemName = name; count = parseInt(countStr) || 1;
+          }
+          const emoji = emojis[baseItemName] || '📦';
+          const val = sellPrices[baseItemName] || 1;
+          const displayItemName = (window as any).translateItem ? (window as any).translateItem(itemString) : baseItemName;
+          const row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.justifyContent = 'space-between';
+          row.style.alignItems = 'center';
+          row.style.padding = '8px';
+          row.style.borderBottom = '1px solid #451a03';
+          row.innerHTML = `
+              <span style="color:#e2e8f0;">${emoji} ${displayItemName} (x${count})</span>
+              <button style="background:#ef4444;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px;">Vender (+${val} Ouro)</button>
+          `;
+          content.appendChild(row);
+          row.querySelector('button')!.onclick = () => { this.sendSell(index); };
+      });
+      if (!hasItems) {
+          content.innerHTML = '<div style="text-align:center;color:#888;padding:10px;font-size:12px;">Sua mochila está vazia.</div>';
       }
   }
 

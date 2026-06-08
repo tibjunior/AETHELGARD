@@ -24,7 +24,79 @@
       /* =============================================
          HOTKEY / ACTION BAR
       ============================================= */
-      #action-bar {
+      /* =============================================
+     CHAT BOX
+  ============================================= */
+  .chat-tab {
+    border-bottom: 2px solid transparent !important;
+  }
+  .chat-tab:hover:not(.active) {
+    color: #e2e8f0 !important;
+    border-bottom-color: #475569 !important;
+  }
+  .chat-tab.active {
+    color: #fbbf24 !important;
+    border-bottom-color: #fbbf24 !important;
+  }
+  .chat-message {
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 2px 6px;
+    border-radius: 4px;
+    animation: chatFadeIn 0.2s ease-out;
+    word-wrap: break-word;
+    max-width: 100%;
+  }
+  .chat-message:hover {
+    background: rgba(255,255,255,0.05);
+  }
+  .chat-message .msg-time {
+    color: #64748b;
+    font-size: 10px;
+    margin-right: 6px;
+    font-family: monospace;
+  }
+  .chat-message .msg-name {
+    font-weight: 600;
+    color: #fbbf24;
+    margin-right: 4px;
+  }
+  .chat-message .msg-text {
+    color: #e2e8f0;
+  }
+  .chat-message.system {
+    color: #10b981;
+    font-style: italic;
+    border-left: 3px solid #10b981;
+    background: rgba(16, 185, 129, 0.1);
+  }
+  .chat-message.system .msg-name {
+    color: #10b981;
+  }
+  .chat-message.boss {
+    color: #ef4444;
+    font-weight: bold;
+    border-left: 3px solid #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+    animation: bossPulse 2s ease-in-out infinite;
+  }
+  .chat-message.boss .msg-name {
+    color: #ef4444;
+  }
+  @keyframes chatFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes bossPulse {
+    0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+    50% { box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); }
+  }
+  #chat-input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  }
+
+  #action-bar {
         position: absolute;
         bottom: 20px;
         left: 50%;
@@ -279,6 +351,519 @@
       #btn-login:active {
         transform: translateY(0);
       }
+      /* Character Select Screen */
+      .select-container {
+        max-width: 1040px;
+        width: 100%;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(2, 6, 23, 0.96) 100%);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(251, 191, 36, 0.15);
+        border-radius: 18px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(251, 191, 36, 0.05);
+        padding: 28px 32px 24px;
+        position: relative;
+      }
+      .select-container::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: 18px;
+        padding: 1px;
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), transparent 30%, transparent 70%, rgba(251, 191, 36, 0.15));
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+                mask-composite: exclude;
+        pointer-events: none;
+      }
+      .select-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+        padding-bottom: 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .select-header-title {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .select-header-title h1 {
+        margin: 0;
+        font-family: var(--font-title);
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 3px;
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+        -webkit-background-clip: text;
+                background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px rgba(251, 191, 36, 0.3);
+      }
+      .select-header-subtitle {
+        font-size: 11px;
+        color: #94a3b8;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-family: var(--font-text);
+      }
+      .select-account-pill {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 8px 8px 8px 14px;
+        border-radius: 999px;
+        font-family: var(--font-text);
+      }
+      .select-account-pill .account-label {
+        font-size: 10px;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      .select-account-pill .account-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #f8fafc;
+        text-shadow: 0 0 12px rgba(248, 250, 252, 0.2);
+      }
+      .select-account-pill .account-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #fbbf24, #d97706);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        color: #0f172a;
+        font-family: var(--font-title);
+      }
+
+      #character-slots {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 22px;
+      }
+      .char-card {
+        position: relative;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid rgba(71, 85, 105, 0.6);
+        border-radius: 12px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        aspect-ratio: 3 / 4.2;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      }
+      .char-card:hover {
+        transform: translateY(-4px);
+        border-color: #64748b;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+      }
+      .char-card.selected {
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 1px #fbbf24, 0 0 28px rgba(251, 191, 36, 0.45), 0 12px 28px rgba(0, 0, 0, 0.6);
+        transform: translateY(-4px);
+      }
+      .char-card.empty {
+        background: rgba(15, 23, 42, 0.4);
+        border: 2px dashed rgba(71, 85, 105, 0.7);
+        align-items: center;
+        justify-content: center;
+        color: #475569;
+      }
+      .char-card.empty:hover {
+        border-color: #fbbf24;
+        color: #fbbf24;
+        background: rgba(251, 191, 36, 0.04);
+        transform: translateY(-2px);
+      }
+      .char-banner {
+        padding: 8px 10px;
+        font-family: var(--font-title);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .char-banner::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.3) 100%);
+        pointer-events: none;
+      }
+      .char-banner.m1 { background: linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%); color: #fee2e2; }
+      .char-banner.m2 { background: linear-gradient(135deg, #1d4ed8 0%, #1e1b4b 100%); color: #dbeafe; }
+      .char-banner.f1 { background: linear-gradient(135deg, #15803d 0%, #14532d 100%); color: #dcfce7; }
+      .char-banner.f2 { background: linear-gradient(135deg, #475569 0%, #1e293b 100%); color: #f1f5f9; }
+
+      .char-portrait {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(ellipse at center bottom, rgba(251, 191, 36, 0.08) 0%, transparent 60%),
+          linear-gradient(180deg, #0f172a 0%, #020617 100%);
+        position: relative;
+      }
+      .char-portrait canvas {
+        image-rendering: pixelated;
+        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+        position: relative;
+        z-index: 1;
+      }
+      .char-card.empty .char-portrait {
+        background: transparent;
+      }
+      .char-card.selected .char-portrait {
+        background:
+          radial-gradient(ellipse at center bottom, rgba(251, 191, 36, 0.18) 0%, transparent 60%),
+          linear-gradient(180deg, #0f172a 0%, #020617 100%);
+      }
+      .char-info {
+        padding: 10px 12px 12px;
+        background: rgba(2, 6, 23, 0.7);
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+      }
+      .char-name {
+        font-family: var(--font-title);
+        font-size: 15px;
+        font-weight: 700;
+        color: #f8fafc;
+        text-align: center;
+        margin-bottom: 4px;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .char-level-row {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        align-items: center;
+      }
+      .char-level-badge {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(217, 119, 6, 0.15) 100%);
+        border: 1px solid rgba(251, 191, 36, 0.4);
+        color: #fbbf24;
+        font-family: var(--font-text);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 999px;
+        letter-spacing: 0.5px;
+      }
+      .char-card.selected .char-level-badge {
+        background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+        color: #0f172a;
+        border-color: #fbbf24;
+      }
+      .char-delete-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+        cursor: pointer;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: all 0.2s;
+        z-index: 2;
+        padding: 0;
+        line-height: 1;
+      }
+      .char-card:hover .char-delete-btn {
+        opacity: 1;
+      }
+      .char-delete-btn:hover {
+        background: #ef4444;
+        color: white;
+        transform: scale(1.1);
+      }
+      .char-empty-icon {
+        font-size: 48px;
+        font-weight: 300;
+        line-height: 1;
+        margin-bottom: 8px;
+        font-family: var(--font-title);
+      }
+      .char-empty-text {
+        font-family: var(--font-title);
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      .char-card.empty .char-empty-text {
+        font-size: 11px;
+      }
+
+      .select-footer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .select-selected-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .select-selected-info .info-label {
+        font-size: 10px;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-family: var(--font-text);
+        margin-bottom: 2px;
+      }
+      .select-selected-info .info-value {
+        font-family: var(--font-title);
+        font-size: 15px;
+        color: #94a3b8;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .select-selected-info.has-selection .info-value {
+        color: #f8fafc;
+      }
+      .btn-play-primary {
+        background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+        color: #1c1917;
+        border: none;
+        padding: 14px 32px;
+        font-family: var(--font-title);
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        border-radius: 8px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+      }
+      .btn-play-primary::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+        transition: left 0.6s;
+      }
+      .btn-play-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+      .btn-play-primary:hover:not(:disabled)::before {
+        left: 100%;
+      }
+      .btn-play-primary:active:not(:disabled) {
+        transform: translateY(0);
+      }
+      .btn-play-primary:disabled {
+        background: linear-gradient(135deg, #475569 0%, #334155 100%);
+        color: #94a3b8;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      .btn-logout-pill {
+        background: transparent;
+        border: 1px solid rgba(107, 114, 128, 0.4);
+        color: #94a3b8;
+        padding: 10px 14px;
+        font-family: var(--font-text);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-logout-pill:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.05);
+      }
+
+      .sprite-preview {
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        background: #0a0a0a;
+        border-radius: 4px;
+      }
+      .sprite-option {
+        background: #1f2937;
+        border: 2px solid #374151;
+        border-radius: 8px;
+        padding: 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      .sprite-option:hover {
+        border-color: #4b5563;
+      }
+      .sprite-option.selected {
+        border-color: #fbbf24;
+        background: #1f2937;
+        box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+      }
+      .sprite-option-label {
+        color: #9ca3af;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .gender-option {
+        transition: all 0.2s;
+      }
+      input[name="gender"]:checked + .gender-option {
+        border-color: #fbbf24 !important;
+        background: #1f2937 !important;
+        box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+      }
+
+      /* =============================================
+         CREATE CHARACTER SCREEN
+      ============================================= */
+      .class-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 22px;
+      }
+      .class-card {
+        position: relative;
+        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        border: 2px solid rgba(71, 85, 105, 0.6);
+        border-radius: 12px;
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        aspect-ratio: 3 / 4.4;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        font-family: var(--font-text);
+      }
+      .class-card:hover {
+        transform: translateY(-4px);
+        border-color: #64748b;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
+      }
+      .class-card.selected {
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 1px #fbbf24, 0 0 28px rgba(251, 191, 36, 0.45), 0 12px 28px rgba(0, 0, 0, 0.6);
+        transform: translateY(-4px);
+      }
+      .class-card .char-banner {
+        padding: 8px 10px;
+        font-family: var(--font-title);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .class-card .char-portrait {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at center, rgba(251, 191, 36, 0.04) 0%, transparent 70%);
+        padding: 8px;
+        min-height: 0;
+      }
+      .class-card .char-portrait canvas {
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+      }
+      .class-card .class-desc {
+        padding: 8px 10px;
+        font-size: 10px;
+        line-height: 1.35;
+        color: #94a3b8;
+        text-align: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(0, 0, 0, 0.25);
+        min-height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .create-name-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 20px;
+      }
+      .create-name-input {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #f8fafc;
+        font-family: var(--font-text);
+        font-size: 15px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        outline: none;
+        transition: all 0.2s;
+        letter-spacing: 0.5px;
+      }
+      .create-name-input::placeholder {
+        color: #64748b;
+      }
+      .create-name-input:focus {
+        border-color: #fbbf24;
+        box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
+        background: rgba(15, 23, 42, 0.85);
+      }
+
+      #btn-play:disabled {
+        background: #374151;
+        color: #6b7280;
+        cursor: not-allowed;
+        filter: none;
+      }
+      #btn-play:disabled:hover {
+        transform: none;
+        box-shadow: none;
+      }
       #ui-layer {
         position: absolute;
         bottom: 20px;
@@ -324,7 +909,17 @@
         user-select: none;
         font-family: var(--font-text);
         color: white;
+        transition: all 0.2s ease;
       }
+      #hud-player.collapsed .status-bar-label span:first-child { display: none; }
+      #hud-player.collapsed .status-bar-label span[id] { display: none; }
+      #hud-player.collapsed .status-bar-container:nth-child(4),
+      #hud-player.collapsed .status-bar-container:nth-child(5) { display: none; }
+      #hud-player.collapsed #player-name-display { cursor: pointer; }
+      #player-name-display { cursor: pointer; }
+      #hud-player .hud-header { cursor: pointer; }
+      #hud-player.collapsed .status-bar-container { margin-bottom: 4px; }
+      #hud-player.collapsed .status-bar-bg { height: 6px; border-radius: 3px; }
       
       #menu-toolbar {
         position: absolute;
@@ -485,6 +1080,42 @@
       #weight-fill {
         background: linear-gradient(90deg, #f59e0b, #fbbf24);
       }
+      /* Chat Box responsive */
+      #chat-box {
+        position: fixed;
+        z-index: 200;
+        flex-direction: column;
+        font-family: 'Outfit', sans-serif;
+        overflow: hidden;
+        background: rgba(9, 15, 29, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+      }
+      /* Desktop: canto inferior esquerdo, largura fixa */
+      @media (min-width: 769px) {
+        #chat-box {
+          bottom: 90px;
+          left: 20px;
+          width: 420px;
+          height: 300px;
+          min-width: 300px;
+          min-height: 200px;
+        }
+      }
+      /* Mobile: largura total, bottom: 0, centralizado */
+      @media (max-width: 768px) {
+        #chat-box {
+          bottom: 0;
+          left: 0;
+          right: 0;
+          width: 100%;
+          height: 50vh;
+          max-height: 400px;
+          border-radius: 16px 16px 0 0;
+        }
+      }
     </style>
   </head>
   <body>
@@ -492,6 +1123,68 @@
     <div id="maintenance-banner" style="position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(220, 38, 38, 0.95); border: 2px dashed #fbbf24; border-radius: 6px; padding: 8px 24px; font-family: monospace; font-size: 13px; color: white; z-index: 10000; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); text-align: center; user-select: none; display: none;">
         🛠️ <b>Antigravity:</b> Atualização em Progresso (Forjando Bigornas, Alquimia, RNG & Leilões...). Em breve o jogo voltará à estabilidade!
     </div>
+
+    <!-- Tela de Loading (entre login e seleção) -->
+    <div id="login-loading" style="display:none; position:fixed; inset:0; background:#0a0a0a; z-index:200; align-items:center; justify-content:center; flex-direction:column; gap:16px;">
+      <div class="login-box" style="text-align:center;">
+        <h1 style="margin-bottom:16px;">Carregando...</h1>
+        <div style="color:#9ca3af;">Conectando ao servidor</div>
+      </div>
+    </div>
+
+      <!-- Tela de Seleção de Personagem (4 slots) -->
+      <div id="character-select-screen" style="display:none; position:fixed; inset:0; background: radial-gradient(ellipse at top, #1e1b4b 0%, #0a0a0a 50%, #020617 100%); z-index:150; align-items:center; justify-content:center; flex-direction:column; padding:20px; box-sizing:border-box;">
+        <div class="select-container">
+          <div class="select-header">
+            <div class="select-header-title">
+              <h1>AETHELGARD</h1>
+              <div class="select-header-subtitle">Selecione seu Herói</div>
+            </div>
+            <div class="select-account-pill">
+              <div>
+                <div class="account-label">Conta</div>
+                <div class="account-name" id="char-select-account">-</div>
+              </div>
+              <div class="account-avatar" id="char-select-avatar">?</div>
+            </div>
+          </div>
+          <div id="character-slots"></div>
+          <div class="select-footer">
+            <div class="select-selected-info" id="select-selected-info">
+              <div class="info-label">Personagem Selecionado</div>
+              <div class="info-value" id="select-selected-name">Nenhum</div>
+            </div>
+            <button id="btn-logout" class="btn-logout-pill">🚪 Sair</button>
+            <button id="btn-play" class="btn-play-primary" disabled>⚔️ Jogar</button>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- Tela de Criação de Personagem -->
+    <div id="character-create-screen" style="display:none; position:fixed; inset:0; background: radial-gradient(ellipse at top, #1e1b4b 0%, #0a0a0a 50%, #020617 100%); z-index:160; align-items:center; justify-content:center; flex-direction:column; padding:20px; box-sizing:border-box;">
+      <div class="select-container" style="max-width:1040px;">
+        <div class="select-header">
+          <div class="select-header-title">
+            <h1>NOVO HERÓI</h1>
+            <div class="select-header-subtitle">Escolha sua classe</div>
+          </div>
+        </div>
+        <div id="sprite-options" class="class-grid"></div>
+        <div class="create-name-row">
+          <label class="info-label" for="char-create-name">Nome do Personagem</label>
+          <input type="text" id="char-create-name" class="create-name-input" placeholder="3 a 20 caracteres" maxlength="20" autocomplete="off" />
+        </div>
+        <div class="select-footer">
+          <button id="btn-create-cancel" class="btn-logout-pill">← Voltar</button>
+          <button id="btn-create-confirm" class="btn-play-primary" disabled>✨ Criar Personagem</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" style="display:none; position:fixed; bottom:30px; left:50%; transform:translateX(-50%); background:#fbbf24; color:#0a0a0a; padding:12px 24px; border-radius:8px; z-index:1000; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>
 
     <!-- Tela Inicial de Login -->
     <div id="login-screen">
@@ -509,6 +1202,19 @@
     </div>
 
     <div id="game-container">
+      <!-- Modal de confirmação de saída (in-game) -->
+      <div id="exit-confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#1f2937; border:2px solid #374151; border-radius:12px; padding:24px 28px; max-width:380px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.6); font-family:monospace;">
+          <h3 style="margin:0 0 6px 0; color:#f8fafc; font-family:var(--font-title); font-size:18px;">Sair do Jogo</h3>
+          <p style="margin:0 0 20px 0; color:#9ca3af; font-size:13px; line-height:1.5;">O que você deseja fazer?</p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <button id="btn-exit-to-lobby" style="background:#3b82f6; color:#fff; border:none; padding:12px 16px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:14px; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;">↩️ Voltar pro Lobby</button>
+            <button id="btn-exit-to-login" style="background:#ef4444; color:#fff; border:none; padding:12px 16px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:14px; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;">🚪 Sair da Conta</button>
+            <button id="btn-exit-cancel" style="background:transparent; color:#9ca3af; border:1px solid #374151; padding:10px 16px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:13px; margin-top:2px;">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Painel de Autofarm Flutuante -->
       <div class="game-modal" id="autofarm-panel">
         <div class="modal-header">
@@ -623,7 +1329,10 @@
           <span class="hk-key">SPACE</span>
         </div>
 
-      </div>
+        <!-- Chat Toggle: continua a sequência dos botões à direita -->
+        <button id="chat-toggle-btn" class="hk-slot hk-chat" title="Mostrar/Esconder chat" style="width: 48px; height: 48px; background: rgba(9, 15, 29, 0.8); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: #94a3b8; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">💬</button>
+
+        </div>
 
       <div id="game-ui">
       <!-- Popup Superior de Alvo -->
@@ -635,10 +1344,11 @@
 
       <!-- Player Status HUD (Top-Left) -->
       <div id="hud-player">
-        <div class="hud-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px; cursor: move; user-select: none;">
-          <span id="player-name-display" style="font-family: var(--font-title); font-weight: 700; color: #f8fafc; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">TIBERIUS</span>
-          <span id="player-level-display" style="font-family: var(--font-text); font-weight: 700; color: var(--accent-gold); font-size: 11px; background: rgba(251, 191, 36, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(251, 191, 36, 0.3);">Level 1</span>
-        </div>
+          <div class="hud-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px; cursor: move; user-select: none;">
+            <span id="player-name-display" style="font-family: var(--font-title); font-weight: 700; color: #f8fafc; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">TIBERIUS</span>
+            <span id="player-level-display" style="font-family: var(--font-text); font-weight: 700; color: var(--accent-gold); font-size: 11px; background: rgba(251, 191, 36, 0.15); padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(251, 191, 36, 0.3);">Level 1</span>
+            <button id="btn-logout-game" title="Sair da conta" style="background:transparent; border:1px solid rgba(107,114,128,0.5); color:#9ca3af; padding:2px 8px; border-radius:4px; cursor:pointer; font-size:14px; line-height:1; margin-left:6px;">🚪</button>
+          </div>
         
         <!-- HP -->
         <div class="status-bar-container">
@@ -684,10 +1394,10 @@
           </div>
         </div>
 
-        <!-- Gold -->
+        <!-- Gold & Location -->
         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 6px; font-size: 11px; font-weight: 700; color: var(--accent-gold);">
-          <span>💰 Gold:</span>
-          <span><span id="gold-value">0</span></span>
+          <span>💰 Gold: <span id="gold-value">0</span></span>
+          <span id="player-location" style="color: #94a3b8; font-weight: 500;">Localização: 0, 0</span>
         </div>
       </div>
 
@@ -707,6 +1417,12 @@
           <span class="close-modal" data-target="modal-backpack">✖</span>
         </div>
         <div style="padding: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; color: #94a3b8;">Arraste para reordenar. Empilhe iguais com [Organizar].</span>
+            <button id="btn-sort-backpack" style="background: #475569; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#64748b'" onmouseout="this.style.background='#475569'">
+              🗂️ Organizar
+            </button>
+          </div>
           <div class="backpack-container" id="backpack-grid">
             <div class="slot" data-index="0"></div><div class="slot" data-index="1"></div><div class="slot" data-index="2"></div><div class="slot" data-index="3"></div>
             <div class="slot" data-index="4"></div><div class="slot" data-index="5"></div><div class="slot" data-index="6"></div><div class="slot" data-index="7"></div>
@@ -744,9 +1460,14 @@
           </div>
 
           <!-- Slots de Armazenamento (50 slots) -->
-          <div style="font-size: 11px; font-weight: bold; color: #94a3b8; margin-top: 4px; display: flex; justify-content: space-between;">
+          <div style="font-size: 11px; font-weight: bold; color: #94a3b8; margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
             <span>Itens Guardados (50 slots):</span>
-            <span style="color: #ef4444; font-weight: normal; display: none;" id="bank-locked-alert">⚠️ BLOQUEADO</span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button id="btn-sort-bank" style="background: #475569; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#64748b'" onmouseout="this.style.background='#475569'">
+                🗂️ Organizar
+              </button>
+              <span style="color: #ef4444; font-weight: normal; display: none;" id="bank-locked-alert">⚠️ BLOQUEADO</span>
+            </div>
           </div>
           
           <div class="bank-container" id="bank-grid" style="background-color: #0f172a; border: 2px inset #475569; padding: 8px; display: grid; grid-template-columns: repeat(5, 1fr); grid-auto-rows: 48px; gap: 5px; max-height: 280px; overflow-y: auto;">
@@ -859,6 +1580,35 @@
             <!-- Conteúdo dinâmico via JS -->
         </div>
     </div>
+
+    <!-- Teleporter UI Modal -->
+    <div id="teleporter-ui" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid #3b82f6; border-radius: 8px; color: white; z-index: 220; font-family: monospace; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
+        <div style="background: #1e3a8a; color: white; padding: 10px; font-weight: bold; text-align: center; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between;">
+           <span>✨ Teleporte</span>
+           <span id="close-teleporter" style="cursor: pointer; font-weight: bold; padding: 0 5px;">✖</span>
+        </div>
+        <div style="padding: 8px 12px; background: rgba(96, 165, 250, 0.08); border-bottom: 1px solid #1e3a8a; font-size: 11px; color: #93c5fd;">
+           Escolha seu destino:
+        </div>
+        <div id="teleporter-content" style="padding: 0; max-height: 300px; overflow-y: auto;">
+            <!-- Conteúdo dinâmico via JS -->
+        </div>
+    </div>
+
+    <!-- Vendor (cidade) UI Modal -->
+    <div id="vendor-ui" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 360px; background: rgba(15, 23, 42, 0.95); border: 2px solid #d97706; border-radius: 8px; color: white; z-index: 220; font-family: monospace; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
+        <div style="background: #92400e; color: white; padding: 10px; font-weight: bold; text-align: center; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between;">
+           <span id="vendor-title">🛒 Vendedor</span>
+           <span id="close-vendor" style="cursor: pointer; font-weight: bold; padding: 0 5px;">✖</span>
+        </div>
+        <div style="display:flex;border-bottom:1px solid #451a03;">
+            <button id="vendor-tab-buy" style="flex:1;padding:8px;background:#92400e;color:white;border:none;cursor:pointer;font-size:11px;font-weight:bold;">Comprar</button>
+            <button id="vendor-tab-sell" style="flex:1;padding:8px;background:#451a03;color:white;border:none;cursor:pointer;font-size:11px;">Vender</button>
+        </div>
+        <div id="vendor-content" style="padding: 8px; max-height: 300px; overflow-y: auto;">
+            <!-- Conteúdo dinâmico via JS -->
+        </div>
+    </div>
     
     <!-- Crafting UI Modal -->
     <div id="crafting-ui" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; background: rgba(15, 23, 42, 0.95); border: 2px solid #10b981; border-radius: 8px; color: white; z-index: 250; font-family: monospace; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.6);">
@@ -882,9 +1632,61 @@
         </div>
     </div>
 
-    <div id="ui-layer">
-      <input type="text" id="chat-input" placeholder="Say... (Press Enter to send)" autocomplete="off" />
+    <!-- Chat Box Flutuante (fora do ui-layer, position: fixed = viewport-relative) -->
+    <!-- Mobile: centralizado e largura total; Desktop: canto inferior esquerdo -->
+    <div id="chat-box" style="display: none; position: fixed; z-index: 200; flex-direction: column; font-family: 'Outfit', sans-serif; overflow: hidden; background: rgba(9, 15, 29, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+        <!-- Header com drag handle e resize -->
+        <div id="chat-header" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.08); cursor: move; user-select: none; border-radius: 10px 10px 0 0;">
+          <span style="font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.5px;">CHAT</span>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button id="chat-resize-btn" title="Alternar largura (3 tamanhos)" style="background: transparent; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">⤡</button>
+            <button id="chat-minimize-btn" title="Minimizar/Expandir" style="background: transparent; border: none; color: #94a3b8; font-size: 14px; cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">−</button>
+          </div>
+        </div>
+        
+        <!-- Tabs -->
+        <div id="chat-tabs" style="display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);">
+          <button id="tab-batepapo" class="chat-tab active" data-tab="batepapo" style="flex: 1; padding: 8px; background: transparent; border: none; color: #fbbf24; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid #fbbf24;">💬 Bate-Papo</button>
+          <button id="tab-servidor" class="chat-tab" data-tab="servidor" style="flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent;">🖥️ Servidor</button>
+        </div>
+        
+        <!-- Conteúdo das Abas -->
+        <div id="chat-content" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
+          <div id="chat-batepapo" class="chat-panel" style="display: flex; flex-direction: column; gap: 4px;"></div>
+          <div id="chat-servidor" class="chat-panel" style="display: none; flex-direction: column; gap: 4px;"></div>
+        </div>
+        
+        <!-- Input -->
+        <div id="chat-input-wrapper" style="border-top: 1px solid rgba(255,255,255,0.08); padding: 8px; background: rgba(0,0,0,0.2);">
+          <input type="text" id="chat-input" placeholder="Digite uma mensagem... (Enter para enviar)" autocomplete="off" style="width: 100%; background: rgba(0, 0, 0, 0.4); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-family: 'Outfit', sans-serif; outline: none; box-sizing: border-box;" />
+        </div>
+        
+        <!-- Resize handle (canto inferior direito) -->
+        <div id="chat-resize-handle" style="position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: se-resize; background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.1) 50%); border-radius: 0 0 10px 0;" title="Arrastar para redimensionar"></div>
+      </div>
+
+    <!-- Right-click Context Menu (Fase 4b) -->
+    <div id="context-menu" style="display: none; position: fixed; z-index: 9999; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(251, 191, 36, 0.4); border-radius: 6px; padding: 4px; min-width: 160px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); font-family: inherit;">
+      <div id="ctx-header" style="padding: 6px 10px; color: #fbbf24; font-size: 12px; font-weight: bold; border-bottom: 1px solid rgba(251, 191, 36, 0.2); margin-bottom: 4px;"></div>
+      <button class="ctx-item" data-action="attack" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #ef4444; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">⚔️ Atacar</button>
+      <button class="ctx-item" data-action="inspect" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #93c5fd; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">🔍 Inspecionar</button>
+      <button class="ctx-item" data-action="target" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #fbbf24; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">🎯 Marcar como Alvo</button>
     </div>
+
+    <!-- Entity Inspect Modal (Fase 4b) -->
+    <div id="inspect-modal" style="display: none; position: fixed; inset: 0; z-index: 9998; background: rgba(0,0,0,0.7); align-items: center; justify-content: center;">
+      <div style="background: #1e293b; border: 2px solid #fbbf24; border-radius: 10px; padding: 24px; min-width: 320px; max-width: 400px; color: #e2e8f0; font-family: inherit;">
+        <h3 id="inspect-title" style="margin: 0 0 12px 0; color: #fbbf24; font-size: 18px;"></h3>
+        <div id="inspect-body" style="font-size: 14px; line-height: 1.6;"></div>
+        <div style="margin-top: 16px; text-align: right;">
+          <button id="inspect-close" style="background: #475569; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px;">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      .ctx-item:hover { background: rgba(251, 191, 36, 0.15) !important; }
+    </style>
 
     <!-- Death Screen Overlay -->
     <div id="death-screen" style="display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.85); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; font-family: monospace; color: #ef4444;">
@@ -915,6 +1717,7 @@
 
       // Flash visual ao pressionar a tecla
       document.addEventListener('keydown', function(e) {
+        if (!e.key) return;
         const key = e.key.toLowerCase();
         const id = keySlotMap[key];
         if (!id) return;
@@ -1121,6 +1924,324 @@
               });
           }
       });
+    })();
+    </script>
+
+    <!-- Chat Box Controller -->
+    <script>
+    (function() {
+      const chatBox = document.getElementById('chat-box');
+      const chatToggleBtn = document.getElementById('chat-toggle-btn');
+      const chatHeader = document.getElementById('chat-header');
+      const chatTabs = document.getElementById('chat-tabs');
+      const chatContent = document.getElementById('chat-content');
+      const chatInput = document.getElementById('chat-input');
+      const chatInputWrapper = document.getElementById('chat-input-wrapper');
+      const resizeHandle = document.getElementById('chat-resize-handle');
+      const resizeBtn = document.getElementById('chat-resize-btn');
+      const minimizeBtn = document.getElementById('chat-minimize-btn');
+      const tabBatePapo = document.getElementById('tab-batepapo');
+      const tabServidor = document.getElementById('tab-servidor');
+      const panelBatePapo = document.getElementById('chat-batepapo');
+      const panelServidor = document.getElementById('chat-servidor');
+
+      // --- 3 Tamanhos horizontais e 3 verticais ---
+      const widthSizes = ['320px', '420px', '580px'];
+      const heightSizes = ['200px', '300px', '400px'];
+      let currentWidthIndex = 1;
+      let currentHeightIndex = 1;
+      let resizeMode = 'width'; // 'width' ou 'height'
+
+      function applyWidth() {
+        chatBox.style.width = widthSizes[currentWidthIndex];
+      }
+      function applyHeight() {
+        chatBox.style.height = heightSizes[currentHeightIndex];
+        chatBox._lastHeight = chatBox.style.height;
+      }
+
+      resizeBtn.addEventListener('click', () => {
+        if (resizeMode === 'width') {
+          currentWidthIndex = (currentWidthIndex + 1) % widthSizes.length;
+          applyWidth();
+        } else {
+          currentHeightIndex = (currentHeightIndex + 1) % heightSizes.length;
+          applyHeight();
+        }
+      });
+
+      resizeBtn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        resizeMode = resizeMode === 'width' ? 'height' : 'width';
+        resizeBtn.textContent = resizeMode === 'width' ? '↔' : '↕';
+        resizeBtn.title = resizeMode === 'width' ? 'Alternar largura (clique) / Alternar altura (clique direito)' : 'Alternar altura (clique) / Alternar largura (clique direito)';
+      });
+
+      // Reset position to default (bottom-left)
+      function resetChatPosition() {
+        chatBox.style.left = '20px';
+        chatBox.style.bottom = '90px';
+        chatBox.style.top = 'auto';
+        chatBox.style.right = 'auto';
+      }
+
+      // Double-click header to reset position
+      chatHeader.addEventListener('dblclick', resetChatPosition);
+
+      // --- Minimizar/Expandir ---
+      let isMinimized = false;
+      const minimizedHeight = '44px';
+
+      function toggleMinimize() {
+        isMinimized = !isMinimized;
+        if (isMinimized) {
+          chatBox._lastHeight = chatBox.style.height || '300px';
+          chatBox.style.height = minimizedHeight;
+          chatTabs.style.display = 'none';
+          chatContent.style.display = 'none';
+          if (chatInputWrapper) chatInputWrapper.style.display = 'none';
+          resizeHandle.style.display = 'none';
+          minimizeBtn.textContent = '+';
+        } else {
+          const activeTab = tabBatePapo.classList.contains('active') ? 'batepapo' : 'servidor';
+          chatBox.style.height = chatBox._lastHeight || '300px';
+          chatTabs.style.display = 'flex';
+          chatContent.style.display = 'flex';
+          if (chatInputWrapper) chatInputWrapper.style.display = activeTab === 'batepapo' ? 'block' : 'none';
+          resizeHandle.style.display = 'block';
+          minimizeBtn.textContent = '−';
+        }
+      }
+
+      minimizeBtn.addEventListener('click', toggleMinimize);
+
+      // --- Abas ---
+      function switchTab(tab) {
+        tabBatePapo.classList.toggle('active', tab === 'batepapo');
+        tabServidor.classList.toggle('active', tab === 'servidor');
+        panelBatePapo.style.display = tab === 'batepapo' ? 'flex' : 'none';
+        panelServidor.style.display = tab === 'servidor' ? 'flex' : 'none';
+        // Input visível apenas na aba Bate-Papo
+        if (chatInputWrapper) chatInputWrapper.style.display = tab === 'batepapo' ? 'block' : 'none';
+        // Ao trocar de aba, rola para a mensagem mais recente
+        const scrollContainer = document.getElementById('chat-content');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      }
+
+      tabBatePapo.addEventListener('click', () => switchTab('batepapo'));
+      tabServidor.addEventListener('click', () => switchTab('servidor'));
+
+      // --- Drag (mover janela) ---
+      let dragPos1 = 0, dragPos2 = 0, dragPos3 = 0, dragPos4 = 0;
+
+      chatHeader.onmousedown = dragMouseDown;
+
+      function dragMouseDown(e) {
+        if (e.target.closest('button')) return; // Não arrastar se clicou em botão
+        e.preventDefault();
+        bringToFront(chatBox);
+        
+        // Usa getBoundingClientRect para posição real na viewport
+        const rect = chatBox.getBoundingClientRect();
+        dragPos3 = e.clientX;
+        dragPos4 = e.clientY;
+        // Armazena posição inicial absoluta
+        dragPos1 = rect.left;
+        dragPos2 = rect.top;
+        
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+      }
+
+      function elementDrag(e) {
+        e.preventDefault();
+        
+        // Calcula nova posição baseada no movimento do mouse
+        const deltaX = e.clientX - dragPos3;
+        const deltaY = e.clientY - dragPos4;
+        
+        let newLeft = dragPos1 + deltaX;
+        let newTop = dragPos2 + deltaY;
+
+        // Limites da viewport (usa dimensões reais do elemento)
+        const boxWidth = chatBox.offsetWidth;
+        const boxHeight = chatBox.offsetHeight;
+        const maxLeft = window.innerWidth - boxWidth;
+        const maxTop = window.innerHeight - boxHeight;
+        
+        newLeft = Math.max(0, Math.min(maxLeft, newLeft));
+        newTop = Math.max(0, Math.min(maxTop, newTop));
+
+        chatBox.style.left = newLeft + 'px';
+        chatBox.style.top = newTop + 'px';
+        chatBox.style.right = 'auto';
+        chatBox.style.bottom = 'auto';
+      }
+
+      function saveChatState() {
+        const rect = chatBox.getBoundingClientRect();
+        try {
+          localStorage.setItem('chatState', JSON.stringify({
+            left: rect.left, top: rect.top,
+            width: chatBox.style.width, height: chatBox.style.height
+          }));
+        } catch (_) {}
+      }
+
+      function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+        saveChatState();
+      }
+
+      // --- Resize (redimensionar pelo canto) ---
+      resizeHandle.onmousedown = resizeMouseDown;
+
+      function resizeMouseDown(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        bringToFront(chatBox);
+        dragPos3 = e.clientX;
+        dragPos4 = e.clientY;
+        document.onmouseup = closeResizeElement;
+        document.onmousemove = elementResize;
+      }
+
+      function elementResize(e) {
+        e.preventDefault();
+        const dx = e.clientX - dragPos3;
+        const dy = e.clientY - dragPos4;
+
+        const minW = 300, minH = 200;
+        const maxW = window.innerWidth - chatBox.offsetLeft;
+        const maxH = window.innerHeight - chatBox.offsetTop;
+
+        let newW = Math.max(minW, Math.min(maxW, chatBox.offsetWidth + dx));
+        let newH = Math.max(minH, Math.min(maxH, chatBox.offsetHeight + dy));
+
+        chatBox.style.width = newW + 'px';
+        chatBox.style.height = newH + 'px';
+
+        // Atualiza index do botão de largura se mudou significativamente
+        if (Math.abs(newW - parseInt(widthSizes[0])) < 20) currentWidthIndex = 0;
+        else if (Math.abs(newW - parseInt(widthSizes[1])) < 20) currentWidthIndex = 1;
+        else if (Math.abs(newW - parseInt(widthSizes[2])) < 20) currentWidthIndex = 2;
+
+        dragPos3 = e.clientX;
+        dragPos4 = e.clientY;
+      }
+
+      function closeResizeElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+        saveChatState();
+      }
+
+      // --- Input de chat ---
+      chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          // Só envia se estiver na aba Bate-Papo
+          if (!tabBatePapo.classList.contains('active')) {
+            chatInput.blur();
+            return;
+          }
+          const msg = chatInput.value.trim();
+          if (msg !== '') {
+            if (window.gameScene && window.gameScene.socketManager) {
+              window.gameScene.socketManager.sendChat(msg);
+            }
+            chatInput.value = '';
+          }
+          chatInput.blur();
+        } else if (e.key === 'Escape') {
+          chatInput.blur();
+        }
+      });
+
+      // Enter global: foca input do chat (só na aba Bate-Papo)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && document.activeElement !== chatInput && tabBatePapo.classList.contains('active')) {
+          e.preventDefault();
+          chatInput.focus();
+        }
+      });
+
+      // --- Funções públicas para adicionar mensagens ---
+      window.addChatMessage = function(tab, name, text, isSystem = false, isBoss = false) {
+        // Player speech ('global') vai para Bate-Papo
+        if (tab === 'global') tab = 'batepapo';
+        const panel = tab === 'batepapo' ? panelBatePapo : panelServidor;
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-message' + (isSystem ? ' system' : '') + (isBoss ? ' boss' : '');
+        
+        const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const displayName = isSystem ? 'Sistema' : name;
+        const nameColor = isSystem ? '#10b981' : (isBoss ? '#ef4444' : '#fbbf24');
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'msg-time';
+        timeSpan.textContent = `[${time}]`;
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'msg-name';
+        nameSpan.style.color = nameColor;
+        nameSpan.textContent = `${displayName}:`;
+        const textSpan = document.createElement('span');
+        textSpan.className = 'msg-text';
+        textSpan.textContent = text;
+        msgDiv.appendChild(timeSpan);
+        msgDiv.appendChild(nameSpan);
+        msgDiv.appendChild(textSpan);
+        
+        panel.appendChild(msgDiv);
+        // Auto-scroll para baixo (rolar o container #chat-content, que é o que tem overflow-y)
+        const scrollContainer = document.getElementById('chat-content');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+
+        // Limitar mensagens (manter últimas 200)
+        while (panel.children.length > 200) {
+          panel.removeChild(panel.children[0]);
+        }
+      };
+
+      // Expor toggle para uso externo (ex: tecla Enter no Phaser)
+      window.toggleChatFocus = function() {
+        if (document.activeElement === chatInput) {
+          chatInput.blur();
+        } else {
+          chatInput.focus();
+        }
+      };
+
+      // Reutilizar bringToFront do script anterior
+      function bringToFront(el) {
+        const modals = document.querySelectorAll('#chat-box, .game-modal, #hud-player');
+        let maxZ = 200;
+        modals.forEach(m => {
+          const z = parseInt(m.style.zIndex) || 200;
+          if (z > maxZ) maxZ = z;
+        });
+        el.style.zIndex = maxZ + 1;
+      }
+
+      // Restaura posição/tamanho salvos
+      try {
+        const saved = localStorage.getItem('chatState');
+        if (saved) {
+          const state = JSON.parse(saved);
+          if (state.left !== undefined) chatBox.style.left = state.left + 'px';
+          if (state.top !== undefined) chatBox.style.top = state.top + 'px';
+          if (state.width) chatBox.style.width = state.width;
+          if (state.height) chatBox.style.height = state.height;
+          if (state.left !== undefined) { chatBox.style.right = 'auto'; chatBox.style.bottom = 'auto'; }
+        }
+      } catch (_) {}
+
+      // Inicializa
+      applyWidth();
     })();
     </script>
   </body>
