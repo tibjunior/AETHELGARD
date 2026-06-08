@@ -2272,7 +2272,13 @@ export class Game {
           socket.emit('statsUpdate', { 
               id: player.id, 
               weight: player.weight, 
-              maxWeight: player.maxWeight 
+              maxWeight: player.maxWeight,
+              professionSmithingLevel: player.professionSmithingLevel,
+              professionSmithingXp: player.professionSmithingXp,
+              professionAlchemyLevel: player.professionAlchemyLevel,
+              professionAlchemyXp: player.professionAlchemyXp,
+              professionTanningLevel: player.professionTanningLevel,
+              professionTanningXp: player.professionTanningXp,
           });
           socket.emit('textEffect', { x: player.x, y: player.y, message: 'Desmantelado!', color: '#3b82f6' });
           const displayResult = ITEM_NAMES_PT[recipe.resultItem] || recipe.resultItem;

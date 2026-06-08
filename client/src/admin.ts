@@ -1232,6 +1232,47 @@ function renderQuestsAdmin() {
   });
 }
 
+const QUEST_TARGETS: Record<string, string[]> = {
+  kill: [
+    'Giant Rat', 'Orc', 'Rotworm', 'Demon Skeleton',
+    'Nightmare Skeleton', 'Rat King', 'Orc Warlord', 'Ancient Rotworm', 'Demon Lord',
+  ],
+  craft: [
+    'Wood Sword', 'Torch', 'Pants', 'Leather Boots',
+    'Steel Sword', 'Helmet', 'Armor',
+    'Health Potion', 'Mana Potion',
+    'Leather Backpack', 'Wooden Backpack', 'Iron Backpack',
+  ],
+  collect: [
+    'Apple', 'Cheese', 'Blueberry', 'Gold Coin',
+    'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide',
+    'Steel Sword', 'Wood Sword', 'Helmet', 'Armor', 'Pants', 'Leather Boots', 'Torch',
+    'Health Potion', 'Mana Potion',
+    'Skull',
+  ],
+};
+
+function makeTargetSelect(type: string, selected: string): HTMLSelectElement {
+  const sel = document.createElement('select');
+  sel.className = 'qe-obj-target';
+  sel.style.cssText = 'flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;';
+  const targets = QUEST_TARGETS[type] || [];
+  sel.innerHTML = '<option value="">— selecione —</option>' + targets.map(t =>
+    `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`
+  ).join('');
+  return sel;
+}
+
+function wireTargetDropdown(typeSelect: HTMLSelectElement, targetContainer: HTMLElement) {
+  const updateTargets = () => {
+    const type = typeSelect.value;
+    const currentVal = (targetContainer.querySelector('.qe-obj-target') as HTMLSelectElement)?.value || '';
+    const newSel = makeTargetSelect(type, currentVal);
+    targetContainer.replaceChild(newSel, targetContainer.querySelector('.qe-obj-target')!);
+  };
+  typeSelect.addEventListener('change', updateTargets);
+}
+
 function openQuestEditor(quest?: any) {
   const isNew = !quest;
   const form = document.createElement('div');
@@ -1266,13 +1307,13 @@ function openQuestEditor(quest?: any) {
         <label>Objetivos</label>
         <div id="qe-objectives">
           ${(quest?.objectives || [{ type: 'kill', target: '', count: 1 }]).map((o: any, idx: number) => `
-            <div class="qe-obj-row" data-idx="${idx}" style="display:flex;gap:6px;margin-bottom:6px;">
+            <div class="qe-obj-row" data-idx="${idx}" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
               <select class="qe-obj-type" style="flex:0 0 80px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;">
                 <option value="kill" ${o.type === 'kill' ? 'selected' : ''}>Derrote</option>
                 <option value="craft" ${o.type === 'craft' ? 'selected' : ''}>Crie</option>
                 <option value="collect" ${o.type === 'collect' ? 'selected' : ''}>Colete</option>
               </select>
-              <input type="text" class="qe-obj-target" value="${o.target}" placeholder="alvo" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+              <div class="qe-target-wrapper" style="flex:1;"></div>
               <input type="number" class="qe-obj-count" value="${o.count}" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
               <button class="qe-obj-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
             </div>
@@ -1298,6 +1339,15 @@ function openQuestEditor(quest?: any) {
   `;
   document.body.appendChild(form);
 
+  // Preenche os dropdowns de target e conecta change dos selects de tipo
+  form.querySelectorAll('.qe-obj-row').forEach(row => {
+    const typeSel = row.querySelector('.qe-obj-type') as HTMLSelectElement;
+    const wrapper = row.querySelector('.qe-target-wrapper') as HTMLElement;
+    const targetSel = makeTargetSelect(typeSel.value, quest?.objectives?.[parseInt(row.getAttribute('data-idx')!) as number]?.target || '');
+    wrapper.appendChild(targetSel);
+    wireTargetDropdown(typeSel, wrapper);
+  });
+
   // Dynamic objective add/remove
   const objContainer = form.querySelector('#qe-objectives')!;
   form.querySelector('#qe-obj-add')!.addEventListener('click', () => {
@@ -1305,19 +1355,33 @@ function openQuestEditor(quest?: any) {
     const row = document.createElement('div');
     row.className = 'qe-obj-row';
     row.dataset.idx = String(idx);
-    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
-    row.innerHTML = `
-      <select class="qe-obj-type" style="flex:0 0 80px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;">
-        <option value="kill">Derrote</option>
-        <option value="craft">Crie</option>
-        <option value="collect">Colete</option>
-      </select>
-      <input type="text" class="qe-obj-target" placeholder="alvo" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
-      <input type="number" class="qe-obj-count" value="1" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
-      <button class="qe-obj-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
-    `;
+    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;';
+    const typeSel = document.createElement('select');
+    typeSel.className = 'qe-obj-type';
+    typeSel.style.cssText = 'flex:0 0 80px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;';
+    typeSel.innerHTML = '<option value="kill">Derrote</option><option value="craft">Crie</option><option value="collect">Colete</option>';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'qe-target-wrapper';
+    wrapper.style.cssText = 'flex:1;';
+    const targetSel = makeTargetSelect('kill', '');
+    wrapper.appendChild(targetSel);
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.className = 'qe-obj-count';
+    countInput.value = '1';
+    countInput.min = '1';
+    countInput.style.cssText = 'width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'qe-obj-del';
+    delBtn.style.cssText = 'background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => row.remove());
+    row.appendChild(typeSel);
+    row.appendChild(wrapper);
+    row.appendChild(countInput);
+    row.appendChild(delBtn);
     objContainer.appendChild(row);
-    row.querySelector('.qe-obj-del')!.addEventListener('click', () => row.remove());
+    wireTargetDropdown(typeSel, wrapper);
   });
   objContainer.querySelectorAll('.qe-obj-del').forEach(btn => {
     btn.addEventListener('click', () => (btn as HTMLElement).closest('.qe-obj-row')?.remove());
@@ -1333,7 +1397,7 @@ function openQuestEditor(quest?: any) {
     const objectives: any[] = [];
     form.querySelectorAll('.qe-obj-row').forEach(row => {
       const type = (row.querySelector('.qe-obj-type') as HTMLSelectElement).value;
-      const target = (row.querySelector('.qe-obj-target') as HTMLInputElement).value.trim();
+      const target = (row.querySelector('.qe-obj-target') as HTMLSelectElement).value.trim();
       const count = parseInt((row.querySelector('.qe-obj-count') as HTMLInputElement).value) || 1;
       if (target) objectives.push({ type, target, count });
     });

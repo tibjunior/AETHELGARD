@@ -74,6 +74,21 @@ export class SocketManager {
         if ((window as any).updateHotkeyBar) {
           (window as any).updateHotkeyBar(data);
         }
+        // Re-renderiza aba de vender se vendor ou shop UI estiver aberto na aba Vender
+        const vendorUi = document.getElementById('vendor-ui');
+        if (vendorUi && vendorUi.style.display === 'flex') {
+          const sellTab = document.getElementById('vendor-tab-sell');
+          if (sellTab && (sellTab.style.background === '#92400e' || sellTab.style.background === 'rgb(146, 64, 14)')) {
+            this.renderVendorSell();
+          }
+        }
+        const shopUi = document.getElementById('shop-ui');
+        if (shopUi && shopUi.style.display === 'flex') {
+          const shopSellTab = document.getElementById('tab-sell');
+          if (shopSellTab && (shopSellTab.style.background === '#333' || shopSellTab.style.background === 'rgb(51, 51, 51)')) {
+            this.scene.renderShopSell();
+          }
+        }
         break;
       }
       case 'equipmentUpdate': this.scene.onEquipmentUpdate(data); break;

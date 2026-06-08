@@ -1,0 +1,910 @@
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2326:23)
+    at Socket.emit (node:events:521:24)
+    at Socket.emitReserved (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\typed-events.js:56:22)
+    at Socket._onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\socket.js:554:14)
+    at Client.onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\client.js:253:20)
+    at Socket.emit (node:events:521:24)
+    at Socket.onClose (E:\ANTIGRAVITY\aethelgard\server\node_modules\engine.io\build\socket.js:320:18)
+    at Object.onceWrapper (node:events:630:28)
+    at WebSocket.emit (node:events:509:28) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar DB do disconnect: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2326:23)
+    at Socket.emit (node:events:521:24)
+    at Socket.emitReserved (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\typed-events.js:56:22)
+    at Socket._onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\socket.js:554:14)
+    at Client.onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\client.js:253:20)
+    at Socket.emit (node:events:521:24)
+    at Socket.onClose (E:\ANTIGRAVITY\aethelgard\server\node_modules\engine.io\build\socket.js:320:18)
+    at Object.onceWrapper (node:events:630:28)
+    at WebSocket.emit (node:events:509:28) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Autosave erro: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at <anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2374:17)
+    at Map.forEach (<anonymous>)
+    at Game.tick (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2372:22)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2339:12)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar player Tiberius: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Game.saveAllPlayers (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:166:20)
+    at Timeout._onTimeout (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:83:28)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2326:23)
+    at Socket.emit (node:events:521:24)
+    at Socket.emitReserved (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\typed-events.js:56:22)
+    at Socket._onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\socket.js:554:14)
+    at Client.onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\client.js:253:20)
+    at Socket.emit (node:events:521:24)
+    at Socket.onClose (E:\ANTIGRAVITY\aethelgard\server\node_modules\engine.io\build\socket.js:320:18)
+    at Object.onceWrapper (node:events:630:28)
+    at WebSocket.emit (node:events:509:28) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+Erro ao salvar DB do disconnect: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:2326:23)
+    at Socket.emit (node:events:521:24)
+    at Socket.emitReserved (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\typed-events.js:56:22)
+    at Socket._onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\socket.js:554:14)
+    at Client.onclose (E:\ANTIGRAVITY\aethelgard\server\node_modules\socket.io\dist\client.js:253:20)
+    at Socket.emit (node:events:521:24)
+    at Socket.onClose (E:\ANTIGRAVITY\aethelgard\server\node_modules\engine.io\build\socket.js:320:18)
+    at Object.onceWrapper (node:events:630:28)
+    at WebSocket.emit (node:events:509:28) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+savePlayerToDB Error: SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:533:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+
+node:internal/process/promises:394
+    triggerUncaughtException(err, true /* fromPromise */);
+    ^
+SqliteError: UNIQUE constraint failed: players.id
+    at savePlayerToDB (E:\ANTIGRAVITY\aethelgard\server\src\core\database.ts:250:14)
+    at Socket.<anonymous> (E:\ANTIGRAVITY\aethelgard\server\src\core\Game.ts:533:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  code: 'SQLITE_CONSTRAINT_PRIMARYKEY'
+}
+
+Node.js v24.16.0
