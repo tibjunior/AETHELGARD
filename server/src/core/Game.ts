@@ -1883,6 +1883,17 @@ export class Game {
           });
       });
 
+      // Solicitar dados do banco ao abrir a UI
+      socket.on('bank:request', () => {
+          const player = this.players.get(socket.id);
+          if (!player) return;
+          socket.emit('bank:update', {
+              bankGold: player.bankGold ?? 0,
+              bankItems: player.bankItems ?? [],
+              bankDebtDays: player.bankDebtDays ?? 0
+          });
+      });
+
       // Desequipar Item
       socket.on('unequipItem', (slot: string) => {
           const player = this.players.get(socket.id);

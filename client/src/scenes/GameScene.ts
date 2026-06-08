@@ -1806,6 +1806,9 @@ export class GameScene extends Phaser.Scene {
 
       ui.style.display = 'flex';
 
+      // Pede dados atualizados do banco ao servidor
+      this.socketManager.socket.emit('bank:request');
+
       // Re-atualiza mochila para ligar click de depositar
       this.onInventoryUpdate(this.backpackData);
 
@@ -1870,15 +1873,15 @@ export class GameScene extends Phaser.Scene {
       if (statusMsg) {
           if (this.bankDebtDays < 0) {
               statusMsg.innerText = `Em Atraso (${this.bankDebtDays} dias)`;
-              statusMsg.style.color = '#f87171'; // vermelho
+              statusMsg.style.color = '#f87171';
               if (lockedAlert) lockedAlert.style.display = 'inline';
           } else if (this.bankGold === 0) {
               statusMsg.innerText = 'Sem Saldo';
-              statusMsg.style.color = '#fbbf24'; // amarelo
-              if (lockedAlert) lockedAlert.style.display = 'inline';
+              statusMsg.style.color = '#94a3b8';
+              if (lockedAlert) lockedAlert.style.display = 'none';
           } else {
               statusMsg.innerText = 'Regular';
-              statusMsg.style.color = '#4ade80'; // verde
+              statusMsg.style.color = '#4ade80';
               if (lockedAlert) lockedAlert.style.display = 'none';
           }
       }
