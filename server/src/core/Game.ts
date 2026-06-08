@@ -3673,6 +3673,29 @@ export class Game {
             socket.emit('textEffect', { x: player.x, y: player.y, message: `✅ Quest "${quest.title}" aceita!`, color: '#10b981' });
         });
 
+        socket.on('quest:list', () => {
+            const player = this.players.get(socket.id);
+            if (!player) return;
+            const questsData = (player as any).quests || {};
+            const result: any[] = [];
+            for (const [questId, progress] of Object.entries(questsData)) {
+                const quest = QUESTS.find(q => q.id === questId);
+                if (!quest) continue;
+                result.push({
+                    questId,
+                    title: quest.title,
+                    description: quest.description,
+                    objectives: quest.objectives.map((obj, i) => ({
+                        ...obj,
+                        current: (progress as any).objectives?.[i] ?? 0,
+                    })),
+                    rewards: quest.rewards,
+                    completed: (progress as any).completed,
+                });
+            }
+            socket.emit('quest:data', { quests: result });
+        });
+
         socket.on('startGathering', (data: { nodeId: string }) => {
             const player = this.players.get(socket.id);
             if (!player || player.isDead) return;
