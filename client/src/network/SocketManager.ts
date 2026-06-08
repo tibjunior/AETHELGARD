@@ -27,6 +27,8 @@ export class SocketManager {
 
     this.setupListeners();
     
+    (window as any).socket = this.socket;
+    
     // Expose global for HTML clicks
     (window as any).sendAddStat = (statName: string) => {
         if (this.socket) this.socket.emit('addStat', statName);
@@ -36,6 +38,7 @@ export class SocketManager {
   public attachExisting(existingSocket: Socket) {
     this.socket = existingSocket;
     this.setupListeners();
+    (window as any).socket = existingSocket;
     (window as any).sendAddStat = (statName: string) => {
       if (this.socket) this.socket.emit('addStat', statName);
     };
@@ -91,7 +94,6 @@ export class SocketManager {
       case 'bossSpawned': this.scene.addServerMessage(`O aterrorizante ${data.name} nasceu`, true); break;
       case 'teleporter:destinations': console.log('[NPC] evento teleporter:destinations recebido', data); this.openTeleporter(data.destinations); break;
       case 'vendor:open': console.log('[NPC] evento vendor:open recebido', data); this.openVendor(data.name, data.stock); break;
-      case 'quest:open': console.log('[NPC] evento quest:open recebido', data); this.openQuestUI(data); break;
       default: console.warn('[SocketManager] unhandled game event:', event);
     }
   }
@@ -187,6 +189,14 @@ export class SocketManager {
 
     this.socket.on('auctionList', (list: any[]) => {
       this.scene.renderAuctionList(list);
+    });
+
+    this.socket.on('quest:open', (data: { npcId: string; name: string; quests: any[]; playerProgress: any[] }) => {
+      this.openQuestUI(data);
+    });
+
+    this.socket.on('quest:data', (data: { quests: any[] }) => {
+      this.renderQuestJournal(data.quests);
     });
   }
 
@@ -506,6 +516,40 @@ export class SocketManager {
   }
 
   // ===== Quest UI =====
+  public renderQuestJournal(quests: any[]) {
+      const panel = document.getElementById('quests-panel');
+      if (!panel) return;
+      if (quests.length === 0) {
+          panel.innerHTML = '<div style="color:#64748b;font-size:11px;text-align:center;padding:20px 0;">Nenhuma missão ativa.</div>';
+          return;
+      }
+      panel.innerHTML = '';
+      quests.forEach((q: any) => {
+          const done = q.objectives.every((o: any) => o.current >= o.count);
+          const expired = q.expired;
+          const card = document.createElement('div');
+          let borderColor = '#334155';
+          let statusText = '';
+          if (expired) { borderColor = '#ef4444'; statusText = '⏰ Expirada!'; }
+          else if (done) { borderColor = '#10b981'; statusText = '✅ Concluída!'; }
+          card.style.cssText = `padding:10px;margin-bottom:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid ${borderColor};`;
+          card.innerHTML = `
+              <h4 style="margin:0 0 2px;color:#fbbf24;font-size:13px;">${q.title}</h4>
+              <p style="margin:0 0 6px;color:#94a3b8;font-size:10px;">${q.description}</p>
+              <div style="font-size:10px;color:#e2e8f0;display:flex;flex-direction:column;gap:2px;">
+                  ${q.objectives.map((o: any) => {
+                      return `<div style="display:flex;justify-content:space-between;"><span>• ${translateQuestObjective(o)}</span><span style="color:${o.current >= o.count ? '#10b981' : '#fbbf24'};">${o.current}/${o.count}</span></div>`;
+                  }).join('')}
+              </div>
+              <div style="font-size:10px;color:#10b981;margin-top:4px;">
+                  Recompensas: ${q.rewards.gold ? `${q.rewards.gold} Ouro ` : ''}${q.rewards.xp ? `${q.rewards.xp} XP ` : ''}${q.rewards.professionXp ? Object.entries(q.rewards.professionXp).map(([prof, amt]: [string, any]) => `+${amt} ${prof}`).join(' ') : ''}
+              </div>
+              ${statusText ? `<div style="margin-top:4px;color:${expired ? '#ef4444' : '#10b981'};font-weight:bold;font-size:11px;">${statusText}</div>` : ''}
+          `;
+          panel.appendChild(card);
+      });
+  }
+
   public openQuestUI(data: { npcId: string; name: string; quests: any[]; playerProgress: any[] }) {
       const existing = document.getElementById('quest-ui');
       if (existing) existing.remove();

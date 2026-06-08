@@ -73,6 +73,15 @@ export interface PlayerData {
   // Conta + sprite (multi-personagem)
   accountName?: string;
   spriteId?: string;
+
+  // Missões
+  quests?: Record<string, {
+    started: boolean;
+    completed: boolean;
+    objectives: Record<string, number>;
+    acceptedAt?: number;
+    expiresAt?: number;
+  }>;
 }
 
 export const SPRITE_IDS = ['m1', 'm2', 'f1', 'f2'] as const;

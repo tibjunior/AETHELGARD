@@ -116,8 +116,6 @@ export class GameScene extends Phaser.Scene {
   private worldBounds: { width: number; height: number } = { width: 150 * 32, height: 150 * 32 };
   private backgroundTileSprite!: Phaser.GameObjects.TileSprite;
   
-  private fog!: Phaser.GameObjects.Graphics;
-  private lightBrush!: Phaser.GameObjects.Image;
   private hasTorch: boolean = false;
   
   // Banker state variables
@@ -508,13 +506,6 @@ export class GameScene extends Phaser.Scene {
         this.backgroundTileSprite.setPosition(this.worldBounds.width / 2, this.worldBounds.height / 2);
       }
 
-      // Redimensiona fog of war
-      if (this.fog) {
-        this.fog.clear();
-        this.fog.fillStyle(0x000000, 0.98);
-        this.fog.fillRect(0, 0, this.worldBounds.width, this.worldBounds.height);
-      }
-
       console.log(`[Map] World bounds expandidos: ${this.worldBounds.width}x${this.worldBounds.height} (${maxTileX+1}x${maxTileY+1} tiles)`);
     }
   }
@@ -537,30 +528,12 @@ export class GameScene extends Phaser.Scene {
     this.localPlayerSprite.flipX = (initialFacing === 'right');
     
     // Cria a textura de luz (brush gradiente) para apagar a escuridão
-    const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.8)');
-    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 256, 256);
-    this.textures.addSpriteSheet('lightBrush', canvas as any, { frameWidth: 256, frameHeight: 256 });
-    
-    this.lightBrush = this.make.image({ x: 0, y: 0, key: 'lightBrush', add: true });
-    this.lightBrush.setVisible(false); // Fica invisível, serve só como máscara
-    
-    // Cria a camada de Fog com Graphics cobrindo todo o mapa (usa worldBounds dinâmico)
-    this.fog = this.add.graphics();
-    this.fog.fillStyle(0x000000, 0.98);
-    this.fog.fillRect(0, 0, this.worldBounds.width, this.worldBounds.height);
-    this.fog.setDepth(19);
-
-    // Cria a máscara invertida (Furo de Luz)
-    const mask = this.lightBrush.createBitmapMask();
-    mask.invertAlpha = true;
-    this.fog.setMask(mask);
+    // Cria overlay de noite APENAS sobre o canvas (deixa UI visível)
+    const container = document.getElementById('game-container');
+    const nightOverlay = document.createElement('div');
+    nightOverlay.id = 'night-overlay';
+    nightOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;opacity:0;transition:opacity 2s ease;background:radial-gradient(circle at 50% 50%, transparent 64px, rgba(0,0,0,0.85) 120px);';
+    if (container) container.appendChild(nightOverlay);
 
     // Ajusta o tamanho do mapa e câmera
     this.cameras.main.setBounds(0, 0, this.worldBounds.width, this.worldBounds.height);
@@ -2251,6 +2224,7 @@ export class GameScene extends Phaser.Scene {
         else if (data.id.startsWith('npc_vendor_')) npcType = 'vendor';
         else if (data.id === 'npc_merchant') npcType = 'merchant';
         else if (data.id === 'npc_banker') npcType = 'banker';
+        else if (data.id.startsWith('npc_questgiver')) npcType = 'questgiver';
       }
     }
     if (isNpc) {
@@ -2270,6 +2244,8 @@ export class GameScene extends Phaser.Scene {
         texture = 'teleporter-sprite';
     } else if (npcType === 'vendor') {
         texture = 'vendor-sprite';
+    } else if (npcType === 'questgiver') {
+        texture = 'teleporter-sprite'; // reusa sprite do mago
     } else {
         // Personagem de jogador: usa o sprite selecionado
         texture = 'characters';
@@ -2304,6 +2280,8 @@ export class GameScene extends Phaser.Scene {
         // Mago teleportador: mantém cor natural (azul-royal)
     } else if (npcType === 'vendor') {
         // Vendedor: mantém cor natural
+    } else if (npcType === 'questgiver') {
+        sprite.setTint(0xa855f7); // Roxo
     } else if (!data.isMonster && !isNpc) {
         sprite.setTint(0xff0000); // Jogadores inimigos em vermelho
     }
@@ -2320,6 +2298,7 @@ export class GameScene extends Phaser.Scene {
     else if (data.name === 'Banker') nameColor = '#10b981';
     else if (npcType === 'teleporter') nameColor = '#60a5fa';
     else if (npcType === 'vendor') nameColor = '#d97706';
+    else if (npcType === 'questgiver') nameColor = '#a855f7';
     else if (data.name === 'Giant Rat') nameColor = '#94a3b8';
 
     const displayName = (window as any).translateMonster ? (window as any).translateMonster(data.name) : data.name;
@@ -2346,6 +2325,11 @@ export class GameScene extends Phaser.Scene {
       } else if (npcType === 'vendor') {
           this.startInteractionChase(data.x, data.y, () => {
             console.log(`[NPC] chegou no vendor ${data.id}, emitindo npc:interact`);
+            this.socketManager.interactNPC(data.id);
+          });
+      } else if (npcType === 'questgiver') {
+          this.startInteractionChase(data.x, data.y, () => {
+            console.log(`[NPC] chegou no questgiver ${data.id}, emitindo npc:interact`);
             this.socketManager.interactNPC(data.id);
           });
       } else if (pointer.rightButtonDown()) {
@@ -2905,14 +2889,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   public setNight(isNight: boolean) {
-      if (this.fog) {
-          // Anima a transição Dia -> Noite (1 segundo)
-          this.tweens.add({
-              targets: this.fog,
-              alpha: isNight ? 1 : 0,
-              duration: 2000,
-              ease: 'Sine.easeInOut'
-          });
+      const overlay = document.getElementById('night-overlay');
+      if (overlay) {
+          overlay.style.opacity = isNight ? '1' : '0';
       }
   }
 
@@ -3208,15 +3187,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   update() {
-      // Atualiza a Fog of War desenhando uma luz macia em cima do jogador todo frame
-      if (this.localPlayerSprite && this.fog) {
-          // A máscara segue o jogador exatamente nas coordenadas do mapa
-          this.lightBrush.x = this.localPlayerSprite.x;
-          this.lightBrush.y = this.localPlayerSprite.y;
-          
-          // Raio visual aumentado (Sem Tocha = 0.8, Com Tocha = 5.0)
-          const scale = this.hasTorch ? 5.0 : 0.8;
-          this.lightBrush.setScale(scale);
+      // Atualiza o overlay de noite para seguir o jogador (gradiente radial centrado)
+      const overlay = document.getElementById('night-overlay');
+      if (overlay && this.localPlayerSprite) {
+          const rect = this.cameras.main;
+          const px = (this.localPlayerSprite.x - rect.scrollX) / rect.width;
+          const py = (this.localPlayerSprite.y - rect.scrollY) / rect.height;
+          const radius = (this.hasTorch ? 5 : 2) * this.TILE_SIZE;
+          overlay.style.background = `radial-gradient(circle at ${px * 100}% ${py * 100}%, transparent ${radius}px, rgba(0,0,0,0.85) ${radius + 40}px)`;
       }
 
       // === Animação de andar: jogador local ===

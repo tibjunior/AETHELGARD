@@ -608,6 +608,7 @@ export interface Quest {
     levelRequired: number;
     objectives: QuestObjective[];
     rewards: QuestReward;
+    expiresAfterMin?: number;    // tempo limite em minutos
 }
 
 export type PlayerQuestProgress = Record<string, {

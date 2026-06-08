@@ -1277,8 +1277,11 @@ export class Game {
                   this.recalculateWeight(player);
                   this.recalculateStats(player);
                   
-                  socket.emit('inventoryUpdate', player.backpack);
-                  socket.emit('statsUpdate', { 
+               // Atualiza progresso de quests (craft)
+               this.updateQuestProgress(player, 'craft', recipe.resultItem);
+
+               socket.emit('inventoryUpdate', player.backpack);
+               socket.emit('statsUpdate', {
                       id: player.id, level: player.level, experience: player.experience, gold: player.gold, 
                       stats: player.stats, statPoints: player.statPoints,
                       attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
@@ -2974,6 +2977,11 @@ export class Game {
                 sp: attacker.sp, maxSp: attacker.maxSp, weight: attacker.weight, maxWeight: attacker.maxWeight
             });
 
+            // Atualiza progresso de quests (kill)
+            if (target.name) {
+                this.updateQuestProgress(attacker, 'kill', target.name);
+            }
+
             // Texto visual de XP ganha em cima do corpo do monstro
             this.io.emit('textEffect', { x: target.x, y: target.y, text: `+${expReward} EXP`, color: '#fbbf24' });
 
@@ -3082,6 +3090,75 @@ export class Game {
         // Remove o target do atacante atual porque o alvo morreu
         attacker.targetId = undefined;
      }
+  }
+
+  private sendQuestData(socket: any, player: PlayerData) {
+      if (!player.quests) player.quests = {};
+      const now = Date.now();
+      const result: any[] = [];
+      for (const [questId, progress] of Object.entries(player.quests)) {
+          const quest = QUESTS.find(q => q.id === questId);
+          if (!quest) continue;
+          // Marca como expirada
+          if (!progress.completed && progress.expiresAt && now > progress.expiresAt) {
+              progress.completed = true;
+              (progress as any).expired = true;
+          }
+          result.push({
+              questId,
+              title: quest.title,
+              description: quest.description,
+              objectives: quest.objectives.map((obj, i) => ({
+                  ...obj,
+                  current: progress.objectives?.[i] ?? 0,
+              })),
+              rewards: quest.rewards,
+              completed: progress.completed,
+              expired: (progress as any).expired || false,
+          });
+      }
+      socket.emit('quest:data', { quests: result });
+  }
+
+  private emitQuestProgress(socketId: string, player: PlayerData) {
+      const socket = this.io.sockets.sockets.get(socketId);
+      if (socket) this.sendQuestData(socket, player);
+  }
+
+  private updateQuestProgress(player: PlayerData, type: 'kill' | 'craft', targetName: string) {
+      if (!player.quests) return;
+      let changed = false;
+      const now = Date.now();
+      for (const [questId, progress] of Object.entries(player.quests)) {
+          if (progress.completed) continue;
+          if (progress.expiresAt && now > progress.expiresAt) {
+              progress.completed = true;
+              (progress as any).expired = true;
+              changed = true;
+              continue;
+          }
+          const quest = QUESTS.find(q => q.id === questId);
+          if (!quest) continue;
+          quest.objectives.forEach((obj, i) => {
+              if (obj.type === type && obj.target === targetName) {
+                  const current = progress.objectives?.[i] ?? 0;
+                  if (current < obj.count) {
+                      if (!progress.objectives) progress.objectives = {};
+                      progress.objectives[i] = current + 1;
+                      changed = true;
+                  }
+              }
+          });
+          // Verifica se completou
+          if (!progress.completed && quest.objectives.every((obj, i) => (progress.objectives?.[i] ?? 0) >= obj.count)) {
+              progress.completed = true;
+              changed = true;
+          }
+      }
+      if (changed) {
+          savePlayerToDB(player).catch(() => {});
+          this.emitQuestProgress(player.id, player);
+      }
   }
 
   private getMaxBackpackSlots(player: PlayerData): number {
@@ -3663,37 +3740,24 @@ export class Game {
             if (!player) return;
             const quest = QUESTS.find(q => q.id === data.questId);
             if (!quest) return;
-            if (!(player as any).quests) (player as any).quests = {};
-            if ((player as any).quests[data.questId]) return; // já aceitou
-            (player as any).quests[data.questId] = {
+            if (!player.quests) player.quests = {};
+            if (player.quests[data.questId]) return;
+            const expiredAt = quest.expiresAfterMin ? Date.now() + quest.expiresAfterMin * 60000 : undefined;
+            player.quests[data.questId] = {
                 started: true,
                 completed: false,
                 objectives: {},
+                acceptedAt: Date.now(),
+                expiresAt: expiredAt,
             };
+            savePlayerToDB(player).catch(() => {});
             socket.emit('textEffect', { x: player.x, y: player.y, message: `✅ Quest "${quest.title}" aceita!`, color: '#10b981' });
         });
 
         socket.on('quest:list', () => {
             const player = this.players.get(socket.id);
             if (!player) return;
-            const questsData = (player as any).quests || {};
-            const result: any[] = [];
-            for (const [questId, progress] of Object.entries(questsData)) {
-                const quest = QUESTS.find(q => q.id === questId);
-                if (!quest) continue;
-                result.push({
-                    questId,
-                    title: quest.title,
-                    description: quest.description,
-                    objectives: quest.objectives.map((obj, i) => ({
-                        ...obj,
-                        current: (progress as any).objectives?.[i] ?? 0,
-                    })),
-                    rewards: quest.rewards,
-                    completed: (progress as any).completed,
-                });
-            }
-            socket.emit('quest:data', { quests: result });
+            this.sendQuestData(socket, player);
         });
 
         socket.on('startGathering', (data: { nodeId: string }) => {
@@ -3786,7 +3850,11 @@ export class Game {
                        // (kind=hub aciona a getTeleporterDestination que retorna o centro da praça)
                        this.performTeleport(socket, { kind: 'hub' });
                    }
-            } else if (npcType === 'vendor') {
+             } else if (npcType === 'questgiver') {
+                 const available = QUESTS.filter(q => q.npcId === data.npcId && q.levelRequired <= (player.level || 1));
+                 const progress = available.map(q => player.quests?.[q.id] ?? null);
+                 socket.emit('quest:open', { npcId: data.npcId, name: npc.name, quests: available, playerProgress: progress });
+             } else if (npcType === 'vendor') {
                 const vendor = getVendorAt(npc.x, npc.y);
                 if (!vendor) return;
                 // Inclui soldToday no stock para o cliente saber quantos já foram vendidos
