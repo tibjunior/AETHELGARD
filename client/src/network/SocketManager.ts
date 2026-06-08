@@ -199,6 +199,10 @@ export class SocketManager {
       this.renderQuestJournal(data.quests);
     });
 
+    this.socket.on('subskillsUpdate', (data: Record<string, { rank: number; xp: number }>) => {
+      this.scene.onSubskillsUpdate(data);
+    });
+
     this.socket.on('quest:reward', (data: { questId: string; rewards: any }) => {
       // Feedback visual da recompensa
       if (data.rewards) {

@@ -1408,6 +1408,7 @@
         <button class="menu-btn" data-target="modal-equipment" title="Equipamentos">🛡️</button>
         <button class="menu-btn" data-target="modal-stats" title="Atributos">📊</button>
         <button class="menu-btn" data-target="modal-gathering" title="Profissões">🌿</button>
+        <button class="menu-btn" data-target="modal-quests" title="Missões">❓</button>
       </div>
 
       <!-- Modal: Mochila -->
@@ -1543,20 +1544,20 @@
           <span class="modal-title">🌿 Profissões</span>
           <span class="close-modal" data-target="modal-gathering">✖</span>
         </div>
+        <div style="padding: 12px; max-height: 60vh; overflow-y: auto;">
+          <div id="gathering-panel" style="font-family: monospace; display: flex; flex-direction: column; gap: 8px;"></div>
+        </div>
+      </div>
+
+      <!-- Modal: Diário de Missões -->
+      <div class="game-modal" id="modal-quests">
+        <div class="modal-header">
+          <span class="modal-title">📜 Diário de Missões</span>
+          <span class="close-modal" data-target="modal-quests">✖</span>
+        </div>
         <div style="padding: 12px;">
-          <div id="gathering-panel" style="padding: 8px; background: rgba(0,0,0,0.15); border-radius: 6px; border: 1px solid rgba(255,255,255,0.04); font-family: monospace; color: #94a3b8; font-size: 11px; display: flex; flex-direction: column; gap: 6px;">
-            <div style="display: flex; justify-content: space-between;">
-              <span>🪨 Mineração:</span>
-              <span id="lvl-mining" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>🌿 Herbologia:</span>
-              <span id="lvl-herbalism" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-              <span>🪵 Madeireiro:</span>
-              <span id="lvl-woodcutting" style="color: #fbbf24; font-weight: bold;">Lvl 1 (0%)</span>
-            </div>
+          <div id="quests-panel" style="display: flex; flex-direction: column; gap: 8px; min-height: 60px;">
+            <div style="color: #64748b; font-size: 11px; text-align: center; padding: 20px 0;">Nenhuma missão ativa.</div>
           </div>
         </div>
       </div>
@@ -1824,6 +1825,9 @@
                   targetModal.style.display = 'flex';
                   btn.classList.add('active');
                   bringToFront(targetModal);
+                  if (targetId === 'modal-quests' && window.socket) {
+                      window.socket.emit('quest:list');
+                  }
               }
           });
       });

@@ -2,6 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
 import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold, saveConfigToDB, loadConfigFromDB, loadAllConfigFromDB, getAccountFromDB, createAccountInDB, listCharactersForAccount, deleteCharacterFromAccount, countCharactersForAccount, setAccountPassword, AccountRow } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
+import { SUBSKILLS, SubskillDef } from '../../../shared/subskills';
 import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDefaults, MONSTER_CITIES, MonsterCity, PLAZA_BOUNDS, PLAZA_TELEPORTER, CAVERNA_TELEPORTER, CAVERNA_SAFE_ZONE_CENTER, CAVERNA_SAFE_ZONE_GATE, CITY_TELEPORTERS, CITY_VENDORS, QUESTS, VendorNpc, Quest, getCityAt, getTeleporterAt, getVendorAt, isInPlaza, isInSafeZone, getHubDestinations, getTeleporterDestination, getSafeZoneWallRing, SAFE_ZONE_RADIUS } from './serverConfig';
 
 export const ITEM_WEIGHTS: Record<string, number> = {
@@ -1278,7 +1279,7 @@ export class Game {
                   this.recalculateStats(player);
                   
                // Atualiza progresso de quests (craft)
-               this.updateQuestProgress(player, 'craft', recipe.resultItem);
+               this.updateQuestProgress(player, 'craft', itemName);
 
                socket.emit('inventoryUpdate', player.backpack);
                socket.emit('statsUpdate', {
@@ -2153,7 +2154,10 @@ export class Game {
               
               player[xpField] = newXp;
               player[lvlField] = newLvl;
-              
+
+              this.gainSubskillsForProfession(player, recipe.profession, xpGain * 0.2);
+              this.emitSubskillsStats(socket, player);
+
               this.recalculateWeight(player);
               
               // Avisa os clientes próximos para desenharem partículas
@@ -2245,6 +2249,9 @@ export class Game {
               }
               player[xpField] = newXp;
               player[lvlField] = newLvl;
+
+              this.gainSubskillsForProfession(player, recipe.profession, xpGained * 0.2);
+              this.emitSubskillsStats(socket, player);
           }
 
           this.recalculateWeight(player);
@@ -3835,8 +3842,11 @@ export class Game {
                     }
                     (player as any)[xpField] = newXp;
                     (player as any)[lvlField] = newLvl;
+
+                    this.gainSubskillsForProfession(player, prof, (amt as number) * 0.2);
                 }
             }
+            this.emitSubskillsStats(socket, player);
             progress.rewarded = true;
             savePlayerToDB(player).catch(() => {});
             socket.emit('quest:reward', { questId: data.questId, rewards: quest.rewards });
@@ -4161,6 +4171,10 @@ export class Game {
 
           player[xpField] = newXp;
           player[lvlField] = newLvl;
+
+          // Subskill XP da habilidade de coleta
+          const gatherProfMap: Record<string, string> = { ore: 'mining', tree: 'woodcutting', herb: 'herbalism' };
+          this.gainSubskillsForProfession(player, gatherProfMap[node.type], xpGained * 0.2);
       }
 
       // XP de profissão ao coletar (minério → Smithing, madeira → Tanning, ervas → Alchemy)
@@ -4183,9 +4197,14 @@ export class Game {
           }
           player[profXpField] = newXp;
           player[profLvlField] = newLvl;
+
+          // Subskill XP da profissão de criação associada
+          const craftProfMap: Record<string, string> = { ore: 'smithing', herb: 'alchemy', tree: 'tanning' };
+          this.gainSubskillsForProfession(player, craftProfMap[node.type], xpGained * 0.2);
       }
 
       this.recalculateWeight(player);
+      this.emitSubskillsStats(socket, player);
 
       const displayItemName = ITEM_NAMES_PT[itemName] || itemName;
       socket.emit('textEffect', { x: player.x, y: player.y, message: `+1 ${displayItemName}`, color: '#10b981' });
@@ -4353,5 +4372,39 @@ export class Game {
       }
   }
 
+  private gainSubskillsForProfession(player: PlayerData, professionName: string, xpAmount: number) {
+      if (!player.subskills) player.subskills = {};
+      if (xpAmount <= 0) return;
+
+      let profLevel = 1;
+      if (professionName === 'mining') profLevel = player.gatheringMiningLevel ?? 1;
+      else if (professionName === 'herbalism') profLevel = player.gatheringHerbalismLevel ?? 1;
+      else if (professionName === 'woodcutting') profLevel = player.gatheringWoodcuttingLevel ?? 1;
+      else if (professionName === 'smithing') profLevel = player.professionSmithingLevel ?? 1;
+      else if (professionName === 'alchemy') profLevel = player.professionAlchemyLevel ?? 1;
+      else if (professionName === 'tanning') profLevel = player.professionTanningLevel ?? 1;
+
+      const subskills = SUBSKILLS.filter(s => s.profession === professionName);
+      for (const skill of subskills) {
+          if (profLevel < skill.requiredLevel) continue;
+
+          if (!player.subskills[skill.id]) {
+              player.subskills[skill.id] = { rank: 0, xp: 0 };
+          }
+
+          const prog = player.subskills[skill.id];
+          if (prog.rank >= skill.maxRank) continue;
+
+          prog.xp += xpAmount;
+          while (prog.xp >= skill.xpPerRank && prog.rank < skill.maxRank) {
+              prog.xp -= skill.xpPerRank;
+              prog.rank++;
+          }
+      }
+  }
+
+  private emitSubskillsStats(socket: any, player: PlayerData) {
+      socket.emit('subskillsUpdate', player.subskills ?? {});
+  }
 }
 // Restart trigger

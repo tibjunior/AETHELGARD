@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SocketManager } from '../network/SocketManager';
 import { PlayerData, Position, ResourceNode, CraftingStation, SpriteId, SPRITE_IDS, Facing, FACINGS, getFrameIndex } from '../../../shared/types';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
+import { SUBSKILLS } from '../../../shared/subskills';
 
 /**
  * Ícones de item baseados em imagens (URLs servidas pelo Vite a partir de /client/public).
@@ -74,6 +75,15 @@ export class GameScene extends Phaser.Scene {
   private recallGlowGraphics?: Phaser.GameObjects.Graphics;
 
   // Profissões de Criação e Receitas do Jogador
+  // Coleta
+  private gatheringMiningLevel: number = 1;
+  private gatheringMiningXp: number = 0;
+  private gatheringHerbalismLevel: number = 1;
+  private gatheringHerbalismXp: number = 0;
+  private gatheringWoodcuttingLevel: number = 1;
+  private gatheringWoodcuttingXp: number = 0;
+
+  // Criação
   private professionSmithingLevel: number = 1;
   private professionSmithingXp: number = 0;
   private professionAlchemyLevel: number = 1;
@@ -82,6 +92,9 @@ export class GameScene extends Phaser.Scene {
   private professionTanningXp: number = 0;
   private learnedRecipes: string[] = [];
   private currentCraftingStationType: string = 'forge';
+
+  // Subskills
+  private subskills: Record<string, { rank: number; xp: number }> = {};
   
   // Interface e Status
   private hpBars: Map<string, Phaser.GameObjects.Graphics> = new Map();
@@ -2131,7 +2144,16 @@ export class GameScene extends Phaser.Scene {
           if (fill) fill.style.background = pct > 90 ? '#ef4444' : '#d97706';
       }
 
-      // Update local professions & learned recipes
+      // Update local gathering professions
+      if (data.gatheringMiningLevel !== undefined) { this.gatheringMiningLevel = data.gatheringMiningLevel; }
+      if (data.gatheringMiningXp !== undefined) { this.gatheringMiningXp = data.gatheringMiningXp; }
+      if (data.gatheringHerbalismLevel !== undefined) { this.gatheringHerbalismLevel = data.gatheringHerbalismLevel; }
+      if (data.gatheringHerbalismXp !== undefined) { this.gatheringHerbalismXp = data.gatheringHerbalismXp; }
+      if (data.gatheringWoodcuttingLevel !== undefined) { this.gatheringWoodcuttingLevel = data.gatheringWoodcuttingLevel; }
+      if (data.gatheringWoodcuttingXp !== undefined) { this.gatheringWoodcuttingXp = data.gatheringWoodcuttingXp; }
+      this.refreshGatheringPanel();
+
+      // Update local crafting professions & learned recipes
       let profChanged = false;
       if (data.professionSmithingLevel !== undefined) { this.professionSmithingLevel = data.professionSmithingLevel; profChanged = true; }
       if (data.professionSmithingXp !== undefined) { this.professionSmithingXp = data.professionSmithingXp; profChanged = true; }
@@ -2141,6 +2163,17 @@ export class GameScene extends Phaser.Scene {
       if (data.professionTanningXp !== undefined) { this.professionTanningXp = data.professionTanningXp; profChanged = true; }
       if (data.learnedRecipes !== undefined) this.learnedRecipes = data.learnedRecipes;
       if (profChanged) this.refreshCraftingProfessionDisplay();
+
+      // Update subskills if present (full payload from init)
+      if (data.subskills) {
+          this.subskills = data.subskills;
+          this.refreshGatheringPanel();
+      }
+  }
+
+  public onSubskillsUpdate(data: Record<string, { rank: number; xp: number }>) {
+      this.subskills = data;
+      this.refreshGatheringPanel();
   }
 
   public onLevelUp(data: { id: string, level: number }) {
@@ -3885,6 +3918,108 @@ export class GameScene extends Phaser.Scene {
 
   public onRecallCompleted() {
       this.onRecallCancelled();
+  }
+
+  private refreshGatheringPanel() {
+      const panel = document.getElementById('gathering-panel');
+      if (!panel) return;
+
+      const profs = [
+          { id: 'mining', label: '🪨 Mineração', lvl: this.gatheringMiningLevel, xp: this.gatheringMiningXp },
+          { id: 'herbalism', label: '🌿 Herbologia', lvl: this.gatheringHerbalismLevel, xp: this.gatheringHerbalismXp },
+          { id: 'woodcutting', label: '🪵 Madeireiro', lvl: this.gatheringWoodcuttingLevel, xp: this.gatheringWoodcuttingXp },
+          { id: 'smithing', label: '⚒️ Ferraria', lvl: this.professionSmithingLevel, xp: this.professionSmithingXp },
+          { id: 'alchemy', label: '🧪 Alquimia', lvl: this.professionAlchemyLevel, xp: this.professionAlchemyXp },
+          { id: 'tanning', label: '🧵 Alfaiataria', lvl: this.professionTanningLevel, xp: this.professionTanningXp },
+      ];
+
+      panel.innerHTML = '';
+
+      for (const prof of profs) {
+          const nextLvlXp = prof.lvl * 100;
+          const pct = Math.min(100, (prof.xp / nextLvlXp) * 100);
+
+          const block = document.createElement('div');
+          block.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:6px 8px;border-radius:4px;background:rgba(255,255,255,0.03);';
+
+          const header = document.createElement('div');
+          header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;';
+
+          const label = document.createElement('span');
+          label.style.cssText = 'color:#e2e8f0;font-weight:bold;font-size:12px;';
+          label.innerText = prof.label;
+
+          const lvlSpan = document.createElement('span');
+          lvlSpan.style.cssText = 'color:#fbbf24;font-size:11px;';
+          lvlSpan.innerText = `Lvl ${prof.lvl} (${prof.xp}/${nextLvlXp})`;
+
+          header.appendChild(label);
+          header.appendChild(lvlSpan);
+
+          const barOuter = document.createElement('div');
+          barOuter.style.cssText = 'width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;';
+
+          const barInner = document.createElement('div');
+          barInner.style.cssText = `width:${pct}%;height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);border-radius:3px;transition:width 0.3s;`;
+
+          barOuter.appendChild(barInner);
+
+          block.appendChild(header);
+          block.appendChild(barOuter);
+
+          // Subskills
+          const subPanel = document.createElement('div');
+          subPanel.style.cssText = 'display:flex;flex-direction:column;gap:2px;margin-top:2px;';
+
+          const subskillsList = this.subskills ? Object.entries(this.subskills)
+              .filter(([id]) => id.startsWith(prof.id + '_'))
+              .sort() : [];
+
+          for (const [subId, prog] of subskillsList) {
+              const def = SUBSKILLS.find(s => s.id === subId);
+              if (!def) continue;
+
+              const subRow = document.createElement('div');
+              subRow.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:1px 4px;font-size:10px;';
+
+              const subLabel = document.createElement('span');
+              const isMaxRank = prog.rank >= def.maxRank;
+              subLabel.style.cssText = `color:${isMaxRank ? '#10b981' : '#94a3b8'};`;
+              subLabel.innerText = `${def.icon} ${def.name} ${isMaxRank ? 'MAX' : `Rank ${prog.rank}/${def.maxRank}`}`;
+
+              const subXp = document.createElement('span');
+              if (!isMaxRank) {
+                  const subPct = Math.min(100, (prog.xp / def.xpPerRank) * 100);
+                  subXp.style.cssText = 'color:#64748b;font-size:9px;';
+                  subXp.innerText = `${Math.round(subPct)}%`;
+              } else {
+                  subXp.style.cssText = 'color:#10b981;font-size:9px;';
+                  subXp.innerText = '✔️';
+              }
+
+              subRow.appendChild(subLabel);
+              subRow.appendChild(subXp);
+
+              if (!isMaxRank) {
+                  const miniBarOuter = document.createElement('div');
+                  miniBarOuter.style.cssText = 'width:100%;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;';
+                  const subPct = Math.min(100, (prog.xp / def.xpPerRank) * 100);
+                  const miniBarInner = document.createElement('div');
+                  miniBarInner.style.cssText = `width:${subPct}%;height:100%;background:#3b82f6;border-radius:2px;transition:width 0.3s;`;
+                  miniBarOuter.appendChild(miniBarInner);
+                  subPanel.appendChild(subRow);
+                  subPanel.appendChild(miniBarOuter);
+              } else {
+                  subPanel.appendChild(subRow);
+              }
+          }
+
+          if (subskillsList.length > 0) {
+              block.appendChild(subPanel);
+          }
+
+          panel.appendChild(block);
+      }
   }
 
   private refreshCraftingProfessionDisplay() {

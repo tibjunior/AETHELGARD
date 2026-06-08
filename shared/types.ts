@@ -74,6 +74,9 @@ export interface PlayerData {
   accountName?: string;
   spriteId?: string;
 
+  // Subskills (especializações das profissões)
+  subskills?: Record<string, { rank: number; xp: number }>;
+
   // Missões
   quests?: Record<string, {
     started: boolean;

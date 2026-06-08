@@ -70,6 +70,7 @@ function migrate() {
     addColumn('account_name',              "TEXT DEFAULT ''");
     addColumn('sprite_id',                 "TEXT DEFAULT 'm1'");
     addColumn('quests',                    "TEXT DEFAULT '{}'");
+    addColumn('subskills',                 "TEXT DEFAULT '{}'");
 
     db.exec(`
         CREATE TABLE IF NOT EXISTS accounts (
@@ -181,6 +182,7 @@ function rowToPlayer(row: any): PlayerData {
         accountName: row.account_name || row.name || '',
         spriteId: row.sprite_id || 'm1',
         quests: safeJson(row.quests, {}),
+        subskills: safeJson(row.subskills, {}),
     } as PlayerData;
 }
 
@@ -217,7 +219,7 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             profession_tanning_level, profession_tanning_xp,
             learned_recipes, ui_positions, password,
             bank_gold, bank_items, bank_debt_days,
-            account_name, sprite_id, quests
+            account_name, sprite_id, quests, subskills
         )
         VALUES (
             @id, @name, @x, @y, @level, @experience, @gold, @stats, @statPoints, @sp, @health, @equipment, @backpack,
@@ -230,7 +232,7 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             @professionTanningLevel, @professionTanningXp,
             @learnedRecipes, @uiPositions, @password,
             @bankGold, @bankItems, @bankDebtDays,
-            @accountName, @spriteId, @quests
+            @accountName, @spriteId, @quests, @subskills
         )
         ON CONFLICT(name) DO UPDATE SET
             id=excluded.id, x=excluded.x, y=excluded.y, level=excluded.level, experience=excluded.experience,
@@ -245,7 +247,7 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             profession_tanning_level=excluded.profession_tanning_level, profession_tanning_xp=excluded.profession_tanning_xp,
             learned_recipes=excluded.learned_recipes, ui_positions=excluded.ui_positions, password=excluded.password,
             bank_gold=excluded.bank_gold, bank_items=excluded.bank_items, bank_debt_days=excluded.bank_debt_days,
-            account_name=excluded.account_name, sprite_id=excluded.sprite_id, quests=excluded.quests
+            account_name=excluded.account_name, sprite_id=excluded.sprite_id, quests=excluded.quests, subskills=excluded.subskills
     `);
 
     try {
@@ -285,7 +287,8 @@ export async function savePlayerToDB(player: PlayerData): Promise<void> {
             bankDebtDays: player.bankDebtDays ?? 0,
             accountName: player.accountName || player.name || '',
             spriteId: player.spriteId || 'm1',
-            quests: JSON.stringify(player.quests ?? {})
+            quests: JSON.stringify(player.quests ?? {}),
+            subskills: JSON.stringify(player.subskills ?? {})
         });
     } catch (err) {
         console.error('savePlayerToDB Error:', err);
