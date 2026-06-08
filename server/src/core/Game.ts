@@ -3116,6 +3116,10 @@ export class Game {
           if (!progress.rewarded && progress.expiresAt && now > progress.expiresAt) {
               (progress as any).expired = true;
           }
+          // Migração: old completed → objectivesComplete
+          if ((progress as any).completed && !progress.objectivesComplete) {
+              progress.objectivesComplete = true;
+          }
           result.push({
               questId,
               title: quest.title,
@@ -3144,6 +3148,11 @@ export class Game {
       const now = Date.now();
       for (const [questId, progress] of Object.entries(player.quests)) {
           if (progress.rewarded) continue;
+          // migration: support old `completed` field from before refactor
+          if ((progress as any).completed && !progress.objectivesComplete) {
+              progress.objectivesComplete = true;
+              changed = true;
+          }
           if (progress.expiresAt && now > progress.expiresAt) {
               (progress as any).expired = true;
               changed = true;
@@ -3777,7 +3786,9 @@ export class Game {
             if (!player) return;
             if (!player.quests || !player.quests[data.questId]) return;
             const progress = player.quests[data.questId];
-            if (!progress.objectivesComplete || progress.rewarded) return;
+            // Aceita tanto o novo campo objectivesComplete quanto o antigo completed
+            const isReady = progress.objectivesComplete || (progress as any).completed;
+            if (!isReady || progress.rewarded) return;
             const quest = QUESTS.find(q => q.id === data.questId);
             if (!quest) return;
             // Valida proximidade do NPC
@@ -3926,17 +3937,17 @@ export class Game {
                    }
              } else if (npcType === 'questgiver') {
                  const available = QUESTS.filter(q => q.npcId === data.npcId && q.levelRequired <= (player.level || 1));
-                 const progress = available.map(q => {
-                     const p = player.quests?.[q.id];
-                     if (!p) return null;
-                     return {
-                         started: p.started,
-                         objectives: p.objectives,
-                         objectivesComplete: p.objectivesComplete || false,
-                         rewarded: p.rewarded || false,
-                         expired: (p as any).expired || false,
-                     };
-                 });
+                  const progress = available.map(q => {
+                      const p = player.quests?.[q.id];
+                      if (!p) return null;
+                      return {
+                          started: p.started,
+                          objectives: p.objectives,
+                          objectivesComplete: p.objectivesComplete || (p as any).completed || false,
+                          rewarded: p.rewarded || false,
+                          expired: (p as any).expired || false,
+                      };
+                  });
                  socket.emit('quest:open', { npcId: data.npcId, name: npc.name, quests: available, playerProgress: progress });
              } else if (npcType === 'vendor') {
                 const vendor = getVendorAt(npc.x, npc.y);
