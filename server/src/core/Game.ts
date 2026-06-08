@@ -3951,20 +3951,6 @@ export class Game {
                     name: vendor.name,
                     stock: stockWithAvailability,
                 });
-            } else if (npcType === 'questgiver') {
-                // Busca quests disponíveis para este NPC
-                const npcQuests = QUESTS.filter(q => q.npcId === npc.id);
-                const playerQuests: Record<string, any> = (player as any).quests || {};
-                const available = npcQuests.filter(q => {
-                    const pq = playerQuests[q.id];
-                    return !pq || !pq.completed;
-                });
-                socket.emit('quest:open', {
-                    npcId: npc.id,
-                    name: npc.name,
-                    quests: available,
-                    playerProgress: available.map(q => playerQuests[q.id] || null),
-                });
             }
         });
 
