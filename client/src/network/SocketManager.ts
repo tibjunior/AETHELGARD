@@ -198,6 +198,27 @@ export class SocketManager {
     this.socket.on('quest:data', (data: { quests: any[] }) => {
       this.renderQuestJournal(data.quests);
     });
+
+    this.socket.on('quest:reward', (data: { questId: string; rewards: any }) => {
+      // Feedback visual da recompensa
+      if (data.rewards) {
+          let msg = '🎁 Recompensas:';
+          if (data.rewards.xp) msg += ` +${data.rewards.xp} XP`;
+          if (data.rewards.gold) msg += ` +${data.rewards.gold} Ouro`;
+          if (data.rewards.professionXp) {
+              for (const [prof, amt] of Object.entries(data.rewards.professionXp)) {
+                  msg += ` +${amt} ${prof}`;
+              }
+          }
+          const toast = document.getElementById('toast');
+          if (toast) {
+              toast.textContent = msg;
+              toast.style.display = 'block';
+              toast.style.background = '#10b981';
+              setTimeout(() => { toast.style.display = 'none'; }, 4000);
+          }
+      }
+    });
   }
 
   public sendMove(targetPosition: Position, facing: string) {
@@ -527,10 +548,14 @@ export class SocketManager {
       quests.forEach((q: any) => {
           const done = q.objectives.every((o: any) => o.current >= o.count);
           const expired = q.expired;
+          const rewarded = q.rewarded;
+          const objectivesComplete = q.objectivesComplete;
           const card = document.createElement('div');
           let borderColor = '#334155';
           let statusText = '';
-          if (expired) { borderColor = '#ef4444'; statusText = '⏰ Expirada!'; }
+          if (rewarded) { borderColor = '#334155'; statusText = '✅ Entregue'; }
+          else if (expired) { borderColor = '#ef4444'; statusText = '⏰ Expirada!'; }
+          else if (objectivesComplete) { borderColor = '#10b981'; statusText = '🎁 Pronta pra entregar!'; }
           else if (done) { borderColor = '#10b981'; statusText = '✅ Concluída!'; }
           card.style.cssText = `padding:10px;margin-bottom:8px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid ${borderColor};`;
           card.innerHTML = `
@@ -544,7 +569,7 @@ export class SocketManager {
               <div style="font-size:10px;color:#10b981;margin-top:4px;">
                   Recompensas: ${q.rewards.gold ? `${q.rewards.gold} Ouro ` : ''}${q.rewards.xp ? `${q.rewards.xp} XP ` : ''}${q.rewards.professionXp ? Object.entries(q.rewards.professionXp).map(([prof, amt]: [string, any]) => `+${amt} ${prof}`).join(' ') : ''}
               </div>
-              ${statusText ? `<div style="margin-top:4px;color:${expired ? '#ef4444' : '#10b981'};font-weight:bold;font-size:11px;">${statusText}</div>` : ''}
+              ${statusText ? `<div style="margin-top:4px;color:${rewarded ? '#94a3b8' : expired ? '#ef4444' : '#10b981'};font-weight:bold;font-size:11px;">${statusText}</div>` : ''}
           `;
           panel.appendChild(card);
       });
@@ -571,25 +596,64 @@ export class SocketManager {
           data.quests.forEach((quest: any, idx: number) => {
               const prog = data.playerProgress[idx];
               const accepted = prog && prog.started;
+              const objectsComplete = prog && prog.objectivesComplete;
+              const rewarded = prog && prog.rewarded;
+              const expired = prog && prog.expired;
               const card = document.createElement('div');
-              card.style.cssText = 'padding:12px;margin-bottom:10px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid #334155;';
+              let borderColor = '#334155';
+              let btnLabel = 'Aceitar Missão';
+              let btnBg = '#d97706';
+              let btnDisabled = false;
+              let btnAction: (() => void) | null = () => {
+                  this.socket.emit('quest:accept', { questId: quest.id });
+                  overlay.remove();
+              };
+              if (rewarded) {
+                  borderColor = '#334155';
+                  btnLabel = '✔️ Concluída';
+                  btnBg = '#334155';
+                  btnDisabled = true;
+                  btnAction = null;
+              } else if (expired) {
+                  borderColor = '#ef4444';
+                  btnLabel = '⏰ Expirada';
+                  btnBg = '#334155';
+                  btnDisabled = true;
+                  btnAction = null;
+              } else if (objectsComplete) {
+                  borderColor = '#10b981';
+                  btnLabel = '🎁 Entregar';
+                  btnBg = '#10b981';
+                  btnAction = () => {
+                      if (this.socket) this.socket.emit('quest:turnin', { questId: quest.id });
+                      overlay.remove();
+                  };
+              } else if (accepted) {
+                  borderColor = '#fbbf24';
+                  btnLabel = '📜 Em andamento';
+                  btnBg = '#334155';
+                  btnDisabled = true;
+                  btnAction = null;
+              }
+              card.style.cssText = `padding:12px;margin-bottom:10px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid ${borderColor};`;
+              const objHtml = objectsComplete
+                  ? '<div style="color:#10b981;font-size:11px;margin-bottom:8px;">✅ Todos os objetivos concluídos!</div>'
+                  : quest.objectives.map((o: any, oi: number) => {
+                        const current = prog?.objectives?.[oi] ?? 0;
+                        return `<div style="display:flex;justify-content:space-between;font-size:11px;color:#e2e8f0;"><span>• ${translateQuestObjective(o)}</span><span style="color:${current >= o.count ? '#10b981' : '#fbbf24'};">${current}/${o.count}</span></div>`;
+                    }).join('');
               card.innerHTML = `
                   <h3 style="margin:0 0 4px;color:#fbbf24;font-size:14px;">${quest.title}</h3>
                   <p style="margin:0 0 8px;color:#94a3b8;font-size:11px;">${quest.description}</p>
-                  <div style="font-size:11px;color:#e2e8f0;margin-bottom:8px;">
-                      ${quest.objectives.map((o: any) => `<div>• ${translateQuestObjective(o)}</div>`).join('')}
-                  </div>
+                  ${objHtml}
                   <div style="font-size:11px;color:#10b981;margin-bottom:8px;">
                       Recompensas: ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([prof, amt]) => `+${amt} ${prof}`).join(' ') : ''}
                   </div>
-                  <button data-quest-id="${quest.id}" style="background:${accepted ? '#334155' : '#d97706'};color:white;border:none;padding:6px 12px;border-radius:4px;cursor:${accepted ? 'not-allowed' : 'pointer'};font-size:11px;font-family:monospace;">${accepted ? '✔️ Aceita' : 'Aceitar Missão'}</button>
+                  <button data-quest-id="${quest.id}" style="background:${btnBg};color:white;border:none;padding:6px 12px;border-radius:4px;cursor:${btnDisabled ? 'not-allowed' : 'pointer'};font-size:11px;font-family:monospace;" ${btnDisabled ? 'disabled' : ''}>${btnLabel}</button>
               `;
               list.appendChild(card);
-              if (!accepted) {
-                  card.querySelector('button')!.onclick = () => {
-                      this.socket.emit('quest:accept', { questId: quest.id });
-                      overlay.remove();
-                  };
+              if (btnAction) {
+                  card.querySelector('button')!.onclick = btnAction;
               }
           });
       }

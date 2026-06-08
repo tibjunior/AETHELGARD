@@ -77,8 +77,9 @@ export interface PlayerData {
   // Missões
   quests?: Record<string, {
     started: boolean;
-    completed: boolean;
     objectives: Record<string, number>;
+    objectivesComplete?: boolean;
+    rewarded?: boolean;
     acceptedAt?: number;
     expiresAt?: number;
   }>;
