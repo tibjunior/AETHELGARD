@@ -596,9 +596,14 @@ export class SocketManager {
           data.quests.forEach((quest: any, idx: number) => {
               const prog = data.playerProgress[idx];
               const accepted = prog && prog.started;
-              const objectsComplete = prog && prog.objectivesComplete;
               const rewarded = prog && prog.rewarded;
               const expired = prog && prog.expired;
+              // Calcula se todos os objetivos foram cumpridos (compara progresso com a quest)
+              const allDone = !!(prog && quest.objectives && quest.objectives.every((o: any, oi: number) => {
+                  const current = prog.objectives?.[oi] ?? 0;
+                  return current >= o.count;
+              }));
+              const objectsComplete = (prog && prog.objectivesComplete) || allDone;
               const card = document.createElement('div');
               let borderColor = '#334155';
               let btnLabel = 'Aceitar Missão';
