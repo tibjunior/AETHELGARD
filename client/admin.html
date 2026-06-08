@@ -1,16 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Aethelgard - GM Dashboard</title>
+  <title>Aethelgard - Painel GM</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <style>
-    /* Premium Glassmorphism Dark Mode Theme */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     
     :root {
       --bg-color: #020617;
-      --glass-bg: rgba(15, 23, 42, 0.65);
+      --glass-bg: rgba(15, 23, 42, 0.7);
       --glass-border: rgba(255, 255, 255, 0.08);
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
@@ -20,6 +19,8 @@
       --danger-hover: #f87171;
       --success: #10b981;
       --warning: #f59e0b;
+      --gold: #fbbf24;
+      --sidebar-w: 260px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,6 +33,44 @@
       display: flex;
       overflow: hidden;
     }
+
+    /* === Login Screen === */
+    #login-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #020617, #0f172a, #1e1b4b);
+    }
+    #login-screen.hidden { display: none; }
+    #login-box {
+      background: var(--glass-bg); backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border); border-radius: 16px;
+      padding: 48px 40px; width: 380px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      display: flex; flex-direction: column; gap: 20px;
+      text-align: center;
+    }
+    #login-box h1 {
+      font-size: 28px; font-weight: 800; color: var(--gold);
+      text-shadow: 0 0 20px rgba(251,191,36,0.3);
+      letter-spacing: 2px;
+    }
+    #login-box p { font-size: 13px; color: var(--text-muted); }
+    #login-box input {
+      background: rgba(0,0,0,0.4); border: 1px solid var(--glass-border);
+      color: white; padding: 14px 16px; border-radius: 10px;
+      font-family: inherit; font-size: 15px; text-align: center;
+      transition: border-color 0.2s; outline: none;
+    }
+    #login-box input:focus { border-color: var(--accent); }
+    #login-box button {
+      background: var(--accent); color: white; border: none;
+      padding: 14px; border-radius: 10px; font-weight: 700; font-size: 15px;
+      cursor: pointer; transition: background 0.2s, transform 0.1s;
+      box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+    }
+    #login-box button:hover { background: var(--accent-hover); }
+    #login-box button:active { transform: scale(0.98); }
+    #login-error { font-size: 13px; color: var(--danger); min-height: 20px; }
 
     /* Sidebar */
     aside {
@@ -319,17 +358,53 @@
       border: 1px solid var(--glass-border);
     }
     .btn-cancel:hover { background: rgba(255,255,255,0.12); }
+    .city-card { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+    .city-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(251, 191, 36, 0.15); }
+    .city-card-title { cursor: pointer; user-select: none; }
+    .city-card-title:hover { color: #fde68a; }
+    .toast-msg { position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; color: white; font-size: 14px; z-index: 10000; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    .toast-msg.show { opacity: 1; }
+    .toast-success { background: #10b981; }
+    .toast-error { background: #ef4444; }
+    .rate-row { margin-bottom: 14px; }
+    .rate-row label { font-size: 13px; color: var(--text-muted); font-weight: 500; display: block; margin-bottom: 4px; }
+    .rate-row input[type="range"] { width: 100%; cursor: pointer; }
+    .monster-card { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px; transition: border-color 0.2s; }
+    .monster-card:hover { border-color: rgba(255,255,255,0.15); }
+    .monster-card h4 { margin: 0 0 8px 0; font-size: 14px; color: #fbbf24; }
+    .monster-card .m-field { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 12px; }
+    .monster-card .m-field label { color: var(--text-muted); }
+    .monster-card .m-field input { width: 70px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: 4px 6px; border-radius: 4px; font-size: 12px; text-align: center; }
+    .monster-card .m-field select { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: 4px 6px; border-radius: 4px; font-size: 12px; }
+    .monster-card .btn-save-monster { width: 100%; margin-top: 8px; padding: 6px; font-size: 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+    .monster-card .btn-save-monster:hover { background: #059669; }
   </style>
 </head>
 <body>
 
-  <aside>
+  <!-- === Login Screen === -->
+  <div id="login-screen">
+    <div id="login-box">
+      <h1>AETHELGARD</h1>
+      <p>Painel de Administração</p>
+      <input type="password" id="login-password" placeholder="Senha de administrador" autocomplete="off" />
+      <div id="login-error"></div>
+      <button id="btn-login">Entrar</button>
+    </div>
+  </div>
+
+    <aside>
     <h1>AETHELGARD GM</h1>
     <nav>
-      <a href="#" class="active" id="nav-players">Controle de Contas</a>
-      <a href="#" id="nav-server">Comandos de Servidor</a>
-      <a href="#" id="nav-spawner">Gerador de Entidades</a>
+      <a href="#" class="active" id="nav-players">👤 Controle de Contas</a>
+      <a href="#" id="nav-server">⚙️ Comandos de Servidor</a>
+      <a href="#" id="nav-spawner">👾 Gerador de Entidades</a>
+      <a href="#" id="nav-map">🗺️ Editor de Cidades</a>
     </nav>
+    <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px;">
+      <span id="conn-indicator" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+      <span id="conn-text" style="font-size: 12px; color: var(--text-muted);">Desconectado</span>
+    </div>
   </aside>
 
   <main>
@@ -338,62 +413,249 @@
       <button class="btn-refresh" id="btn-refresh">Atualizar Dados</button>
     </header>
 
-    <!-- Tab 1: Players Management (Default) -->
+    <!-- Tab 1: Controle de Contas (com sub-abas Jogadores/NPCs) -->
     <div id="tab-players" class="tab-pane">
-      <div class="stats-container">
-        <div class="stat-card">
-          <h3>Jogadores Online</h3>
-          <div class="value" id="total-online">0</div>
+
+      <!-- Sub-aba Navigation -->
+      <div style="display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--glass-border);">
+        <button class="subtab-btn active" data-subtab="players" style="background:transparent;border:none;color:#94a3b8;padding:12px 24px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;" onmouseover="this.style.color='#f8fafc'" onmouseout="this.style.color='#94a3b8'">👤 Jogadores</button>
+        <button class="subtab-btn" data-subtab="npcs" style="background:transparent;border:none;color:#94a3b8;padding:12px 24px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;" onmouseover="this.style.color='#f8fafc'" onmouseout="this.style.color='#94a3b8'">🤖 NPCs</button>
+      </div>
+
+      <!-- Sub-tab: Jogadores -->
+      <div id="subtab-players" class="subtab-content">
+        <div class="stats-container">
+          <div class="stat-card">
+            <h3>Jogadores Online</h3>
+            <div class="value" id="total-online">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Contas Registradas</h3>
+            <div class="value" id="total-registered">0</div>
+          </div>
+          <div class="stat-card">
+            <h3>Level Médio</h3>
+            <div class="value" id="avg-level">0</div>
+          </div>
         </div>
-        <div class="stat-card">
-          <h3>Contas Registradas</h3>
-          <div class="value" id="total-registered">0</div>
+
+        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px;">
+          <input type="text" id="player-search" placeholder="🔍 Buscar por nome do jogador..." style="flex: 1; background: rgba(0,0,0,0.35); border: 1px solid var(--glass-border); color: white; padding: 12px 16px; border-radius: 10px; font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='rgba(255,255,255,0.08)'" />
+          <span id="player-count" style="font-size: 13px; color: var(--text-muted); white-space: nowrap;">0 jogadores</span>
         </div>
-        <div class="stat-card">
-          <h3>Level Médio</h3>
-          <div class="value" id="avg-level">0</div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Nome</th>
+                <th>Senha</th>
+                <th>Level</th>
+                <th>Ouro</th>
+                <th>Pontos</th>
+                <th>Localização</th>
+                <th>Ações do GM</th>
+              </tr>
+            </thead>
+            <tbody id="players-table-body">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Nome</th>
-              <th>Senha</th>
-              <th>Level</th>
-              <th>Ouro</th>
-              <th>Pontos</th>
-              <th>Ações do GM</th>
-            </tr>
-          </thead>
-          <tbody id="players-table-body">
+      <!-- Sub-tab: NPCs -->
+      <div id="subtab-npcs" class="subtab-content" style="display:none;">
+        <!-- NPC navigation cards -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px;">
+          <div class="gm-card npc-nav-card" data-npc-section="vendors" style="cursor:pointer;text-align:center;padding:20px;border-left:4px solid #fbbf24;">
+            <div style="font-size:32px;margin-bottom:8px;">🏪</div>
+            <h4 style="color:#fbbf24;margin:0;">Vendedores</h4>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Itens e preços</p>
+          </div>
+          <div class="gm-card npc-nav-card" data-npc-section="crafters" style="cursor:pointer;text-align:center;padding:20px;border-left:4px solid #f59e0b;">
+            <div style="font-size:32px;margin-bottom:8px;">🔨</div>
+            <h4 style="color:#f59e0b;margin:0;">Ferreiro / Alfaiate / Alquimista</h4>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Receitas de craft</p>
+          </div>
+          <div class="gm-card npc-nav-card" data-npc-section="teleporter" style="cursor:pointer;text-align:center;padding:20px;border-left:4px solid #8b5cf6;">
+            <div style="font-size:32px;margin-bottom:8px;">🌀</div>
+            <h4 style="color:#8b5cf6;margin:0;">Teleporters</h4>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Destinos e preços</p>
+          </div>
+          <div class="gm-card npc-nav-card" data-npc-section="bank" style="cursor:pointer;text-align:center;padding:20px;border-left:4px solid #10b981;">
+            <div style="font-size:32px;margin-bottom:8px;">🏦</div>
+            <h4 style="color:#10b981;margin:0;">Banco</h4>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Configurações</p>
+          </div>
+          <div class="gm-card npc-nav-card" data-npc-section="quests" style="cursor:pointer;text-align:center;padding:20px;border-left:4px solid #a855f7;">
+            <div style="font-size:32px;margin-bottom:8px;">❓</div>
+            <h4 style="color:#a855f7;margin:0;">Missões</h4>
+            <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">Gerenciar quests</p>
+          </div>
+        </div>
+
+        <!-- NPC Section: Vendedores -->
+        <div id="npc-section-vendors" class="npc-section" style="display:none;">
+          <button class="btn-npc-back" style="background:transparent;color:#fbbf24;border:1px solid #fbbf24;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:16px;">← Voltar</button>
+          <h3 style="color:#fbbf24;margin-top:0;">🏪 Configuração de Vendedores</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">Configure o estoque e preços de cada vendedor NPC. Mudanças aplicam em tempo real.</p>
+          <div id="vendors-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:20px;"></div>
+        </div>
+
+        <!-- NPC Section: Crafters -->
+        <div id="npc-section-crafters" class="npc-section" style="display:none;">
+          <button class="btn-npc-back" style="background:transparent;color:#f59e0b;border:1px solid #f59e0b;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:16px;">← Voltar</button>
+          <h3 style="color:#f59e0b;margin-top:0;">🔨 Estações de Craft</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">Receitas disponíveis em cada estação de craft.</p>
+          <div id="crafters-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;"></div>
+        </div>
+
+        <!-- NPC Section: Teleporter -->
+        <div id="npc-section-teleporter" class="npc-section" style="display:none;">
+          <button class="btn-npc-back" style="background:transparent;color:#8b5cf6;border:1px solid #8b5cf6;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:16px;">← Voltar</button>
+          <h3 style="color:#8b5cf6;margin-top:0;">🌀 Teleporters</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">NPCs de teleporte no mundo.</p>
+          <div id="teleporter-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;"></div>
+        </div>
+
+        <!-- NPC Section: Bank -->
+        <div id="npc-section-bank" class="npc-section" style="display:none;">
+          <button class="btn-npc-back" style="background:transparent;color:#10b981;border:1px solid #10b981;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:16px;">← Voltar</button>
+          <h3 style="color:#10b981;margin-top:0;">🏦 Banco</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">Configurações do NPC bancário.</p>
+          <div id="bank-config" class="gm-card">
             <!-- Populated by JS -->
-          </tbody>
-        </table>
+          </div>
+        </div>
+
+        <!-- NPC Section: Quests -->
+        <div id="npc-section-quests" class="npc-section" style="display:none;">
+          <button class="btn-npc-back" style="background:transparent;color:#a855f7;border:1px solid #a855f7;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:16px;">← Voltar</button>
+          <h3 style="color:#a855f7;margin-top:0;">❓ Gerenciamento de Missões</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:20px;">Crie e edite missões. As missões do Ferreiro, Alfaiate e Alquimista aparecem nas estações de craft correspondentes.</p>
+          <div id="quests-admin-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:20px;"></div>
+          <button id="btn-quest-new" style="margin-top:16px;background:#a855f7;color:white;border:none;padding:12px 20px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;">➕ Nova Missão</button>
+        </div>
       </div>
     </div>
 
-    <!-- Tab 2: Server Settings -->
+    <!-- Tab 2: Server Settings — Reformulado -->
     <div id="tab-server" class="tab-pane" style="display: none;">
-      <div class="card-grid">
-        <div class="gm-card">
-          <h3>Broadcast Global</h3>
-          <p style="font-size: 13px; color: var(--text-muted);">Envia uma mensagem de aviso para todos os jogadores online simultaneamente na tela e no log do chat.</p>
-          <div class="form-group">
-            <label for="broadcast-msg">Mensagem</label>
-            <input type="text" id="broadcast-msg" placeholder="Atenção aventureiros! Servidor vai reiniciar..." />
-          </div>
-          <button class="btn-submit" id="btn-broadcast-submit">Transmitir Mensagem</button>
-        </div>
 
-        <div class="gm-card">
-          <h3>Controle Climático (Tempo)</h3>
-          <p style="font-size: 13px; color: var(--text-muted);">Altere instantaneamente a hora do dia no servidor, afetando as mecânicas de Fog of War dos jogadores.</p>
-          <div style="display:flex; gap: 15px; margin-top: 10px;">
-            <button class="btn-submit" id="btn-time-day" style="flex:1; background: #fbbf24; color: black; font-weight: bold;">☀️ Forçar Dia</button>
-            <button class="btn-submit" id="btn-time-night" style="flex:1; background: #6366f1; color: white;">🌙 Forçar Noite</button>
+      <!-- ===== LINHA 1: Ações Rápidas ===== -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div class="gm-card" style="text-align:center;padding:20px;">
+          <div style="font-size:36px;margin-bottom:8px;">☀️</div>
+          <button class="btn-submit" id="btn-time-day" style="width:100%;background:#fbbf24;color:#000;font-weight:700;padding:12px;">Forçar Dia</button>
+        </div>
+        <div class="gm-card" style="text-align:center;padding:20px;">
+          <div style="font-size:36px;margin-bottom:8px;">🌙</div>
+          <button class="btn-submit" id="btn-time-night" style="width:100%;background:#6366f1;padding:12px;">Forçar Noite</button>
+        </div>
+        <div class="gm-card" style="text-align:center;padding:20px;">
+          <div style="font-size:36px;margin-bottom:8px;">📢</div>
+          <input type="text" id="broadcast-msg" placeholder="Mensagem..." style="width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:10px;border-radius:8px;font-family:inherit;font-size:13px;margin-bottom:8px;box-sizing:border-box;" />
+          <button class="btn-submit" id="btn-broadcast-submit" style="width:100%;padding:10px;">Transmitir</button>
+        </div>
+      </div>
+
+      <!-- ===== SEÇÃO: Taxas Globais (sliders) ===== -->
+      <div class="gm-card" style="margin-bottom:24px;">
+        <h3 style="margin-top:0;color:#fbbf24;font-size:16px;">⚙️ Taxas Globais do Jogo</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Ajustes em tempo real. Tudo salva automaticamente.</p>
+        
+        <div class="rate-row">
+          <label>💰 Multiplicador de Ouro</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="rate-gold" min="0.1" max="10" step="0.1" value="1" style="flex:1;accent-color:#fbbf24;height:6px;" />
+            <span id="rate-gold-val" style="font-weight:700;color:#fbbf24;min-width:40px;">1.0x</span>
+          </div>
+        </div>
+        <div class="rate-row">
+          <label>⚔️ Multiplicador de EXP</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="rate-exp" min="0.1" max="10" step="0.1" value="1" style="flex:1;accent-color:#10b981;height:6px;" />
+            <span id="rate-exp-val" style="font-weight:700;color:#10b981;min-width:40px;">1.0x</span>
+          </div>
+        </div>
+        <div class="rate-row">
+          <label>📦 Multiplicador de Drop</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="rate-drop" min="0.1" max="10" step="0.1" value="1" style="flex:1;accent-color:#8b5cf6;height:6px;" />
+            <span id="rate-drop-val" style="font-weight:700;color:#8b5cf6;min-width:40px;">1.0x</span>
+          </div>
+        </div>
+        <div class="rate-row">
+          <label>🛡️ PvP</label>
+          <button id="btn-toggle-pvp" style="padding:8px 20px;border:none;border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;background:#10b981;color:white;">🟢 Ativado</button>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text-muted);display:flex;gap:8px;">
+          <button class="btn-submit" id="btn-save-rates" style="background:#10b981;padding:8px 16px;font-size:12px;">💾 Salvar Taxas</button>
+          <button class="btn-submit" id="btn-reload-config" style="background:#3b82f6;padding:8px 16px;font-size:12px;">🔄 Recarregar</button>
+          <button class="btn-submit" id="btn-reset-config" style="background:#ef4444;padding:8px 16px;font-size:12px;">⚠️ Resetar Padrões</button>
+        </div>
+        <div id="cfg-status" style="margin-top:8px;font-size:12px;min-height:18px;"></div>
+      </div>
+
+      <!-- ===== SEÇÃO: Controle Rápido de Jogadores ===== -->
+      <div class="gm-card" style="margin-bottom:24px;">
+        <h3 style="margin-top:0;color:#3b82f6;font-size:16px;">👤 Controle Rápido de Jogadores</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Busque um jogador online e edite seus atributos instantaneamente.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input type="text" id="quick-player-search" placeholder="Nome do jogador..." style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:10px 14px;border-radius:8px;font-family:inherit;font-size:14px;outline:none;" />
+          <button class="btn-submit" id="btn-quick-search" style="padding:10px 20px;">Buscar</button>
+        </div>
+        <div id="quick-player-result" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;background:rgba(0,0,0,0.2);border-radius:8px;margin-bottom:12px;">
+            <div><b>Nome:</b> <span id="qp-name">—</span></div>
+            <div><b>Level:</b> <span id="qp-level">—</span></div>
+            <div><b>Ouro:</b> <span id="qp-gold">—</span></div>
+            <div><b>HP:</b> <span id="qp-hp">—</span></div>
+            <div><b>Stats:</b> <span id="qp-stats" style="font-size:11px;">—</span></div>
+            <div><b>Online:</b> <span id="qp-online" style="color:#10b981;">Sim</span></div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button class="btn btn-gold" id="qp-btn-gold" style="font-size:12px;">+1000 Ouro</button>
+            <button class="btn btn-edit" id="qp-btn-level-up" style="font-size:12px;">+1 Nível</button>
+            <button class="btn btn-edit" id="qp-btn-level-down" style="font-size:12px;">-1 Nível</button>
+            <button class="btn btn-reset" id="qp-btn-respec" style="background:#8b5cf6;font-size:12px;">Resetar Stats</button>
+            <button class="btn btn-kick" id="qp-btn-kick" style="font-size:12px;">Desconectar</button>
+            <button class="btn btn-kick" id="qp-btn-ban" style="background:#991b1b;font-size:12px;">🚫 Banir</button>
+          </div>
+        </div>
+        <div id="quick-player-error" style="font-size:12px;color:var(--danger);min-height:18px;"></div>
+      </div>
+
+      <!-- ===== SEÇÃO: Editor de Monstros (cards) ===== -->
+      <div class="gm-card" style="margin-bottom:24px;">
+        <h3 style="margin-top:0;color:#ef4444;font-size:16px;">👾 Atributos dos Monstros</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Edite HP, Ataque, Velocidade, EXP e comportamento de cada monstro.</p>
+        <div id="monster-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;">
+          <!-- Populado via JS -->
+        </div>
+      </div>
+
+      <!-- ===== SEÇÃO: Controles do Mundo ===== -->
+      <div class="gm-card">
+        <h3 style="margin-top:0;color:#10b981;font-size:16px;">🌍 Controles do Mundo</h3>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Ajuste o comportamento global do servidor.</p>
+        <div class="rate-row">
+          <p style="font-size:12px;color:#64748b;">💀 Tempo de respawn configurável por monstro nos cards abaixo.</p>
+        </div>
+        <div class="rate-row">
+          <label>☀️ Duração do Dia (min)</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="rate-day-duration" min="1" max="60" step="1" value="5" style="flex:1;accent-color:#fbbf24;height:6px;" />
+            <span id="rate-day-duration-val" style="font-weight:700;color:#fbbf24;min-width:40px;">5 min</span>
+          </div>
+        </div>
+        <div class="rate-row">
+          <label>🌙 Duração da Noite (min)</label>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <input type="range" id="rate-night-duration" min="1" max="60" step="1" value="5" style="flex:1;accent-color:#6366f1;height:6px;" />
+            <span id="rate-night-duration-val" style="font-weight:700;color:#6366f1;min-width:40px;">5 min</span>
           </div>
         </div>
       </div>
@@ -443,6 +705,59 @@
         </div>
       </div>
     </div>
+
+    <!-- Tab 4: Editor de Cidades (Fase 4c+) -->
+    <div id="tab-map" class="tab-pane" style="display: none;">
+      <h2 style="margin-top: 0; color: #fbbf24;">🗺️ Editor de Cidades de Monstros</h2>
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 24px;">
+        Clique em uma cidade para abrir suas configurações editáveis.
+        <br>🔒 <b>Bounds e listas de cidades</b> são <i>read-only</i> — alterar requer editar <code>server/src/core/serverConfig.ts</code> e reiniciar o servidor.
+        <br>⚠️ Mudanças de <b>minLevel</b> exigem restart para novos monstros aplicarem. Mudanças de <b>bossStats</b> valem no próximo spawn do boss.
+      </p>
+
+      <!-- Visão 1: Grade de cidades -->
+      <div id="cities-grid-view">
+        <div id="cities-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+          <!-- Preenchido via JS -->
+        </div>
+
+        <h2 style="margin-top: 40px; color: #10b981;">🛡️ Praça Central (read-only)</h2>
+        <div id="plaza-info-card" class="gm-card">
+          <!-- Preenchido via JS -->
+        </div>
+
+        <h2 style="margin-top: 40px; color: #8b5cf6;">🌀 Teleportar Jogador para...</h2>
+        <div class="gm-card">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: end;">
+            <div class="form-group">
+              <label>Nome do Jogador</label>
+              <input type="text" id="tp-name" placeholder="Ex: Tiberius" />
+            </div>
+            <div class="form-group">
+              <label>Destino</label>
+              <select id="tp-destination">
+                <option value="wilderness">🌳 Wilderness (Main 10,10)</option>
+                <option value="plaza">🛡 Praça Central (115,115)</option>
+                <option value="rat_city">👹 Cidade dos Ratos</option>
+                <option value="orc_city">👹 Cidade dos Orcs</option>
+                <option value="rotworm_city">👹 Cidade dos Rotworms</option>
+                <option value="demon_city">👹 Cidade dos Demônios</option>
+              </select>
+            </div>
+            <button class="btn-submit" id="btn-teleport" style="background: #8b5cf6;">🌀 Teleportar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Visão 2: Detalhe da cidade (escondido por padrão) -->
+      <div id="city-detail-view" style="display: none;">
+        <button id="btn-city-back" style="background: transparent; color: #fbbf24; border: 1px solid #fbbf24; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 13px; margin-bottom: 20px;">← Voltar para lista de cidades</button>
+        <div id="city-detail-content">
+          <!-- Preenchido via JS -->
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Edit Player Modal -->

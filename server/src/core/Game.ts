@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
 import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold, saveConfigToDB, loadConfigFromDB, loadAllConfigFromDB, getAccountFromDB, createAccountInDB, listCharactersForAccount, deleteCharacterFromAccount, countCharactersForAccount, setAccountPassword, AccountRow } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
-import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDefaults, MONSTER_CITIES, MonsterCity, PLAZA_BOUNDS, PLAZA_TELEPORTER, CAVERNA_TELEPORTER, CAVERNA_SAFE_ZONE_CENTER, CAVERNA_SAFE_ZONE_GATE, CITY_TELEPORTERS, CITY_VENDORS, getCityAt, getTeleporterAt, getVendorAt, isInPlaza, isInSafeZone, getHubDestinations, getTeleporterDestination, getSafeZoneWallRing, SAFE_ZONE_RADIUS } from './serverConfig';
+import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDefaults, MONSTER_CITIES, MonsterCity, PLAZA_BOUNDS, PLAZA_TELEPORTER, CAVERNA_TELEPORTER, CAVERNA_SAFE_ZONE_CENTER, CAVERNA_SAFE_ZONE_GATE, CITY_TELEPORTERS, CITY_VENDORS, QUESTS, VendorNpc, Quest, getCityAt, getTeleporterAt, getVendorAt, isInPlaza, isInSafeZone, getHubDestinations, getTeleporterDestination, getSafeZoneWallRing, SAFE_ZONE_RADIUS } from './serverConfig';
 
 export const ITEM_WEIGHTS: Record<string, number> = {
     'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
@@ -180,6 +180,24 @@ export class Game {
     (banker as any).isNPC = true;
     this.players.set(banker.id, banker);
     this.walls.add('120,115');
+
+    // Spawna o NPC de Missões na Praça Central
+    const questgiver: PlayerData = {
+        id: 'npc_questgiver',
+        name: 'Mestre das Missões',
+        x: 115,
+        y: 120,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (questgiver as any).isNPC = true;
+    (questgiver as any).npcType = 'questgiver';
+    this.players.set(questgiver.id, questgiver);
+    this.walls.add('115,120');
 
     // Spawna múltiplos monstros
     for (let i = 1; i <= 8; i++) {
@@ -1348,29 +1366,56 @@ export class Game {
           if (!player.backpack) player.backpack = [];
           if (!player.gold) player.gold = 0;
 
-          // Valida que o jogador está próximo de ALGUM vendedor (merchant da praça ou vendor de cidade)
-          const vendors: Array<{ x: number; y: number }> = [];
+          // Encontra qual vendedor o jogador está próximo
+          let nearVendor: VendorNpc | null = null;
           const merchant = this.players.get('npc_merchant');
-          if (merchant) vendors.push({ x: merchant.x, y: merchant.y });
+          if (merchant) {
+              const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
+              if (dist <= CONFIG.bankDistanceCheck) {
+                  // Merchant da praça usa preços fixos, sem estoque diário
+                  nearVendor = null; // será tratado como Merchant
+              }
+          }
           for (const v of CITY_VENDORS) {
               const npc = this.players.get(v.id);
-              if (npc) vendors.push({ x: npc.x, y: npc.y });
+              if (npc) {
+                  const dist = Math.abs(player.x - npc.x) + Math.abs(player.y - npc.y);
+                  if (dist <= CONFIG.bankDistanceCheck) { nearVendor = v; break; }
+              }
           }
-          let nearVendor = false;
-          for (const v of vendors) {
-              const dist = Math.abs(player.x - v.x) + Math.abs(player.y - v.y);
-              if (dist <= CONFIG.bankDistanceCheck) { nearVendor = true; break; }
+          // Se não achou vendor de cidade, verifica se está perto do merchant (praça)
+          if (!nearVendor && merchant) {
+              const dist = Math.abs(player.x - merchant.x) + Math.abs(player.y - merchant.y);
+              if (dist > CONFIG.bankDistanceCheck) return;
+          } else if (!nearVendor && !merchant) {
+              return;
           }
-          if (!nearVendor) return;
 
-          // Preços
-          const prices: Record<string, number> = {
+          // Determina preço: usa o preço do vendor específico, ou fallback hardcoded
+          let cost = 0;
+          const fallbackPrices: Record<string, number> = {
               'Torch': 5, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100,
               'Leather Backpack': 500, 'Wooden Backpack': 1500, 'Iron Backpack': 4000,
               'Apple': 3, 'Cheese': 5, 'Blueberry': 4, 'Medicinal Herb': 8, 'Leather Hide': 15,
           };
-          const cost = prices[itemName];
-          
+          if (nearVendor) {
+              const stockItem = nearVendor.stock.find(s => s.name === itemName);
+              if (!stockItem) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Item não disponível aqui!', color: '#ff5555' });
+                  return;
+              }
+              cost = stockItem.price;
+              // Verifica estoque diário
+              const maxStock = stockItem.dailyStock ?? Infinity;
+              const sold = nearVendor.soldToday?.[itemName] ?? 0;
+              if (sold >= maxStock) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Estoque diário esgotado!', color: '#ff5555' });
+                  return;
+              }
+          } else {
+              cost = fallbackPrices[itemName] || 0;
+          }
+
           if (cost && player.gold >= cost) {
               const itemWeight = ITEM_WEIGHTS[itemName] || 5;
               if (player.weight + itemWeight > (player.maxWeight || 250)) {
@@ -1381,6 +1426,11 @@ export class Game {
               const added = this.addItemToBackpack(player, itemName);
               if (added) {
                   player.gold -= cost;
+                  // Marca venda no estoque diário
+                  if (nearVendor) {
+                      if (!nearVendor.soldToday) nearVendor.soldToday = {};
+                      nearVendor.soldToday[itemName] = (nearVendor.soldToday[itemName] || 0) + 1;
+                  }
                   this.recalculateWeight(player);
                   this.recalculateStats(player);
                   socket.emit('statsUpdate', { 
@@ -2444,6 +2494,10 @@ export class Game {
     if (cycle === 0) {
         this.isNight = false;
         this.io.emit('timeUpdate', { isNight: this.isNight });
+        // Reseta o estoque diário dos vendedores
+        for (const v of CITY_VENDORS) {
+            v.soldToday = {};
+        }
         const msg = 'O sol nasce. Você está seguro por enquanto.';
         
         // Dedução da taxa do Banqueiro
@@ -3511,10 +3565,10 @@ export class Game {
             socket.emit('admin:vendorsData', vendors);
         });
 
-        socket.on('admin:setVendorStock', (data: { vendorId: string, stock: Array<{ name: string, emoji: string, price: number }> }) => {
+        socket.on('admin:setVendorStock', (data: { vendorId: string, stock: Array<{ name: string, emoji: string, price: number, dailyStock?: number }> }) => {
             const vendorIdx = CITY_VENDORS.findIndex(v => v.id === data.vendorId);
             if (vendorIdx >= 0) {
-                CITY_VENDORS[vendorIdx].stock = data.stock.map(s => ({ name: s.name, emoji: s.emoji || '📦', price: Math.max(1, s.price || 1) }));
+                CITY_VENDORS[vendorIdx].stock = data.stock.map(s => ({ name: s.name, emoji: s.emoji || '📦', price: Math.max(1, s.price || 1), dailyStock: Math.max(1, s.dailyStock || 10) }));
                 this.io.emit('admin:vendorsData', CITY_VENDORS.map(v => ({
                     id: v.id,
                     name: v.name,
@@ -3578,6 +3632,45 @@ export class Game {
                 ...CITY_TELEPORTERS.map(t => ({ id: t.id, name: t.name, x: t.x, y: t.y, kind: t.kind, cityId: t.cityId }))
             ];
             socket.emit('admin:teleportersData', teleporters);
+        });
+
+        // ============ Admin: Quests ============
+        socket.on('admin:getQuests', () => {
+            socket.emit('admin:questsData', QUESTS.map(q => ({ ...q, objectives: q.objectives.map(o => ({ ...o })), rewards: { ...q.rewards } })));
+        });
+
+        socket.on('admin:setQuest', (data: { quest: Quest }) => {
+            const idx = QUESTS.findIndex(q => q.id === data.quest.id);
+            if (idx >= 0) {
+                QUESTS[idx] = data.quest;
+            } else {
+                QUESTS.push(data.quest);
+            }
+            socket.emit('textEffect', { x: 0, y: 0, message: `✅ Quest ${data.quest.title} salva!`, color: '#10b981' });
+        });
+
+        socket.on('admin:deleteQuest', (data: { questId: string }) => {
+            const idx = QUESTS.findIndex(q => q.id === data.questId);
+            if (idx >= 0) {
+                QUESTS.splice(idx, 1);
+                socket.emit('textEffect', { x: 0, y: 0, message: `✅ Quest removida!`, color: '#10b981' });
+            }
+        });
+
+        // ============ Player: Quest Progress ============
+        socket.on('quest:accept', (data: { questId: string }) => {
+            const player = this.players.get(socket.id);
+            if (!player) return;
+            const quest = QUESTS.find(q => q.id === data.questId);
+            if (!quest) return;
+            if (!(player as any).quests) (player as any).quests = {};
+            if ((player as any).quests[data.questId]) return; // já aceitou
+            (player as any).quests[data.questId] = {
+                started: true,
+                completed: false,
+                objectives: {},
+            };
+            socket.emit('textEffect', { x: player.x, y: player.y, message: `✅ Quest "${quest.title}" aceita!`, color: '#10b981' });
         });
 
         socket.on('startGathering', (data: { nodeId: string }) => {
@@ -3670,16 +3763,35 @@ export class Game {
                        // (kind=hub aciona a getTeleporterDestination que retorna o centro da praça)
                        this.performTeleport(socket, { kind: 'hub' });
                    }
-             } else if (npcType === 'vendor') {
-                 const vendor = getVendorAt(npc.x, npc.y);
-                 if (!vendor) return;
-                 socket.emit('vendor:open', {
-                     npcId: npc.id,
-                     name: vendor.name,
-                     stock: vendor.stock,
-                 });
-             }
-         });
+            } else if (npcType === 'vendor') {
+                const vendor = getVendorAt(npc.x, npc.y);
+                if (!vendor) return;
+                // Inclui soldToday no stock para o cliente saber quantos já foram vendidos
+                const stockWithAvailability = vendor.stock.map(s => ({
+                    ...s,
+                    soldToday: vendor.soldToday?.[s.name] ?? 0,
+                }));
+                socket.emit('vendor:open', {
+                    npcId: npc.id,
+                    name: vendor.name,
+                    stock: stockWithAvailability,
+                });
+            } else if (npcType === 'questgiver') {
+                // Busca quests disponíveis para este NPC
+                const npcQuests = QUESTS.filter(q => q.npcId === npc.id);
+                const playerQuests: Record<string, any> = (player as any).quests || {};
+                const available = npcQuests.filter(q => {
+                    const pq = playerQuests[q.id];
+                    return !pq || !pq.completed;
+                });
+                socket.emit('quest:open', {
+                    npcId: npc.id,
+                    name: npc.name,
+                    quests: available,
+                    playerProgress: available.map(q => playerQuests[q.id] || null),
+                });
+            }
+        });
 
          // Cliente escolheu um destino no menu do teleporter hub
          socket.on('teleporter:teleport', (data: { destinationId: string }) => {

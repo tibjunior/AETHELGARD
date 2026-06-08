@@ -141,6 +141,10 @@ socket.on('admin:cityBossResult', (data: { cityId: string; ok: boolean; reason?:
 socket.on('admin:cityEditResult', (data: { cityId: string; ok: boolean; reason?: string }) => {
   showToast(data.ok ? `✅ Configurações de ${CITY_META[data.cityId]?.name || data.cityId} salvas!` : `❌ ${data.reason || 'Erro'}`, data.ok ? 'success' : 'error');
 });
+socket.on('admin:questsData', (data: any[]) => {
+  currentQuests = data;
+  renderQuestsAdmin();
+});
 }
 
 btnLogin.addEventListener('click', () => {
@@ -325,6 +329,7 @@ document.querySelectorAll('.npc-nav-card').forEach(card => {
     });
     const target = document.getElementById(`npc-section-${section}`);
     if (target) target.style.display = 'block';
+    if (section === 'quests') loadQuestsAdmin();
   });
 });
 
@@ -739,6 +744,41 @@ document.getElementById('btn-teleport')?.addEventListener('click', () => {
   (document.getElementById('tp-name') as HTMLInputElement).value = '';
 });
 
+// Inject emoji picker styles
+const style = document.createElement('style');
+style.textContent = `
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    padding: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    position: absolute;
+    z-index: 9999;
+    top: 100%;
+    left: 0;
+    width: 280px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .emoji-grid button {
+    background: transparent;
+    border: none;
+    font-size: 20px;
+    padding: 4px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+    text-align: center;
+    line-height: 1;
+  }
+  .emoji-grid button:hover { background: rgba(255,255,255,0.15); }
+`;
+document.head.appendChild(style);
+
 // ===== NPC Vendors Admin =====
 const ALL_VENDOR_ITEMS: { name: string; emoji: string }[] = [
   { name: 'Torch', emoji: '🔦' }, { name: 'Health Potion', emoji: '🧪' }, { name: 'Mana Potion', emoji: '💙' },
@@ -750,6 +790,58 @@ const ALL_VENDOR_ITEMS: { name: string; emoji: string }[] = [
   { name: 'Leather Backpack', emoji: '🎒' }, { name: 'Wooden Backpack', emoji: '💼' }, { name: 'Iron Backpack', emoji: '🧳' },
   { name: 'Skull', emoji: '💀' },
 ];
+const ALL_EMOJIS: readonly string[] = [
+  // Comida
+  '🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈','🍒','🍑','🥭','🍍','🥥','🥝',
+  '🍅','🍆','🥑','🥦','🥬','🥒','🌶️','🫑','🌽','🥕','🧄','🧅','🥔','🍠','🫘',
+  '🍞','🥖','🥨','🧀','🥚','🍳','🥞','🧇','🥓','🍔','🌭','🍕','🫓','🥪','🥙','🧆',
+  '🌮','🌯','🫔','🥗','🥘','🫕','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🥟','🦪',
+  '🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯',
+  '☕','🫖','🍵','🧃','🥤','🧋','🍶','🍺','🍻','🥂','🍷','🫗','🥃','🍸','🍹','🧉',
+  // Animais
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
+  '🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','🐌','🐞',
+  '🐜','🦟','🦗','🪲','🐢','🐍','🦎','🦖','🦕','🐙','🦑','🦐','🦞','🦀','🐡','🐠',
+  '🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','🦓','🦍','🦧','🐘','🦛','🦏','🐪','🐫',
+  '🦒','🦘','🦬','🐃','🐂','🐄','🐎','🐖','🐏','🐑','🐐','🦌','🐕','🐩','🦮','🐕‍🦺',
+  '🐈','🐈‍⬛','🪶','🐓','🦃','🦤','🦚','🦜','🦢','🦩','🕊️','🐇','🦝','🦡','🦫','🦦',
+  '🦥','🐁','🐀','🐿️','🦔','🐾','🐉','🐲',
+  // Natureza
+  '🌵','🎄','🌲','🌳','🌴','🪵','🌱','🌿','☘️','🍀','🎍','🪴','🎋','🍃','🍂','🍁',
+  '🪺','🪹','🍄','🐚','🪨','🌾','💐','🌷','🌹','🥀','🌺','🌸','🌼','🌻','🌞','🌝',
+  '🌛','🌜','🌚','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌙','🌎','🌍','🌏','🪐',
+  '💫','⭐','🌟','✨','⚡','🔥','💥','☄️','💧','🌊','🌈','☀️','🌤️','⛅','🌥️','☁️',
+  '🌦️','🌧️','⛈️','🌩️','🌨️','❄️','☃️','⛄','🌬️','💨','🌀','🌪️','🌫️',
+  // Objetos
+  '🗡️','⚔️','🛡️','🔫','🏹','🪃','🛠️','⚒️','🔧','🔨','🪓','⛏️','🪚','🔩','⚙️','🧰',
+  '🧲','🪜','🪞','🪟','🛏️','🪑','🚪','🛒','🛑','⏰','⌚','📿','💎','👑','🎒','💼',
+  '🧳','👕','👖','🧥','🥾','👟','🥿','👒','🎩','🧢','⛑️','🎓','🧤','🧣','🧦','👗',
+  '👘','🥻','🩱','🩲','🩳','👙','👚','🪡','🪢','🧵','🪣','🪠','🪤','🪧',
+  // Fantasia / RPG
+  '🔮','⚗️','🧪','💊','💉','🩸','🩹','🩺','💀','☠️','👻','👽','🤖','🧙‍♂️','🧙‍♀️',
+  '🧝‍♂️','🧝‍♀️','🧛‍♂️','🧛‍♀️','🧟‍♂️','🧟‍♀️','🧞‍♂️','🧞‍♀️','🧜‍♂️','🧜‍♀️','🧚‍♂️','🧚‍♀️',
+  '🏹','🪄','🪨','🪪','🪙','💰','💵','💎','🏆','🥇','🥈','🥉','🪗','🎲','♟️','🎯',
+  '🎮','🕹️','🎭','🎨','🖌️','🖍️','📜','📖','📚','📔','📕','🪶','✏️','🖊️','🖋️',
+  // Ferramentas / Mineração
+  '⛏️','🪨','💎','🔦','🪔','🔥','🧱','🪵','🌲','🌳','🌿','💧','🔥','💨','🌊','🌋',
+  // Símbolos
+  '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖',
+  '💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','🔯','🕎','☯️','🛐','⛎','♈','♉',
+  '♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚕️','♻️','⚜️','🔱','📛','🔰',
+  '⭕','✅','☑️','✔️','❌','❎','➖','➕','➗','🟰','♾️','‼️','⁉️','❓','❔','❕','❗',
+  // Construção / Estruturas
+  '🏠','🏡','🏘️','🏚️','🏗️','🏢','🏣','🏤','🏥','🏦','🏨','🏩','🏪','🏫','🏬','🏭',
+  '🏯','🏰','💒','🗼','🗽','⛪','🕌','🛕','🕍','⛩️','🕋','⛲','⛺','🌁','🌃','🏙️',
+  '🌄','🌅','🌆','🌇','🌉','🎠','🎡','🎢','🛝','🎪','🎭','🎨','🎰',
+  // Transporte
+  '🚗','🚕','🚙','🚌','🚎','🏎️','🚓','🚑','🚒','🚐','🛻','🚚','🚛','🚜','🏍️','🛵',
+  '🛺','🚲','🛴','🛹','🛼','🚏','🛣️','🛤️','⛽','🛞','🚨','🚥','🚦','🛑','🚧',
+  '⚓','🛟','⛵','🛶','🚤','🛳️','⛴️','🛥️','🚢','✈️','🛩️','🛫','🛬','🪂','🚁','🚀',
+  '🛸','🛰️','🌠',
+  // Diversos
+  '📦','🎁','🎀','🧸','🪅','🪆','🎃','🎄','🎆','🎇','🧨','✨','🎈','🎉','🎊','🎋',
+  '🎍','🎎','🎏','🎐','🎑','🧧','🎀','🪄','🪅','🪆','🪩','🪪','🪫','🪬',
+] as const;
 let currentVendors: any[] = [];
 
 function loadVendorsAdmin() {
@@ -776,12 +868,13 @@ function renderVendorsAdmin() {
           <select class="v-item-name" data-idx="${idx}" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:8px;border-radius:6px;font-size:13px;">
             ${ALL_VENDOR_ITEMS.map(i => `<option value="${i.name}" ${i.name === item.name ? 'selected' : ''}>${i.emoji} ${i.name}</option>`).join('')}
           </select>
-          <input type="text" class="v-item-emoji" data-idx="${idx}" value="${item.emoji || ''}" placeholder="emoji" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:8px;border-radius:6px;font-size:13px;text-align:center;" maxlength="2" />
           <button class="btn btn-kick btn-vendor-del" data-vendor-id="${v.id}" data-idx="${idx}" style="padding:6px 10px;font-size:11px;background:#991b1b;">🗑️</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Preço:</span>
           <input type="number" class="v-item-price" data-idx="${idx}" value="${item.price}" min="1" step="1" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:8px;border-radius:6px;font-size:13px;" />
+          <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">Estoque/Dia:</span>
+          <input type="number" class="v-item-daily-stock" data-idx="${idx}" value="${item.dailyStock ?? 10}" min="1" step="1" style="width:70px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:8px;border-radius:6px;font-size:13px;" />
         </div>
       </div>
     `).join('');
@@ -811,9 +904,6 @@ function renderVendorsAdmin() {
       const vendorId = (e.currentTarget as HTMLButtonElement).dataset.vendorId;
       if (vendorId) saveVendorStock(vendorId, card);
     });
-    card.querySelectorAll('.v-item-name').forEach(el => {
-      el.addEventListener('change', () => autoFillVendorEmoji(el as HTMLSelectElement));
-    });
   }
 }
 
@@ -821,7 +911,7 @@ function addVendorItem(vendorId: string) {
   const vendor = currentVendors.find(v => v.id === vendorId);
   if (!vendor) return;
   const defaultItem = ALL_VENDOR_ITEMS[0];
-  const newItem = { name: defaultItem.name, emoji: defaultItem.emoji, price: 10 };
+  const newItem = { name: defaultItem.name, emoji: defaultItem.emoji, price: 10, dailyStock: 10 };
   if (!vendor.stock) vendor.stock = [];
   vendor.stock.push(newItem);
   renderVendorsAdmin();
@@ -834,26 +924,19 @@ function deleteVendorItem(vendorId: string, idx: number) {
   renderVendorsAdmin();
 }
 
-function autoFillVendorEmoji(selectEl: HTMLSelectElement) {
-  const emojiInput = selectEl.closest('.v-item-row')?.querySelector('.v-item-emoji') as HTMLInputElement;
-  if (emojiInput) {
-    const match = ALL_VENDOR_ITEMS.find(i => i.name === selectEl.value);
-    if (match) emojiInput.value = match.emoji;
-  }
-}
-
 function saveVendorStock(vendorId: string, cardEl: HTMLElement) {
   const vendor = currentVendors.find(v => v.id === vendorId);
   if (!vendor) return;
   const newStock: any[] = [];
   const nameSelects = cardEl.querySelectorAll<HTMLSelectElement>('.v-item-name');
-  const emojiInputs = cardEl.querySelectorAll<HTMLInputElement>('.v-item-emoji');
   const priceInputs = cardEl.querySelectorAll<HTMLInputElement>('.v-item-price');
+  const dailyStockInputs = cardEl.querySelectorAll<HTMLInputElement>('.v-item-daily-stock');
   for (let i = 0; i < nameSelects.length; i++) {
     const name = nameSelects[i].value.trim();
-    const emoji = emojiInputs[i].value.trim();
+    const emoji = ALL_VENDOR_ITEMS.find(it => it.name === name)?.emoji || '📦';
     const price = parseInt(priceInputs[i].value) || 1;
-    if (name) newStock.push({ name, emoji: emoji || '📦', price });
+    const dailyStock = parseInt(dailyStockInputs[i].value) || 10;
+    if (name) newStock.push({ name, emoji, price, dailyStock });
   }
   vendor.stock = newStock;
   socket?.emit('admin:setVendorStock', { vendorId, stock: newStock });
@@ -1082,4 +1165,207 @@ function renderBankAdmin() {
   });
 }
 
+// ===== Admin: Quests =====
+let currentQuests: any[] = [];
+const QUEST_NPCS = [
+  { id: 'npc_questgiver', name: 'Mestre das Missões' },
+  { id: 'npc_blacksmith', name: 'Ferreiro' },
+  { id: 'npc_tailor', name: 'Alfaiate' },
+  { id: 'npc_alchemist', name: 'Alquimista' },
+];
 
+function loadQuestsAdmin() {
+  socket?.emit('admin:getQuests');
+  renderQuestsAdmin();
+}
+
+function renderQuestsAdmin() {
+  const grid = document.getElementById('quests-admin-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!currentQuests || currentQuests.length === 0) {
+    grid.innerHTML = '<p style="color:var(--text-muted);text-align:center;">Nenhuma missão cadastrada. Crie uma nova!</p>';
+    return;
+  }
+  for (const quest of currentQuests) {
+    const card = document.createElement('div');
+    card.className = 'gm-card';
+    card.style.borderLeft = '4px solid #a855f7';
+    const npcName = QUEST_NPCS.find(n => n.id === quest.npcId)?.name || quest.npcId;
+    card.innerHTML = `
+      <h3 style="color:#a855f7;margin-top:0;">❓ ${quest.title}</h3>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:8px;">${quest.description}</p>
+      <div style="font-size:12px;color:#e2e8f0;margin-bottom:8px;">
+        <b>NPC:</b> ${npcName} · <b>Level:</b> ${quest.levelRequired}
+      </div>
+      <div style="font-size:12px;color:#e2e8f0;margin-bottom:8px;">
+        <b>Objetivos:</b>
+        ${quest.objectives.map((o: any) => `<div style="margin-left:12px;">• ${o.type === 'kill' ? 'Derrote' : o.type === 'craft' ? 'Crie' : 'Colete'} ${o.count}x ${o.target}</div>`).join('')}
+      </div>
+      <div style="font-size:12px;color:#10b981;margin-bottom:12px;">
+        <b>Recompensas:</b> ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([p, a]) => `+${a} ${p}`).join(' ') : ''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-edit quest-edit-btn" data-quest-id="${quest.id}" style="background:#a855f7;font-size:12px;">✏️ Editar</button>
+        <button class="btn btn-kick quest-del-btn" data-quest-id="${quest.id}" style="background:#991b1b;font-size:12px;">🗑️ Deletar</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+  grid.querySelectorAll('.quest-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const questId = (btn as HTMLElement).dataset.questId;
+      if (questId && confirm(`Deletar missão "${currentQuests.find(q => q.id === questId)?.title}"?`)) {
+        socket?.emit('admin:deleteQuest', { questId });
+        currentQuests = currentQuests.filter(q => q.id !== questId);
+        renderQuestsAdmin();
+        showToast(`🗑️ Missão removida!`);
+      }
+    });
+  });
+  grid.querySelectorAll('.quest-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const questId = (btn as HTMLElement).dataset.questId;
+      const quest = currentQuests.find(q => q.id === questId);
+      if (quest) openQuestEditor(quest);
+    });
+  });
+}
+
+function openQuestEditor(quest?: any) {
+  const isNew = !quest;
+  const form = document.createElement('div');
+  form.id = 'quest-editor-overlay';
+  form.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  form.innerHTML = `
+    <div style="background:#1e293b;border:2px solid #a855f7;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;color:white;font-family:monospace;">
+      <h2 style="color:#a855f7;margin-top:0;">${isNew ? 'Nova Missão' : '✏️ Editar Missão'}</h2>
+      <div class="form-group">
+        <label>ID</label>
+        <input type="text" id="qe-id" value="${quest?.id || `quest_${Date.now()}`}" style="width:100%;" />
+      </div>
+      <div class="form-group">
+        <label>Título</label>
+        <input type="text" id="qe-title" value="${quest?.title || ''}" style="width:100%;" />
+      </div>
+      <div class="form-group">
+        <label>Descrição</label>
+        <textarea id="qe-desc" rows="3" style="width:100%;resize:vertical;">${quest?.description || ''}</textarea>
+      </div>
+      <div class="form-group">
+        <label>NPC que dá a missão</label>
+        <select id="qe-npc" style="width:100%;">
+          ${QUEST_NPCS.map(n => `<option value="${n.id}" ${n.id === (quest?.npcId || 'npc_questgiver') ? 'selected' : ''}>${n.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Level Mínimo</label>
+        <input type="number" id="qe-level" value="${quest?.levelRequired || 1}" min="1" style="width:100%;" />
+      </div>
+      <div class="form-group">
+        <label>Objetivos</label>
+        <div id="qe-objectives">
+          ${(quest?.objectives || [{ type: 'kill', target: '', count: 1 }]).map((o: any, idx: number) => `
+            <div class="qe-obj-row" data-idx="${idx}" style="display:flex;gap:6px;margin-bottom:6px;">
+              <select class="qe-obj-type" style="flex:0 0 80px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;">
+                <option value="kill" ${o.type === 'kill' ? 'selected' : ''}>Derrote</option>
+                <option value="craft" ${o.type === 'craft' ? 'selected' : ''}>Crie</option>
+                <option value="collect" ${o.type === 'collect' ? 'selected' : ''}>Colete</option>
+              </select>
+              <input type="text" class="qe-obj-target" value="${o.target}" placeholder="alvo" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+              <input type="number" class="qe-obj-count" value="${o.count}" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+              <button class="qe-obj-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
+            </div>
+          `).join('')}
+        </div>
+        <button id="qe-obj-add" style="margin-top:4px;background:#334155;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">+ Objetivo</button>
+      </div>
+      <div class="form-group">
+        <label>Recompensas</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div><label style="font-size:11px;">Ouro</label><input type="number" id="qe-r-gold" value="${quest?.rewards?.gold || 0}" min="0" style="width:80px;" /></div>
+          <div><label style="font-size:11px;">XP</label><input type="number" id="qe-r-xp" value="${quest?.rewards?.xp || 0}" min="0" style="width:80px;" /></div>
+          <div><label style="font-size:11px;">Smithing XP</label><input type="number" id="qe-r-smith" value="${quest?.rewards?.professionXp?.smithing || 0}" min="0" style="width:80px;" /></div>
+          <div><label style="font-size:11px;">Alchemy XP</label><input type="number" id="qe-r-alch" value="${quest?.rewards?.professionXp?.alchemy || 0}" min="0" style="width:80px;" /></div>
+          <div><label style="font-size:11px;">Tanning XP</label><input type="number" id="qe-r-tan" value="${quest?.rewards?.professionXp?.tanning || 0}" min="0" style="width:80px;" /></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;">
+        <button id="qe-save" style="flex:1;background:#a855f7;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600;">💾 Salvar Missão</button>
+        <button id="qe-cancel" style="flex:1;background:#334155;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer;font-family:inherit;">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(form);
+
+  // Dynamic objective add/remove
+  const objContainer = form.querySelector('#qe-objectives')!;
+  form.querySelector('#qe-obj-add')!.addEventListener('click', () => {
+    const idx = objContainer.children.length;
+    const row = document.createElement('div');
+    row.className = 'qe-obj-row';
+    row.dataset.idx = String(idx);
+    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
+    row.innerHTML = `
+      <select class="qe-obj-type" style="flex:0 0 80px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;">
+        <option value="kill">Derrote</option>
+        <option value="craft">Crie</option>
+        <option value="collect">Colete</option>
+      </select>
+      <input type="text" class="qe-obj-target" placeholder="alvo" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+      <input type="number" class="qe-obj-count" value="1" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+      <button class="qe-obj-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
+    `;
+    objContainer.appendChild(row);
+    row.querySelector('.qe-obj-del')!.addEventListener('click', () => row.remove());
+  });
+  objContainer.querySelectorAll('.qe-obj-del').forEach(btn => {
+    btn.addEventListener('click', () => (btn as HTMLElement).closest('.qe-obj-row')?.remove());
+  });
+
+  form.querySelector('#qe-cancel')!.addEventListener('click', () => form.remove());
+  form.querySelector('#qe-save')!.addEventListener('click', () => {
+    const id = (form.querySelector('#qe-id') as HTMLInputElement).value.trim();
+    const title = (form.querySelector('#qe-title') as HTMLInputElement).value.trim();
+    const desc = (form.querySelector('#qe-desc') as HTMLTextAreaElement).value.trim();
+    const npcId = (form.querySelector('#qe-npc') as HTMLSelectElement).value;
+    const level = parseInt((form.querySelector('#qe-level') as HTMLInputElement).value) || 1;
+    const objectives: any[] = [];
+    form.querySelectorAll('.qe-obj-row').forEach(row => {
+      const type = (row.querySelector('.qe-obj-type') as HTMLSelectElement).value;
+      const target = (row.querySelector('.qe-obj-target') as HTMLInputElement).value.trim();
+      const count = parseInt((row.querySelector('.qe-obj-count') as HTMLInputElement).value) || 1;
+      if (target) objectives.push({ type, target, count });
+    });
+    const rewards: any = {};
+    const gold = parseInt((form.querySelector('#qe-r-gold') as HTMLInputElement).value) || 0;
+    const xp = parseInt((form.querySelector('#qe-r-xp') as HTMLInputElement).value) || 0;
+    const smith = parseInt((form.querySelector('#qe-r-smith') as HTMLInputElement).value) || 0;
+    const alch = parseInt((form.querySelector('#qe-r-alch') as HTMLInputElement).value) || 0;
+    const tan = parseInt((form.querySelector('#qe-r-tan') as HTMLInputElement).value) || 0;
+    if (gold) rewards.gold = gold;
+    if (xp) rewards.xp = xp;
+    if (smith || alch || tan) {
+      rewards.professionXp = {};
+      if (smith) rewards.professionXp.smithing = smith;
+      if (alch) rewards.professionXp.alchemy = alch;
+      if (tan) rewards.professionXp.tanning = tan;
+    }
+    if (!id || !title) { showToast('❌ ID e Título são obrigatórios!'); return; }
+    const questData = { id, title, description: desc, npcId, levelRequired: level, objectives, rewards };
+    socket?.emit('admin:setQuest', { quest: questData });
+    // Update local state
+    const existing = currentQuests.findIndex(q => q.id === id);
+    if (existing >= 0) currentQuests[existing] = questData;
+    else currentQuests.push(questData);
+    renderQuestsAdmin();
+    form.remove();
+    showToast(`✅ Missão "${title}" salva!`);
+  });
+}
+
+// Initialize quest admin
+document.getElementById('btn-quest-new')?.addEventListener('click', () => openQuestEditor());
+
+// Guarda ALL_EMOJIS para uso futuro (criação de itens / quests)
+(window as any).ALL_EMOJIS = ALL_EMOJIS;

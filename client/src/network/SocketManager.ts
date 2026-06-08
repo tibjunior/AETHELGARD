@@ -91,6 +91,7 @@ export class SocketManager {
       case 'bossSpawned': this.scene.addServerMessage(`O aterrorizante ${data.name} nasceu`, true); break;
       case 'teleporter:destinations': console.log('[NPC] evento teleporter:destinations recebido', data); this.openTeleporter(data.destinations); break;
       case 'vendor:open': console.log('[NPC] evento vendor:open recebido', data); this.openVendor(data.name, data.stock); break;
+      case 'quest:open': console.log('[NPC] evento quest:open recebido', data); this.openQuestUI(data); break;
       default: console.warn('[SocketManager] unhandled game event:', event);
     }
   }
@@ -326,9 +327,9 @@ export class SocketManager {
       if (closeBtn) closeBtn.onclick = () => { ui.style.display = 'none'; };
   }
 
-  private _vendorStock: Array<{ name: string; emoji: string; price: number }> = [];
+  private _vendorStock: Array<{ name: string; emoji: string; price: number; soldToday?: number; dailyStock?: number }> = [];
 
-  public openVendor(name: string, stock: Array<{ name: string; emoji: string; price: number }>) {
+  public openVendor(name: string, stock: Array<{ name: string; emoji: string; price: number; soldToday?: number; dailyStock?: number }>) {
       const ui = document.getElementById('vendor-ui');
       const titleEl = document.getElementById('vendor-title');
       if (!ui) return;
@@ -356,6 +357,9 @@ export class SocketManager {
       content.innerHTML = '';
       this._vendorStock.forEach(item => {
           const displayItemName = (window as any).translateItem ? (window as any).translateItem(item.name) : item.name;
+          const remaining = item.dailyStock ? Math.max(0, item.dailyStock - (item.soldToday ?? 0)) : Infinity;
+          const stockText = item.dailyStock ? ` [${remaining}/${item.dailyStock}]` : '';
+          const soldOut = item.dailyStock && remaining <= 0;
           const row = document.createElement('div');
           row.style.display = 'flex';
           row.style.justifyContent = 'space-between';
@@ -363,14 +367,16 @@ export class SocketManager {
           row.style.padding = '8px';
           row.style.borderBottom = '1px solid #451a03';
           row.innerHTML = `
-              <span style="color: #e2e8f0;">${item.emoji} ${displayItemName}</span>
-              <button data-item="${item.name}" style="background: #d97706; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px;">Comprar (${item.price} Ouro)</button>
+              <span style="color: #e2e8f0;">${item.emoji} ${displayItemName}${stockText}</span>
+              <button data-item="${item.name}" style="background: ${soldOut ? '#555' : '#d97706'}; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: ${soldOut ? 'not-allowed' : 'pointer'}; font-weight: bold; font-size: 11px;">${soldOut ? 'Esgotado' : `Comprar (${item.price} Ouro)`}</button>
           `;
           content.appendChild(row);
           const btn = row.querySelector('button') as HTMLButtonElement;
-          btn.onclick = () => {
-              this.socket.emit('buyItem', item.name);
-          };
+          if (!soldOut) {
+              btn.onclick = () => {
+                  this.socket.emit('buyItem', item.name);
+              };
+          }
       });
   }
 
@@ -498,4 +504,60 @@ export class SocketManager {
           content.appendChild(div);
       });
   }
+
+  // ===== Quest UI =====
+  public openQuestUI(data: { npcId: string; name: string; quests: any[]; playerProgress: any[] }) {
+      const existing = document.getElementById('quest-ui');
+      if (existing) existing.remove();
+      const overlay = document.createElement('div');
+      overlay.id = 'quest-ui';
+      overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `
+          <div style="background:#1e293b;border:2px solid #fbbf24;border-radius:12px;padding:20px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;color:white;font-family:monospace;">
+              <h2 style="color:#fbbf24;margin-top:0;">❓ ${data.name}</h2>
+              <div id="quest-list"></div>
+              <button id="close-quest" style="margin-top:12px;background:#451a03;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;width:100%;font-family:monospace;">Fechar</button>
+          </div>
+      `;
+      document.body.appendChild(overlay);
+      const list = document.getElementById('quest-list')!;
+      if (data.quests.length === 0) {
+          list.innerHTML = '<p style="color:#888;text-align:center;">Nenhuma missão disponível no momento.</p>';
+      } else {
+          data.quests.forEach((quest: any, idx: number) => {
+              const prog = data.playerProgress[idx];
+              const accepted = prog && prog.started;
+              const card = document.createElement('div');
+              card.style.cssText = 'padding:12px;margin-bottom:10px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid #334155;';
+              card.innerHTML = `
+                  <h3 style="margin:0 0 4px;color:#fbbf24;font-size:14px;">${quest.title}</h3>
+                  <p style="margin:0 0 8px;color:#94a3b8;font-size:11px;">${quest.description}</p>
+                  <div style="font-size:11px;color:#e2e8f0;margin-bottom:8px;">
+                      ${quest.objectives.map((o: any) => `<div>• ${translateQuestObjective(o)}</div>`).join('')}
+                  </div>
+                  <div style="font-size:11px;color:#10b981;margin-bottom:8px;">
+                      Recompensas: ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([prof, amt]) => `+${amt} ${prof}`).join(' ') : ''}
+                  </div>
+                  <button data-quest-id="${quest.id}" style="background:${accepted ? '#334155' : '#d97706'};color:white;border:none;padding:6px 12px;border-radius:4px;cursor:${accepted ? 'not-allowed' : 'pointer'};font-size:11px;font-family:monospace;">${accepted ? '✔️ Aceita' : 'Aceitar Missão'}</button>
+              `;
+              list.appendChild(card);
+              if (!accepted) {
+                  card.querySelector('button')!.onclick = () => {
+                      this.socket.emit('quest:accept', { questId: quest.id });
+                      overlay.remove();
+                  };
+              }
+          });
+      }
+      document.getElementById('close-quest')!.onclick = () => overlay.remove();
+  }
+}
+
+function translateQuestObjective(o: any): string {
+    switch (o.type) {
+        case 'kill': return `Derrote ${o.count}x ${o.target}`;
+        case 'collect': return `Colete ${o.count}x ${o.target}`;
+        case 'craft': return `Crie ${o.count}x ${o.target}`;
+        default: return `${o.count}x ${o.target}`;
+    }
 }
