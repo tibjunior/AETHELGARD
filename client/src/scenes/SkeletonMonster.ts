@@ -16,9 +16,10 @@ export class SkeletonMonster extends Phaser.GameObjects.Sprite {
     private collisionMap: Set<string>;
 
     constructor(scene: Phaser.Scene, tileX: number, tileY: number, collisionMap: Set<string>, tint?: number) {
-        super(scene, tileX * 32 + 16, tileY * 32 + 24, 'skeleton8', 0);
+        super(scene, tileX * 32 + 16, tileY * 32 + 16, 'skeleton8', 0);
         scene.add.existing(this);
         this.collisionMap = collisionMap;
+        this.setOrigin(0.5, 2/3);
 
         this.setDepth(10);
         if (tint !== undefined) this.setTint(tint);
@@ -30,7 +31,7 @@ export class SkeletonMonster extends Phaser.GameObjects.Sprite {
     private pickNewDirection(): void {
         const shuffled = [...DIRS].sort(() => Math.random() - 0.5);
         const tileX = Math.round((this.x - 16) / 32);
-        const tileY = Math.round((this.y - 24) / 32);
+        const tileY = Math.round((this.y - 16) / 32);
         for (const dir of shuffled) {
             const nx = tileX + dir.x;
             const ny = tileY + dir.y;
@@ -75,7 +76,7 @@ export class SkeletonMonster extends Phaser.GameObjects.Sprite {
         const newY = this.y + this.patrolDir.y * this.patrolSpeed * dt;
 
         const tileX = Math.round((newX - 16) / 32);
-        const tileY = Math.round((newY - 24) / 32);
+        const tileY = Math.round((newY - 16) / 32);
         if (!this.collisionMap.has(`${tileX},${tileY}`) && tileX >= 0 && tileY >= 0 && tileX <= 149 && tileY <= 149) {
             this.x = newX;
             this.y = newY;

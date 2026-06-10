@@ -314,7 +314,7 @@ document.getElementById('btn-login')!.addEventListener('click', () => {
   });
 
   // Buffer de eventos do jogo (caso cheguem antes do GameScene anexar o socket)
-  const gameEvents = ['init', 'mapData', 'cities:data', 'plaza:data', 'timeUpdate', 'currentPlayers', 'playerJoined', 'playerMoved', 'playerDashed', 'itemDropped', 'itemRemoved', 'itemPickedUp', 'inventoryUpdate', 'equipmentUpdate', 'statsUpdate', 'bank:update', 'textEffect', 'levelUp', 'playerDamaged', 'entity:info', 'timeSync', 'bossSpawned', 'teleporter:destinations', 'vendor:open'];
+  const gameEvents = ['init', 'mapData', 'cities:data', 'plaza:data', 'timeUpdate', 'currentPlayers', 'playerJoined', 'playerMoved', 'playerDashed', 'itemDropped', 'itemRemoved', 'itemPickedUp', 'inventoryUpdate', 'equipmentUpdate', 'statsUpdate', 'bank:update', 'textEffect', 'levelUp', 'playerDamaged', 'entity:info', 'timeSync', 'bossSpawned', 'teleporter:destinations', 'vendor:open', 'skullking:open', 'skullking:update'];
   (window as any).__gameEventBuffer = [];
   (window as any).__flushGameEvents = (handler: (event: string, data: any) => void) => {
     const buf = (window as any).__gameEventBuffer || [];

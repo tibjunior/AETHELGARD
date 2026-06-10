@@ -123,6 +123,7 @@ export interface Equipment {
   boots?: string;
   leftHand?: string;
   rightHand?: string;
+  shield?: string;
   backpack?: string;
 }
 
@@ -165,5 +166,30 @@ export interface ResourceNode {
   state: 'rich' | 'depleted';
   respawnTime?: number;
 }
+
+export interface PartyMember {
+  id: string;
+  name: string;
+  spriteId: SpriteId;
+  level: number;
+  health: number;
+  maxHealth: number;
+  x: number;
+  y: number;
+}
+
+export interface PartyData {
+  id: string;
+  leaderId: string;
+  members: PartyMember[];
+  createdAt: number;
+}
+
+export const PARTY_MAX_SIZE = 4;
+export const PARTY_CLASS_SYNERGY_BONUS = {
+  expMultiplier: 1.5,
+  dropMultiplier: 1.3,
+  requiredClasses: ['m1', 'm2', 'f1', 'f2'] as SpriteId[]
+};
 
 

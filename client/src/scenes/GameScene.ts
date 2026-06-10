@@ -2340,7 +2340,7 @@ export class GameScene extends Phaser.Scene {
     if (data.isMonster) {
         if (data.name === 'Orc' || data.name === 'Orc Warlord') texture = 'orc-sprite';
         else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') texture = 'rotworm-sprite';
-        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
+        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'skeleton8';
         else if (data.name === 'Rat King') texture = 'rat-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
@@ -2365,6 +2365,11 @@ export class GameScene extends Phaser.Scene {
       texture,
       isCharacterSprite ? getFrameIndex((data.spriteId as SpriteId) || 'm1', (data.facing as Facing) || 'down', 0) : 0
     );
+
+    // Ajusta origem vertical para sprites mais altos (skeleton8 = 48px)
+    if (texture === 'skeleton8') {
+        sprite.setOrigin(0.5, 2/3);
+    }
 
     // Inicializa estado de animação de outros jogadores
     if (isCharacterSprite) {
@@ -3335,8 +3340,9 @@ export class GameScene extends Phaser.Scene {
   // Spawna esqueletos de patrulha autônoma em posições aleatórias livres
   private spawnSkeletonPatrols(): void {
       const spawnCandidates: { x: number; y: number }[] = [];
-      for (let tx = 5; tx < 145; tx += 4) {
-          for (let ty = 5; ty < 145; ty += 4) {
+      // Demon City bounds: x 100-130, y 140-190
+      for (let tx = 95; tx <= 135; tx += 3) {
+          for (let ty = 135; ty <= 195; ty += 3) {
               const key = `${tx},${ty}`;
               if (!this.collisionMap.has(key)) {
                   spawnCandidates.push({ x: tx, y: ty });
@@ -3344,7 +3350,7 @@ export class GameScene extends Phaser.Scene {
           }
       }
       this.shuffleArray(spawnCandidates);
-      const count = Math.min(6, spawnCandidates.length);
+      const count = Math.min(8, spawnCandidates.length);
       for (let i = 0; i < count; i++) {
           const pos = spawnCandidates[i];
           const skel = new SkeletonMonster(this, pos.x, pos.y, this.collisionMap);

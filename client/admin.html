@@ -378,6 +378,22 @@
     .monster-card .m-field select { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); color: white; padding: 4px 6px; border-radius: 4px; font-size: 12px; }
     .monster-card .btn-save-monster { width: 100%; margin-top: 8px; padding: 6px; font-size: 12px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
     .monster-card .btn-save-monster:hover { background: #059669; }
+    .db-item-card { background: rgba(0,0,0,0.25); border: 1px solid rgba(167,139,250,0.1); border-radius: 10px; padding: 14px; transition: border-color 0.2s; }
+    .db-item-card:hover { border-color: rgba(167,139,250,0.25); }
+    .db-item-card .dbfield { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:12px; }
+    .db-item-card .dbfield label { color:var(--text-muted); flex-shrink:0; min-width:90px; }
+    .db-item-card .dbfield input, .db-item-card .dbfield select { width:120px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); color:white; padding:4px 6px; border-radius:4px; font-size:12px; text-align:center; }
+    .db-item-card .dbfield input[type="checkbox"] { width:auto; }
+    .db-item-card .dbfield input[type="number"] { width:80px; }
+    .db-item-card .dbfield select { text-align:left; }
+    .db-card-actions { display:flex; gap:6px; margin-top:8px; }
+    .db-card-actions .btn-save-item { flex:1; padding:6px; font-size:11px; background:#7e22ce; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; transition:background 0.2s; }
+    .db-card-actions .btn-save-item:hover { background:#6b21a8; }
+    .db-card-actions .btn-del-item { padding:6px 12px; font-size:11px; background:#991b1b; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; transition:background 0.2s; }
+    .db-card-actions .btn-del-item:hover { background:#7f1d1d; }
+    .db-section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+    .db-section-header button { background:#7e22ce; color:white; border:none; padding:8px 16px; border-radius:8px; cursor:pointer; font-weight:600; font-size:13px; transition:background 0.2s; }
+    .db-section-header button:hover { background:#6b21a8; }
   </style>
 </head>
 <body>
@@ -395,11 +411,17 @@
 
     <aside>
     <h1>AETHELGARD GM</h1>
+    <div id="admin-clock" style="text-align:center;padding:10px 0;border-bottom:1px solid var(--glass-border);margin-bottom:8px;">
+      <span id="admin-clock-icon" style="font-size:24px;">☀️</span>
+      <span id="admin-clock-time" style="font-size:18px;font-family:monospace;color:#fbbf24;margin-left:6px;font-weight:bold;">--:--</span>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">⏳ tempo restante</div>
+    </div>
     <nav>
       <a href="#" class="active" id="nav-players">👤 Controle de Contas</a>
       <a href="#" id="nav-server">⚙️ Comandos de Servidor</a>
       <a href="#" id="nav-spawner">👾 Gerador de Entidades</a>
       <a href="#" id="nav-map">🗺️ Editor de Cidades</a>
+      <a href="#" id="nav-database">🗄️ Database de Itens</a>
     </nav>
     <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 10px;">
       <span id="conn-indicator" style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
@@ -755,6 +777,30 @@
         <div id="city-detail-content">
           <!-- Preenchido via JS -->
         </div>
+      </div>
+    </div>
+
+    <!-- Tab 5: Database de Itens -->
+    <div id="tab-database" class="tab-pane" style="display: none;">
+      <h2 style="margin-top: 0; color: #a78bfa;">🗄️ Database de Itens</h2>
+      <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 24px;">
+        Gerencie todos os itens do jogo. Adicione, edite ou remova itens de qualquer categoria.
+        As alterações persistem no arquivo <code>items.json</code> do servidor.
+      </p>
+
+      <!-- Sub-abas -->
+      <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:1px solid var(--glass-border);">
+        <button class="db-tab-btn active" data-dbtab="consumable" style="background:transparent;border:none;color:#94a3b8;padding:12px 24px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border-bottom:2px solid #a78bfa;" onmouseover="this.style.color='#f8fafc'" onmouseout="this.style.color='#94a3b8'">🧪 CONSUMÍVEIS</button>
+        <button class="db-tab-btn" data-dbtab="equippable" style="background:transparent;border:none;color:#94a3b8;padding:12px 24px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;" onmouseover="this.style.color='#f8fafc'" onmouseout="this.style.color='#94a3b8'">⚔️ EQUIPÁVEIS</button>
+        <button class="db-tab-btn" data-dbtab="material" style="background:transparent;border:none;color:#94a3b8;padding:12px 24px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;" onmouseover="this.style.color='#f8fafc'" onmouseout="this.style.color='#94a3b8'">📦 MATERIAIS</button>
+      </div>
+
+      <!-- Loading indicator -->
+      <div id="db-loading" style="text-align:center;padding:40px;color:var(--text-muted);">Carregando itens...</div>
+
+      <!-- Grid de Itens -->
+      <div id="db-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;">
+        <!-- Preenchido via JS -->
       </div>
     </div>
 

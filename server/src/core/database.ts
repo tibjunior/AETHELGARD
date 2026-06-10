@@ -396,22 +396,23 @@ export async function getAuctionByIdFromDB(id: number) {
 export async function deductOfflineBankGold(onlineNames: string[], maxDebtDays: number = -20, dailyFee: number = 1): Promise<void> {
     try {
         const safeFee = Math.max(0, dailyFee);
+        const safeMaxDebtDays = Math.floor(maxDebtDays);
         if (onlineNames.length > 0) {
             const placeholders = onlineNames.map(() => '?').join(', ');
             db.prepare(`
                 UPDATE players
                 SET
-                    bank_gold = CASE WHEN bank_gold > 0 THEN bank_gold - ${safeFee} ELSE bank_gold END,
-                    bank_debt_days = CASE WHEN bank_gold <= 0 AND bank_debt_days > ${maxDebtDays} THEN bank_debt_days - 1 ELSE bank_debt_days END
+                    bank_gold = CASE WHEN bank_gold > 0 THEN bank_gold - ? ELSE bank_gold END,
+                    bank_debt_days = CASE WHEN bank_gold <= 0 AND bank_debt_days > ? THEN bank_debt_days - 1 ELSE bank_debt_days END
                 WHERE name NOT IN (${placeholders})
-            `).run(...onlineNames);
+            `).run(safeFee, safeMaxDebtDays, ...onlineNames);
         } else {
             db.prepare(`
                 UPDATE players
                 SET
-                    bank_gold = CASE WHEN bank_gold > 0 THEN bank_gold - ${safeFee} ELSE bank_gold END,
-                    bank_debt_days = CASE WHEN bank_gold <= 0 AND bank_debt_days > ${maxDebtDays} THEN bank_debt_days - 1 ELSE bank_debt_days END
-            `).run();
+                    bank_gold = CASE WHEN bank_gold > 0 THEN bank_gold - ? ELSE bank_gold END,
+                    bank_debt_days = CASE WHEN bank_gold <= 0 AND bank_debt_days > ? THEN bank_debt_days - 1 ELSE bank_debt_days END
+            `).run(safeFee, safeMaxDebtDays);
         }
     } catch (err) {
         console.error('deductOfflineBankGold Error:', err);
@@ -519,5 +520,103 @@ export async function deleteCharacterFromAccount(accountName: string, characterN
     } catch (err) {
         console.error('deleteCharacterFromAccount Error:', err);
         return { ok: false, reason: 'Erro ao deletar personagem.' };
+    }
+}
+
+export async function createCharacterInDBTx(accountName: string, playerData: PlayerData): Promise<{ ok: boolean; reason?: string; slot?: number }> {
+    try {
+        const result = db.transaction(() => {
+            const account = db.prepare(`SELECT max_characters FROM accounts WHERE account_name = ?`).get(accountName) as { max_characters: number } | undefined;
+            if (!account) throw new Error('Conta não encontrada.');
+            
+            const count = db.prepare(`
+                SELECT COUNT(*) as c FROM players
+                WHERE account_name = ? OR (account_name = '' AND name = ?)
+            `).get(accountName, accountName) as { c: number };
+            
+            if (count.c >= account.max_characters) throw new Error(`Limite de ${account.max_characters} personagens atingido.`);
+            
+            const existing = db.prepare(`SELECT name FROM players WHERE name = ?`).get(playerData.name);
+            if (existing) throw new Error('Já existe um personagem com esse nome.');
+            
+            const stmt = db.prepare(`
+                INSERT INTO players (
+                    id, name, x, y, level, experience, gold, stats, statPoints, sp, health, equipment, backpack,
+                    gathering_mining_level, gathering_mining_xp,
+                    gathering_herbalism_level, gathering_herbalism_xp,
+                    gathering_skinning_level, gathering_skinning_xp,
+                    gathering_woodcutting_level, gathering_woodcutting_xp,
+                    profession_smithing_level, profession_smithing_xp,
+                    profession_alchemy_level, profession_alchemy_xp,
+                    profession_tanning_level, profession_tanning_xp,
+                    learned_recipes, ui_positions, password,
+                    bank_gold, bank_items, bank_debt_days,
+                    account_name, sprite_id, quests, subskills
+                ) VALUES (
+                    @id, @name, @x, @y, @level, @experience, @gold, @stats, @statPoints, @sp, @health, @equipment, @backpack,
+                    @gatheringMiningLevel, @gatheringMiningXp,
+                    @gatheringHerbalismLevel, @gatheringHerbalismXp,
+                    @gatheringSkinningLevel, @gatheringSkinningXp,
+                    @gatheringWoodcuttingLevel, @gatheringWoodcuttingXp,
+                    @professionSmithingLevel, @professionSmithingXp,
+                    @professionAlchemyLevel, @professionAlchemyXp,
+                    @professionTanningLevel, @professionTanningXp,
+                    @learnedRecipes, @uiPositions, @password,
+                    @bankGold, @bankItems, @bankDebtDays,
+                    @accountName, @spriteId, @quests, @subskills
+                )
+            `);
+            
+            stmt.run({
+                id: playerData.id,
+                name: playerData.name,
+                x: playerData.x,
+                y: playerData.y,
+                level: playerData.level,
+                experience: playerData.experience,
+                gold: playerData.gold,
+                stats: JSON.stringify(playerData.stats ?? {}),
+                statPoints: playerData.statPoints ?? 0,
+                sp: playerData.sp,
+                health: playerData.health,
+                equipment: JSON.stringify(playerData.equipment ?? {}),
+                backpack: JSON.stringify(playerData.backpack ?? []),
+                gatheringMiningLevel: playerData.gatheringMiningLevel ?? 1,
+                gatheringMiningXp: playerData.gatheringMiningXp ?? 0,
+                gatheringHerbalismLevel: playerData.gatheringHerbalismLevel ?? 1,
+                gatheringHerbalismXp: playerData.gatheringHerbalismXp ?? 0,
+                gatheringSkinningLevel: playerData.gatheringSkinningLevel ?? 1,
+                gatheringSkinningXp: playerData.gatheringSkinningXp ?? 0,
+                gatheringWoodcuttingLevel: playerData.gatheringWoodcuttingLevel ?? 1,
+                gatheringWoodcuttingXp: playerData.gatheringWoodcuttingXp ?? 0,
+                professionSmithingLevel: playerData.professionSmithingLevel ?? 1,
+                professionSmithingXp: playerData.professionSmithingXp ?? 0,
+                professionAlchemyLevel: playerData.professionAlchemyLevel ?? 1,
+                professionAlchemyXp: playerData.professionAlchemyXp ?? 0,
+                professionTanningLevel: playerData.professionTanningLevel ?? 1,
+                professionTanningXp: playerData.professionTanningXp ?? 0,
+                learnedRecipes: JSON.stringify(playerData.learnedRecipes ?? []),
+                uiPositions: JSON.stringify(playerData.uiPositions ?? {}),
+                password: playerData.password ?? '',
+                bankGold: playerData.bankGold ?? 0,
+                bankItems: JSON.stringify(playerData.bankItems ?? []),
+                bankDebtDays: playerData.bankDebtDays ?? 0,
+                accountName: playerData.accountName || playerData.name || '',
+                spriteId: playerData.spriteId || 'm1',
+                quests: JSON.stringify(playerData.quests ?? {}),
+                subskills: JSON.stringify(playerData.subskills ?? {})
+            });
+            
+            return { slot: count.c + 1 };
+        })();
+        
+        return { ok: true, slot: result.slot };
+    } catch (err: any) {
+        const msg = String(err);
+        if (msg.includes('UNIQUE') || msg.includes('unique')) return { ok: false, reason: 'Já existe um personagem com esse nome.' };
+        if (msg.includes('Limite')) return { ok: false, reason: msg };
+        if (msg.includes('Conta não encontrada')) return { ok: false, reason: 'Conta não encontrada.' };
+        console.error('createCharacterInDBTx Error:', err);
+        return { ok: false, reason: 'Erro ao criar personagem.' };
     }
 }

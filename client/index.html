@@ -203,8 +203,8 @@
         grid-template-areas:
           ". head ."
           "left body right"
-          ". legs ."
-          "bag boots .";
+          ". legs bag"
+          ". boots .";
         gap: 8px;
         justify-content: center;
       }
@@ -1215,6 +1215,18 @@
         </div>
       </div>
 
+      <!-- Modal de confirmação de venda -->
+      <div id="sell-confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1001; align-items:center; justify-content:center;">
+        <div style="background:#1f2937; border:2px solid #374151; border-radius:12px; padding:24px 28px; max-width:360px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.6); font-family:monospace;">
+          <h3 style="margin:0 0 6px 0; color:#f8fafc; font-family:var(--font-title); font-size:18px;">Confirmar Venda</h3>
+          <p id="sell-confirm-text" style="margin:0 0 20px 0; color:#9ca3af; font-size:13px; line-height:1.5;"></p>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <button id="btn-sell-confirm" style="background:#ef4444; color:#fff; border:none; padding:12px 16px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:14px; font-weight:bold; display:flex; align-items:center; justify-content:center; gap:8px;">💰 Vender</button>
+            <button id="btn-sell-cancel" style="background:transparent; color:#9ca3af; border:1px solid #374151; padding:10px 16px; border-radius:6px; cursor:pointer; font-family:monospace; font-size:13px;">Cancelar</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Painel de Autofarm Flutuante -->
       <div class="game-modal" id="autofarm-panel">
         <div class="modal-header">
@@ -1401,6 +1413,26 @@
         </div>
       </div>
 
+      <!-- Party Frame -->
+      <div id="party-frame" style="display: none; position: absolute; top: 75px; left: 15px; width: 200px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 2px solid rgba(59, 130, 246, 0.4); border-radius: 10px; padding: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); z-index: 100; user-select: none; font-family: var(--font-text); color: white;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; margin-bottom: 8px;">
+          <span style="font-size: 12px; font-weight: 700; color: #60a5fa;">👥 Party</span>
+          <span id="party-synergy-badge" style="display: none; font-size: 10px; background: rgba(251, 191, 36, 0.2); color: #fbbf24; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(251, 191, 36, 0.3);">⚡ Sinergia</span>
+        </div>
+        <div id="party-members" style="display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+
+      <!-- Party Invite Popup -->
+      <div id="party-invite-popup" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(15, 23, 42, 0.95); border: 2px solid #3b82f6; border-radius: 10px; padding: 20px; z-index: 1000; text-align: center; font-family: var(--font-text); color: white; box-shadow: 0 10px 30px rgba(0,0,0,0.6); min-width: 280px;">
+        <div style="font-size: 14px; margin-bottom: 16px;">
+          <span id="party-invite-name" style="color: #fbbf24; font-weight: bold;"></span> convidou você para uma party!
+        </div>
+        <div style="display: flex; gap: 10px; justify-content: center;">
+          <button id="party-invite-accept" style="background: #10b981; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit;">Aceitar</button>
+          <button id="party-invite-decline" style="background: #ef4444; color: white; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; font-family: inherit;">Recusar</button>
+        </div>
+      </div>
+
       <!-- Navigation Menu Toolbar (Top-Right) -->
       <div id="menu-toolbar">
         <button class="menu-btn" data-target="autofarm-panel" title="Autofarm">🤖</button>
@@ -1561,6 +1593,36 @@
           </div>
         </div>
       </div>
+
+      <!-- Modal: Rei das Caveiras -->
+      <div class="game-modal" id="skull-king-ui">
+        <div class="modal-header">
+          <span class="modal-title" id="skullking-title">💀 Rei das Caveiras</span>
+          <span class="close-modal" id="close-skullking">✖</span>
+        </div>
+        <div style="padding: 12px; background: linear-gradient(180deg, rgba(88,28,135,0.15) 0%, rgba(0,0,0,0.3) 100%);">
+          <!-- Balanço de Caveiras -->
+          <div style="display:flex;justify-content:center;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(88,28,135,0.3),rgba(0,0,0,0.4));border:1px solid rgba(168,85,247,0.3);border-radius:30px;padding:8px 20px;">
+              <span style="font-size:22px;line-height:1;">💀</span>
+              <span style="color:#a855f7;font-weight:bold;font-size:15px;">Caveiras:</span>
+              <span id="skullking-skull-count" style="color:#fbbf24;font-weight:bold;font-size:18px;min-width:30px;text-align:center;">0</span>
+            </div>
+          </div>
+          <!-- Abas -->
+          <div style="display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid rgba(168,85,247,0.15);padding-bottom:8px;">
+            <button class="sk-tab" data-tab="skullking-shop" id="sk-tab-shop" style="flex:1;background:linear-gradient(135deg,#7e22ce,#6b21a8);color:white;border:none;padding:7px 8px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:bold;letter-spacing:0.5px;transition:all 0.2s;text-shadow:0 1px 2px rgba(0,0,0,0.3);">🏪 Loja</button>
+            <button class="sk-tab" data-tab="skullking-transmute" id="sk-tab-transmute" style="flex:1;background:rgba(30,30,60,0.6);color:#a78bfa;border:1px solid rgba(168,85,247,0.15);padding:7px 8px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:bold;letter-spacing:0.5px;transition:all 0.2s;">🔄 Transmutar</button>
+            <button class="sk-tab" data-tab="skullking-quests" id="sk-tab-quests" style="flex:1;background:rgba(30,30,60,0.6);color:#a78bfa;border:1px solid rgba(168,85,247,0.15);padding:7px 8px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:bold;letter-spacing:0.5px;transition:all 0.2s;">📜 Missões</button>
+            <button class="sk-tab" data-tab="skullking-altar" id="sk-tab-altar" style="flex:1;background:rgba(30,30,60,0.6);color:#a78bfa;border:1px solid rgba(168,85,247,0.15);padding:7px 8px;border-radius:6px;cursor:pointer;font-size:10px;font-weight:bold;letter-spacing:0.5px;transition:all 0.2s;">⚡ Altar</button>
+          </div>
+          <!-- Conteúdo -->
+          <div id="skullking-shop" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+          <div id="skullking-transmute" style="display:none;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+          <div id="skullking-quests" style="display:none;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+          <div id="skullking-altar" style="display:none;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;"></div>
+        </div>
+      </div>
     </div>
     
 
@@ -1648,12 +1710,14 @@
         <!-- Tabs -->
         <div id="chat-tabs" style="display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3);">
           <button id="tab-batepapo" class="chat-tab active" data-tab="batepapo" style="flex: 1; padding: 8px; background: transparent; border: none; color: #fbbf24; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid #fbbf24;">💬 Bate-Papo</button>
+          <button id="tab-party" class="chat-tab" data-tab="party" style="flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent;">👥 Party</button>
           <button id="tab-servidor" class="chat-tab" data-tab="servidor" style="flex: 1; padding: 8px; background: transparent; border: none; color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; border-bottom: 2px solid transparent;">🖥️ Servidor</button>
         </div>
         
         <!-- Conteúdo das Abas -->
         <div id="chat-content" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px;">
           <div id="chat-batepapo" class="chat-panel" style="display: flex; flex-direction: column; gap: 4px;"></div>
+          <div id="chat-party" class="chat-panel" style="display: none; flex-direction: column; gap: 4px;"></div>
           <div id="chat-servidor" class="chat-panel" style="display: none; flex-direction: column; gap: 4px;"></div>
         </div>
         
@@ -1672,6 +1736,7 @@
       <button class="ctx-item" data-action="attack" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #ef4444; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">⚔️ Atacar</button>
       <button class="ctx-item" data-action="inspect" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #93c5fd; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">🔍 Inspecionar</button>
       <button class="ctx-item" data-action="target" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #fbbf24; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">🎯 Marcar como Alvo</button>
+      <button class="ctx-item" data-action="partyInvite" style="display: block; width: 100%; padding: 8px 10px; background: transparent; color: #60a5fa; border: none; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; border-radius: 4px;">👥 Convidar p/ Party</button>
     </div>
 
     <!-- Entity Inspect Modal (Fase 4b) -->
@@ -1853,7 +1918,7 @@
 
       function saveAllUiPositions() {
           const positions = {};
-          ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering', 'modal-bank'].forEach(id => {
+          ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering', 'modal-bank', 'skull-king-ui'].forEach(id => {
               const el = document.getElementById(id);
               if (el) {
                   positions[id] = {
@@ -1878,6 +1943,35 @@
               }
           }
       };
+
+      // Clamp element position to viewport bounds (call after element is visible)
+      function clampToViewport(el) {
+          requestAnimationFrame(() => {
+              if (el.style.display === 'none' || !el.offsetParent) return;
+              const rect = el.getBoundingClientRect();
+              if (rect.width === 0 || rect.height === 0) return;
+              const vw = window.innerWidth, vh = window.innerHeight;
+              const m = 8;
+              let left = rect.left, top = rect.top, changed = false;
+              if (left + rect.width > vw - m) { left = vw - rect.width - m; changed = true; }
+              if (top + rect.height > vh - m) { top = vh - rect.height - m; changed = true; }
+              if (left < m) { left = m; changed = true; }
+              if (top < m) { top = m; changed = true; }
+              if (changed) {
+                  el.style.left = left + 'px';
+                  el.style.top = top + 'px';
+              }
+          });
+      }
+
+      // Observe game-modal/hud-player style changes to clamp when displayed
+      ['modal-backpack','modal-equipment','modal-stats','modal-gathering','modal-bank','modal-quests','hud-player','autofarm-panel','skull-king-ui'].forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          new MutationObserver(() => {
+              if (el.style.display === 'flex') clampToViewport(el);
+          }).observe(el, { attributes: true, attributeFilter: ['style'] });
+      });
 
       // Drag logic
       function makeDraggable(modalId) {
@@ -1919,7 +2013,7 @@
       }
       
       // Make modals draggable and bring to front on click
-      ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering', 'modal-bank'].forEach(id => {
+      ['hud-player', 'autofarm-panel', 'modal-backpack', 'modal-equipment', 'modal-stats', 'modal-gathering', 'modal-bank', 'skull-king-ui'].forEach(id => {
           makeDraggable(id);
           const modal = document.getElementById(id);
           if (modal) {
@@ -1945,8 +2039,10 @@
       const resizeBtn = document.getElementById('chat-resize-btn');
       const minimizeBtn = document.getElementById('chat-minimize-btn');
       const tabBatePapo = document.getElementById('tab-batepapo');
+      const tabParty = document.getElementById('tab-party');
       const tabServidor = document.getElementById('tab-servidor');
       const panelBatePapo = document.getElementById('chat-batepapo');
+      const panelParty = document.getElementById('chat-party');
       const panelServidor = document.getElementById('chat-servidor');
 
       // --- 3 Tamanhos horizontais e 3 verticais ---
@@ -2021,12 +2117,16 @@
 
       // --- Abas ---
       function switchTab(tab) {
-        tabBatePapo.classList.toggle('active', tab === 'batepapo');
-        tabServidor.classList.toggle('active', tab === 'servidor');
-        panelBatePapo.style.display = tab === 'batepapo' ? 'flex' : 'none';
-        panelServidor.style.display = tab === 'servidor' ? 'flex' : 'none';
-        // Input visível apenas na aba Bate-Papo
-        if (chatInputWrapper) chatInputWrapper.style.display = tab === 'batepapo' ? 'block' : 'none';
+        const tabs = [tabBatePapo, tabParty, tabServidor];
+        const panels = [panelBatePapo, panelParty, panelServidor];
+        tabs.forEach(t => { if (t) t.classList.toggle('active', t.getAttribute('data-tab') === tab); });
+        panels.forEach(p => { if (p) p.style.display = p.id === `chat-${tab}` ? 'flex' : 'none'; });
+        // Input visível apenas na aba Bate-Papo e Party
+        if (chatInputWrapper) chatInputWrapper.style.display = (tab === 'batepapo' || tab === 'party') ? 'block' : 'none';
+        // Notifica servidor sobre modo de chat
+        if (window.gameScene && window.gameScene.socketManager) {
+          window.gameScene.socketManager.sendChatMode(tab === 'party' ? 'party' : 'global');
+        }
         // Ao trocar de aba, rola para a mensagem mais recente
         const scrollContainer = document.getElementById('chat-content');
         if (scrollContainer) {
@@ -2035,6 +2135,7 @@
       }
 
       tabBatePapo.addEventListener('click', () => switchTab('batepapo'));
+      if (tabParty) tabParty.addEventListener('click', () => switchTab('party'));
       tabServidor.addEventListener('click', () => switchTab('servidor'));
 
       // --- Drag (mover janela) ---
@@ -2146,15 +2247,20 @@
       // --- Input de chat ---
       chatInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
-          // Só envia se estiver na aba Bate-Papo
-          if (!tabBatePapo.classList.contains('active')) {
+          // Só envia se estiver na aba Bate-Papo ou Party
+          const isPartyActive = tabParty && tabParty.classList.contains('active');
+          if (!tabBatePapo.classList.contains('active') && !isPartyActive) {
             chatInput.blur();
             return;
           }
           const msg = chatInput.value.trim();
           if (msg !== '') {
             if (window.gameScene && window.gameScene.socketManager) {
-              window.gameScene.socketManager.sendChat(msg);
+              if (isPartyActive) {
+                window.gameScene.socketManager.sendPartyChat(msg);
+              } else {
+                window.gameScene.socketManager.sendChat(msg);
+              }
             }
             chatInput.value = '';
           }
@@ -2164,9 +2270,11 @@
         }
       });
 
-      // Enter global: foca input do chat (só na aba Bate-Papo)
+      // Enter global: foca input do chat (só na aba Bate-Papo ou Party)
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && document.activeElement !== chatInput && tabBatePapo.classList.contains('active')) {
+        const isPartyActive = tabParty && tabParty.classList.contains('active');
+        const canFocus = tabBatePapo.classList.contains('active') || isPartyActive;
+        if (e.key === 'Enter' && document.activeElement !== chatInput && canFocus) {
           e.preventDefault();
           chatInput.focus();
         }
@@ -2176,7 +2284,10 @@
       window.addChatMessage = function(tab, name, text, isSystem = false, isBoss = false) {
         // Player speech ('global') vai para Bate-Papo
         if (tab === 'global') tab = 'batepapo';
-        const panel = tab === 'batepapo' ? panelBatePapo : panelServidor;
+        let panel;
+        if (tab === 'party') panel = panelParty;
+        else if (tab === 'batepapo') panel = panelBatePapo;
+        else panel = panelServidor;
         const msgDiv = document.createElement('div');
         msgDiv.className = 'chat-message' + (isSystem ? ' system' : '') + (isBoss ? ' boss' : '');
         
@@ -2222,7 +2333,7 @@
 
       // Reutilizar bringToFront do script anterior
       function bringToFront(el) {
-        const modals = document.querySelectorAll('#chat-box, .game-modal, #hud-player');
+        const modals = document.querySelectorAll('#chat-box, .game-modal, #hud-player, #skull-king-ui');
         let maxZ = 200;
         modals.forEach(m => {
           const z = parseInt(m.style.zIndex) || 200;
@@ -2243,6 +2354,7 @@
           if (state.left !== undefined) { chatBox.style.right = 'auto'; chatBox.style.bottom = 'auto'; }
         }
       } catch (_) {}
+      clampToViewport(chatBox);
 
       // Inicializa
       applyWidth();

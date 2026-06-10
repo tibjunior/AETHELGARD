@@ -175,5 +175,49 @@ export let CRAFTING_RECIPES: Recipe[] = [
     resultItem: 'Iron Backpack',
     craftTimeMs: 4000,
     craftFee: 0
+  },
+  {
+    id: 'recipe_wooden_shield',
+    name: 'Escudo de Madeira',
+    profession: 'tanning',
+    stationType: 'tanning',
+    levelRequired: 1,
+    ingredients: [
+      { itemName: 'Wood Log', count: 5 },
+      { itemName: 'Leather Hide', count: 2 }
+    ],
+    resultItem: 'Wooden Shield',
+    craftTimeMs: 2500,
+    craftFee: 0
+  },
+  {
+    id: 'recipe_iron_shield',
+    name: 'Escudo de Ferro',
+    profession: 'smithing',
+    stationType: 'forge',
+    levelRequired: 2,
+    ingredients: [
+      { itemName: 'Iron Ore', count: 8 },
+      { itemName: 'Wood Log', count: 3 },
+      { itemName: 'Leather Hide', count: 2 }
+    ],
+    resultItem: 'Iron Shield',
+    craftTimeMs: 3500,
+    craftFee: 0
+  },
+  {
+    id: 'recipe_steel_shield',
+    name: 'Escudo de Aço',
+    profession: 'smithing',
+    stationType: 'forge',
+    levelRequired: 4,
+    ingredients: [
+      { itemName: 'Iron Ore', count: 15 },
+      { itemName: 'Wood Log', count: 5 },
+      { itemName: 'Leather Hide', count: 4 }
+    ],
+    resultItem: 'Steel Shield',
+    craftTimeMs: 5000,
+    craftFee: 0
   }
 ];
