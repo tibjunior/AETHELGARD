@@ -3,6 +3,7 @@ import { SocketManager } from '../network/SocketManager';
 import { PlayerData, Position, ResourceNode, CraftingStation, SpriteId, SPRITE_IDS, Facing, FACINGS, getFrameIndex } from '../../../shared/types';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 import { SUBSKILLS } from '../../../shared/subskills';
+import { SkeletonMonster } from './SkeletonMonster';
 
 /**
  * Ícones de item baseados em imagens (URLs servidas pelo Vite a partir de /client/public).
@@ -144,6 +145,9 @@ export class GameScene extends Phaser.Scene {
   private localPlayerDead: boolean = false;
   private lootTargetId?: string;
   private lootTargetPos?: { x: number, y: number };
+
+  // Patrulha de esqueletos autônomos
+  private skeletonPatrols: SkeletonMonster[] = [];
 
   public itemDetails: Record<string, { name: string, desc: string, color: string }> = {
       'Steel Sword': { name: 'Espada de Aço', desc: 'Dano: +15 | Peso: 25.0 oz\nUma espada pesada forjada com liga de metal resistente.', color: '#e2e8f0' },
@@ -410,6 +414,15 @@ export class GameScene extends Phaser.Scene {
         this.socketManager.connect(pName);
     }
 
+    // Cria animações de andar do esqueleto (skeleton8 spritesheet: 3 cols × 4 rows, 32×48, 6 FPS)
+    const frameRate = 6;
+    if (!this.anims.exists('skeleton_walk_down')) {
+        this.anims.create({ key: 'skeleton_walk_down',  frames: this.anims.generateFrameNumbers('skeleton8', { start: 0, end: 2 }),   frameRate, repeat: -1 });
+        this.anims.create({ key: 'skeleton_walk_left',  frames: this.anims.generateFrameNumbers('skeleton8', { start: 3, end: 5 }),   frameRate, repeat: -1 });
+        this.anims.create({ key: 'skeleton_walk_right', frames: this.anims.generateFrameNumbers('skeleton8', { start: 6, end: 8 }),   frameRate, repeat: -1 });
+        this.anims.create({ key: 'skeleton_walk_up',    frames: this.anims.generateFrameNumbers('skeleton8', { start: 9, end: 11 }),  frameRate, repeat: -1 });
+    }
+
     // Mapear teclas do teclado (WASD / Setas)
     this.setupInput();
     this.setupTooltips();
@@ -610,6 +623,10 @@ export class GameScene extends Phaser.Scene {
   public onMapData(data: { walls: Position[], gates?: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
     this.expandWorldBoundsFromData(data.walls, data.resourceNodes, data.craftingStations);
 
+    // Limpa patrulhas de esqueleto antigas
+    this.skeletonPatrols.forEach(s => s.destroy());
+    this.skeletonPatrols = [];
+
     // Limpa nós de recursos existentes se houver
     this.resourceNodesMap.forEach(n => {
         n.sprite.destroy();
@@ -662,6 +679,9 @@ export class GameScene extends Phaser.Scene {
     if (data.craftingStations) {
         data.craftingStations.forEach(station => this.drawCraftingStation(station));
     }
+
+    // Spawna esqueletos de patrulha autônoma em áreas livres do mapa
+    this.spawnSkeletonPatrols();
   }
 
   public onCitiesData(cities: any[]) {
@@ -3312,6 +3332,33 @@ export class GameScene extends Phaser.Scene {
       tooltip.style.top = top + 'px';
   }
 
+  // Spawna esqueletos de patrulha autônoma em posições aleatórias livres
+  private spawnSkeletonPatrols(): void {
+      const spawnCandidates: { x: number; y: number }[] = [];
+      for (let tx = 5; tx < 145; tx += 4) {
+          for (let ty = 5; ty < 145; ty += 4) {
+              const key = `${tx},${ty}`;
+              if (!this.collisionMap.has(key)) {
+                  spawnCandidates.push({ x: tx, y: ty });
+              }
+          }
+      }
+      this.shuffleArray(spawnCandidates);
+      const count = Math.min(6, spawnCandidates.length);
+      for (let i = 0; i < count; i++) {
+          const pos = spawnCandidates[i];
+          const skel = new SkeletonMonster(this, pos.x, pos.y, this.collisionMap);
+          this.skeletonPatrols.push(skel);
+      }
+  }
+
+  private shuffleArray<T>(arr: T[]): void {
+      for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+  }
+
   update() {
       // Atualiza o overlay de noite para seguir o jogador (gradiente radial centrado)
       const overlay = document.getElementById('night-overlay');
@@ -3448,6 +3495,10 @@ export class GameScene extends Phaser.Scene {
               textObj.setVisible(dist <= maxDist);
           });
       }
+
+      // Atualiza patrulha autônoma dos esqueletos
+      const dt = this.game.loop.delta;
+      this.skeletonPatrols.forEach(s => s.tick(dt));
   }
 
   public toggleAutofarm() {

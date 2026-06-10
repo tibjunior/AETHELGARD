@@ -20,6 +20,12 @@ export class BootScene extends Phaser.Scene {
       frameHeight: 24
     });
 
+    // Spritesheet do Esqueleto (3 cols × 4 rows, 32×48 cada frame)
+    this.load.spritesheet('skeleton8', 'sprites/skeleton8.png', {
+      frameWidth: 32,
+      frameHeight: 48
+    });
+
     // Gera texturas dinâmicas (placeholders) para tiles e monstros
     const grassCanvas = this.textures.createCanvas('tile-grass', 32, 32);
     if (grassCanvas && grassCanvas.context) {
