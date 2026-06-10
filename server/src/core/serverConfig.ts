@@ -116,80 +116,85 @@ export interface ServerConfig {
  */
 export const DEFAULT_MONSTER_CONFIGS: MonsterConfigs = {
     'Giant Rat': {
-        exp: 50, isAggressive: true,
-        health: 50,  attack: 8,  speed: 150,
+        exp: 30, isAggressive: true,
+        health: 80,  attack: 6,  speed: 150,
         drops: [
-            { item: 'Steel Sword',     weight: 5,  minQty: 1, maxQty: 1 },
-            { item: 'Torch',           weight: 5,  minQty: 1, maxQty: 1 },
-            { item: 'Cheese',          weight: 15, minQty: 1, maxQty: 2 },
-            { item: 'Apple',           weight: 20, minQty: 1, maxQty: 3 },
-            { item: 'Blueberry',       weight: 15, minQty: 1, maxQty: 3 },
+            { item: 'Steel Sword',     weight: 1,  minQty: 1, maxQty: 1 },  // Muito raro
+            { item: 'Torch',           weight: 3,  minQty: 1, maxQty: 1 },
+            { item: 'Cheese',          weight: 12, minQty: 1, maxQty: 2 },
+            { item: 'Apple',           weight: 18, minQty: 1, maxQty: 2 },
+            { item: 'Blueberry',       weight: 12, minQty: 1, maxQty: 2 },
             { item: 'Wood Log',        weight: 15, minQty: 1, maxQty: 2 },
             { item: 'Medicinal Herb',  weight: 15, minQty: 1, maxQty: 2 },
             { item: 'Leather Hide',    weight: 10, minQty: 1, maxQty: 1 },
+            { item: 'Health Potion',   weight: 3,  minQty: 1, maxQty: 1 },
         ],
     },
     'Orc': {
-        exp: 150, isAggressive: true,
-        health: 120, attack: 15, speed: 100,
+        exp: 100, isAggressive: true,
+        health: 200, attack: 12, speed: 100,
         drops: [
-            { item: 'Steel Sword',     weight: 12, minQty: 1, maxQty: 1 },
-            { item: 'Medicinal Herb',  weight: 18, minQty: 1, maxQty: 2 },
-            { item: 'Blueberry',       weight: 15, minQty: 1, maxQty: 3 },
-            { item: 'Apple',           weight: 30, minQty: 1, maxQty: 3 },
-            { item: 'Leather Hide',    weight: 25, minQty: 1, maxQty: 2 },
+            { item: 'Steel Sword',     weight: 2,  minQty: 1, maxQty: 1 },  // Raro
+            { item: 'Medicinal Herb',  weight: 15, minQty: 1, maxQty: 2 },
+            { item: 'Blueberry',       weight: 12, minQty: 1, maxQty: 2 },
+            { item: 'Apple',           weight: 25, minQty: 1, maxQty: 2 },
+            { item: 'Leather Hide',    weight: 20, minQty: 1, maxQty: 2 },
+            { item: 'Health Potion',   weight: 5,  minQty: 1, maxQty: 1 },
         ],
     },
     'Rotworm': {
-        exp: 250, isAggressive: true,
-        health: 200, attack: 22, speed: 120,
+        exp: 180, isAggressive: true,
+        health: 350, attack: 18, speed: 120,
         drops: [
-            { item: 'Steel Sword',     weight: 4,  minQty: 1, maxQty: 1 },
-            { item: 'Wood Sword',      weight: 6,  minQty: 1, maxQty: 1 },
-            { item: 'Medicinal Herb',  weight: 10, minQty: 1, maxQty: 2 },
-            { item: 'Cheese',          weight: 20, minQty: 1, maxQty: 2 },
-            { item: 'Apple',           weight: 25, minQty: 1, maxQty: 3 },
-            { item: 'Leather Hide',    weight: 35, minQty: 1, maxQty: 2 },
+            { item: 'Steel Sword',     weight: 1,  minQty: 1, maxQty: 1 },  // Muito raro
+            { item: 'Wood Sword',      weight: 3,  minQty: 1, maxQty: 1 },
+            { item: 'Medicinal Herb',  weight: 8,  minQty: 1, maxQty: 2 },
+            { item: 'Cheese',          weight: 15, minQty: 1, maxQty: 2 },
+            { item: 'Apple',           weight: 20, minQty: 1, maxQty: 2 },
+            { item: 'Leather Hide',    weight: 30, minQty: 1, maxQty: 2 },
+            { item: 'Health Potion',   weight: 6,  minQty: 1, maxQty: 2 },
         ],
     },
     'Demon Skeleton': {
-        exp: 600, isAggressive: true,
-        health: 400, attack: 38, speed: 90,
+        exp: 450, isAggressive: true,
+        health: 600, attack: 30, speed: 90,
         drops: [
-            { item: 'Armor',           weight: 10, minQty: 1, maxQty: 1 },
-            { item: 'Leather Boots',   weight: 10, minQty: 1, maxQty: 1 },
-            { item: 'Steel Sword',     weight: 15, minQty: 1, maxQty: 1 },
-            { item: 'Pants',           weight: 15, minQty: 1, maxQty: 1 },
-            { item: 'Helmet',          weight: 15, minQty: 1, maxQty: 1 },
-            { item: 'Medicinal Herb',  weight: 15, minQty: 1, maxQty: 2 },
-            { item: 'Blueberry',       weight: 12, minQty: 1, maxQty: 3 },
+            { item: 'Armor',           weight: 3,  minQty: 1, maxQty: 1 },  // Raro
+            { item: 'Helmet',          weight: 3,  minQty: 1, maxQty: 1 },  // Raro
+            { item: 'Leather Boots',   weight: 5,  minQty: 1, maxQty: 1 },
+            { item: 'Steel Sword',     weight: 5,  minQty: 1, maxQty: 1 },
+            { item: 'Pants',           weight: 8,  minQty: 1, maxQty: 1 },
+            { item: 'Medicinal Herb',  weight: 12, minQty: 1, maxQty: 2 },
+            { item: 'Blueberry',       weight: 10, minQty: 1, maxQty: 2 },
             { item: 'Iron Ore',        weight: 8,  minQty: 1, maxQty: 2 },
+            { item: 'Health Potion',   weight: 8,  minQty: 1, maxQty: 2 },
+            { item: 'Mana Potion',     weight: 4,  minQty: 1, maxQty: 1 },
         ],
     },
     // Bosses
     'Nightmare Skeleton': {
-        exp: 5000, isAggressive: false,
-        health: 1200, attack: 90, speed: 150,
-        drops: [], // drop tratado por CONFIG.supremeBossItemDrop (ver rollDropTable)
+        exp: 50000, isAggressive: false,
+        health: 8000, attack: 180, speed: 150,
+        drops: [],
     },
     'Rat King': {
-        exp: 800, isAggressive: true,
-        health: 400, attack: 18, speed: 160,
-        drops: [], // drop tratado por CONFIG.cityBossItemDrop
+        exp: 3000, isAggressive: true,
+        health: 1500, attack: 35, speed: 160,
+        drops: [],
     },
     'Orc Warlord': {
-        exp: 2000, isAggressive: true,
-        health: 800, attack: 30, speed: 120,
+        exp: 8000, isAggressive: true,
+        health: 3500, attack: 55, speed: 120,
         drops: [],
     },
     'Ancient Rotworm': {
-        exp: 4500, isAggressive: true,
-        health: 1500, attack: 50, speed: 140,
+        exp: 18000, isAggressive: true,
+        health: 6000, attack: 85, speed: 140,
         drops: [],
     },
     'Demon Lord': {
-        exp: 10000, isAggressive: true,
-        health: 3000, attack: 80, speed: 110,
+        exp: 40000, isAggressive: true,
+        health: 10000, attack: 130, speed: 110,
         drops: [],
     },
 };
@@ -205,25 +210,25 @@ export const DEFAULT_CONFIG: ServerConfig = {
     expByMonster: {},
     monsterConfigs: JSON.parse(JSON.stringify(DEFAULT_MONSTER_CONFIGS)),
     goldByLevel: 1,
-    globalGoldMultiplier: 1.0,
-    globalExpMultiplier: 1.0,
-    globalDropMultiplier: 1.0,
+    globalGoldMultiplier: 0.5,    // Reduzido 50%
+    globalExpMultiplier: 0.6,     // Reduzido 40%
+    globalDropMultiplier: 0.4,    // Reduzido 60% (drops mais raros)
     pvpGoldReward: 10,
     pvpItemLossChance: 0.30,
     supremeBossItemDrop: '__RANDOM__',
-    supremeBossDropChance: 100,   // 100% = sempre dropa (se não for __NONE__)
+    supremeBossDropChance: 100,
     cityBossItemDrop: '__RANDOM__',
-    cityBossDropChance: 100,      // 100% = sempre dropa (se não for __NONE__)
+    cityBossDropChance: 100,
 
-    // Regen
-    hpRegenBase: 2,
+    // Regen (mais lento fora de safe zone)
+    hpRegenBase: 1,
     hpRegenPerVit: 5,
     spRegenBase: 1,
     spRegenPerInt: 5,
-    regenIntervalTicks: 40,
+    regenIntervalTicks: 60,       // Mais lento (3s por tick ao invés de 2s)
 
     // Banco
-    bankDailyFee: 1,
+    bankDailyFee: 2,              // Aumentado
     bankMaxDebtDays: -20,
     bankSlots: 50,
     bankDistanceCheck: 2,
@@ -236,18 +241,18 @@ export const DEFAULT_CONFIG: ServerConfig = {
     backpackIronSlots: 32,
     maxWeightBase: 250,
 
-    // Respawn
-    playerRespawnMs: 5000,
+    // Respawn (monstros mais lentos para nascer)
+    playerRespawnMs: 8000,        // Mais tempo para ressuscitar
     autoSaveIntervalMs: 10000,
-    monsterRespawnMs: 20000,        // monstro revive 20s após morrer
-    monsterRespawnJitterMs: 10000,  // +0-10s aleatório (total 20-30s)
-    monsterNightCloneChance: 1.0,   // 100% clona à noite (sempre)
-    bossSpawnChancePerNight: 1.0,   // 100% spawn de boss global
-    cityBossSpawnChance: 0.50,      // 50% de chance de cada cidade spawnar seu boss noturno
+    monsterRespawnMs: 40000,      // 40s base (era 20s)
+    monsterRespawnJitterMs: 20000, // +0-20s (total 40-60s)
+    monsterNightCloneChance: 0.5, // 50% chance de clonar à noite
+    bossSpawnChancePerNight: 0.3, // 30% spawn boss global
+    cityBossSpawnChance: 0.25,    // 25% chance boss de cidade
 
-    // Ciclo dia/noite (em ticks; 20 ticks = 1s)
-    dayDurationTicks: 6000,
-    nightDurationTicks: 6000,
+    // Ciclo dia/noite (mais longo)
+    dayDurationTicks: 9000,       // 7.5 min (era 5)
+    nightDurationTicks: 9000,     // 7.5 min
 
     // PvP / Safe Zone (Praça Central)
     cityBounds: { xMin: 100, xMax: 130, yMin: 100, yMax: 130 },
@@ -255,7 +260,7 @@ export const DEFAULT_CONFIG: ServerConfig = {
     // ASPD
     basePlayerCooldownMs: 1500,
     baseMonsterCooldownMs: 2000,
-    aspdDesReductionFactor: 20  // (1500 - DES*20) com piso de 500
+    aspdDesReductionFactor: 20
 };
 
 // Singleton mutável
@@ -449,7 +454,7 @@ export const MONSTER_CITIES: MonsterCity[] = [
         portalIn: { x: 90, y: 115 },
         portalOut: { x: 100, y: 115 },
         bossName: 'Rat King',
-        bossStats: { health: 400, attack: 18, speed: 160, exp: 800 },
+        bossStats: { health: 1500, attack: 35, speed: 160, exp: 3000 },
         spawnPositions: [
             { x: 60, y: 110 }, { x: 70, y: 108 }, { x: 80, y: 112 },
             { x: 65, y: 122 }, { x: 75, y: 120 }, { x: 85, y: 125 }
@@ -468,7 +473,7 @@ export const MONSTER_CITIES: MonsterCity[] = [
         portalIn: { x: 140, y: 115 },
         portalOut: { x: 130, y: 115 },
         bossName: 'Orc Warlord',
-        bossStats: { health: 800, attack: 30, speed: 120, exp: 2000 },
+        bossStats: { health: 3500, attack: 55, speed: 120, exp: 8000 },
         spawnPositions: [
             { x: 150, y: 110 }, { x: 160, y: 108 }, { x: 170, y: 112 },
             { x: 155, y: 122 }, { x: 165, y: 120 }, { x: 175, y: 125 }
@@ -487,7 +492,7 @@ export const MONSTER_CITIES: MonsterCity[] = [
         portalIn: { x: 115, y: 40 },
         portalOut: { x: 115, y: 39 },
         bossName: 'Ancient Rotworm',
-        bossStats: { health: 1500, attack: 50, speed: 140, exp: 4500 },
+        bossStats: { health: 6000, attack: 85, speed: 140, exp: 18000 },
         spawnPositions: [
             { x: 110, y: 50 }, { x: 120, y: 55 }, { x: 115, y: 60 },
             { x: 108, y: 70 }, { x: 122, y: 75 }, { x: 115, y: 82 }
@@ -506,7 +511,7 @@ export const MONSTER_CITIES: MonsterCity[] = [
         portalIn: { x: 115, y: 140 },
         portalOut: { x: 115, y: 130 },
         bossName: 'Demon Lord',
-        bossStats: { health: 3000, attack: 80, speed: 110, exp: 10000 },
+        bossStats: { health: 10000, attack: 130, speed: 110, exp: 40000 },
         spawnPositions: [
             { x: 110, y: 150 }, { x: 120, y: 155 }, { x: 115, y: 160 },
             { x: 108, y: 170 }, { x: 122, y: 175 }, { x: 115, y: 182 }
@@ -647,8 +652,49 @@ export const CITY_TELEPORTERS: TeleporterNpc[] = [
     { id: 'npc_teleporter_demon',   name: 'Mago Teleportador', x: 104, y: 184, kind: 'cityReturn', cityId: 'demon_city' },
 ];
 
-/** Um vendedor temático em cada cidade de monstros. */
+/** Lojas na praça central + vendedores temáticos em cada cidade de monstros. */
 export const CITY_VENDORS: VendorNpc[] = [
+    {
+        id: 'npc_vendor_weaponshop',
+        name: 'Armeiro',
+        x: 108, y: 115,
+        cityId: 'plaza',
+        stock: [
+            { name: 'Wood Sword',     emoji: '🗡️', price: 20,  dailyStock: 10 },
+            { name: 'Steel Sword',    emoji: '🗡️', price: 100, dailyStock: 5 },
+            { name: 'Torch',          emoji: '🔦', price: 5,   dailyStock: 15 },
+            { name: 'Tocha a Laser',  emoji: '💡', price: 50,  dailyStock: 5 },
+        ],
+    },
+    {
+        id: 'npc_vendor_armorshop',
+        name: 'Armadura',
+        x: 125, y: 115,
+        cityId: 'plaza',
+        stock: [
+            { name: 'Helmet',        emoji: '🪖', price: 30,  dailyStock: 8 },
+            { name: 'Armor',         emoji: '👕', price: 80,  dailyStock: 5 },
+            { name: 'Pants',         emoji: '👖', price: 15,  dailyStock: 10 },
+            { name: 'Leather Boots', emoji: '👢', price: 10,  dailyStock: 10 },
+            { name: 'Wooden Shield', emoji: '🛡️', price: 50,  dailyStock: 5 },
+            { name: 'Iron Shield',   emoji: '🛡️', price: 200, dailyStock: 2 },
+        ],
+    },
+    {
+        id: 'npc_vendor_generalstore',
+        name: 'Mercador Geral',
+        x: 115, y: 122,
+        cityId: 'plaza',
+        stock: [
+            { name: 'Apple',            emoji: '🍎', price: 3,   dailyStock: 30 },
+            { name: 'Cheese',           emoji: '🧀', price: 5,   dailyStock: 20 },
+            { name: 'Blueberry',        emoji: '🫐', price: 4,   dailyStock: 25 },
+            { name: 'Health Potion',    emoji: '🧪', price: 15,  dailyStock: 10 },
+            { name: 'Mana Potion',      emoji: '💙', price: 20,  dailyStock: 8 },
+            { name: 'Medicinal Herb',   emoji: '🌿', price: 8,   dailyStock: 15 },
+            { name: 'Leather Backpack', emoji: '🎒', price: 500, dailyStock: 3 },
+        ],
+    },
     {
         id: 'npc_vendor_rat',
         name: 'Mercador dos Ratos',
@@ -659,6 +705,7 @@ export const CITY_VENDORS: VendorNpc[] = [
             { name: 'Cheese',         emoji: '🧀', price: 5,  dailyStock: 15 },
             { name: 'Blueberry',      emoji: '🫐', price: 4,  dailyStock: 20 },
             { name: 'Torch',          emoji: '🔦', price: 5,  dailyStock: 10 },
+            { name: 'Wooden Shield',  emoji: '🛡️', price: 50, dailyStock: 5 },
         ],
     },
     {
@@ -671,6 +718,7 @@ export const CITY_VENDORS: VendorNpc[] = [
             { name: 'Blueberry',      emoji: '🫐', price: 4,  dailyStock: 20 },
             { name: 'Medicinal Herb', emoji: '🌿', price: 8,  dailyStock: 10 },
             { name: 'Leather Hide',   emoji: '🟫', price: 15, dailyStock: 8 },
+            { name: 'Iron Shield',    emoji: '🛡️', price: 200, dailyStock: 3 },
         ],
     },
     {
@@ -758,13 +806,44 @@ export const QUESTS: Quest[] = [
     {
         id: 'quest_leather_armor',
         title: 'Armadura de Couro',
-        description: 'Mostre seu talento como alfaiate e crie uma armadura de couro no tear.',
+        description: 'Mostre seu talento como alfaiate e crie uma calça de couro no tear.',
         npcId: 'npc_tailor',
         levelRequired: 1,
         objectives: [
-            { type: 'craft', target: 'Leather Armor', count: 1 },
+            { type: 'craft', target: 'Pants', count: 1 },
         ],
         rewards: { gold: 30, xp: 80, professionXp: { tanning: 20 } },
+    },
+    // ========== Missões Diárias do Rei das Caveiras ==========
+    {
+        id: 'quest_skull_5',
+        title: 'Coleção de Caveiras',
+        description: 'Traga 5 Caveiras para o Rei das Caveiras.',
+        npcId: 'npc_skullking',
+        levelRequired: 1,
+        objectives: [{ type: 'collect', target: 'Skull', count: 5 }],
+        rewards: { gold: 100, xp: 500 },
+        expiresAfterMin: 1440,
+    },
+    {
+        id: 'quest_skull_boss',
+        title: 'Caveiras de Boss',
+        description: 'Traga 3 Caveiras de Boss para o Rei das Caveiras.',
+        npcId: 'npc_skullking',
+        levelRequired: 5,
+        objectives: [{ type: 'collect', target: 'Skull', count: 3 }],
+        rewards: { gold: 300, xp: 1500, items: [{ name: 'Bone Gem', count: 1 }] },
+        expiresAfterMin: 1440,
+    },
+    {
+        id: 'quest_skull_pvp',
+        title: 'Troféus de Guerra',
+        description: 'Traga 3 Caveiras de Jogadores para o Rei das Caveiras.',
+        npcId: 'npc_skullking',
+        levelRequired: 3,
+        objectives: [{ type: 'collect', target: 'Skull', count: 3 }],
+        rewards: { gold: 150, xp: 800 },
+        expiresAfterMin: 1440,
     },
 ];
 

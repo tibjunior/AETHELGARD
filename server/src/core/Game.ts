@@ -3089,13 +3089,13 @@ export class Game {
             name: 'Nightmare Skeleton',
             x: bossX,
             y: bossY,
-            health: 1200, // 3x Demon Skeleton
-            maxHealth: 1200,
+            health: 8000,
+            maxHealth: 8000,
             speed: 150,
             isMonster: true,
-            level: 30,
+            level: 50,
             experience: 0,
-            attack: 90 // 2x Demon Skeleton
+            attack: 180
         };
         this.players.set(boss.id, boss);
         this.io.emit('newPlayer', boss);

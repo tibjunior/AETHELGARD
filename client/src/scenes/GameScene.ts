@@ -129,7 +129,7 @@ export class GameScene extends Phaser.Scene {
   private worldBounds: { width: number; height: number } = { width: 150 * 32, height: 150 * 32 };
   private backgroundTileSprite!: Phaser.GameObjects.TileSprite;
   
-  private hasTorch: boolean = false;
+  private torchLevel: number = 0; // 0=nada, 1=Tocha, 2=Tocha a Laser
   
   // Banker state variables
   public bankGold = 0;
@@ -148,7 +148,8 @@ export class GameScene extends Phaser.Scene {
   public itemDetails: Record<string, { name: string, desc: string, color: string }> = {
       'Steel Sword': { name: 'Espada de Aço', desc: 'Dano: +15 | Peso: 25.0 oz\nUma espada pesada forjada com liga de metal resistente.', color: '#e2e8f0' },
       'Wood Sword': { name: 'Espada de Madeira', desc: 'Dano: +8 | Peso: 15.0 oz\nUma espada simples ideal para iniciantes.', color: '#854d0e' },
-      'Torch': { name: 'Tocha de Fogo', desc: 'Iluminação: 5 SQMs | Peso: 5.0 oz\nAjuda a enxergar através da névoa escura do clima.', color: '#fbbf24' },
+      'Torch': { name: 'Tocha de Fogo', desc: 'Iluminação: 6 SQMs | Peso: 5.0 oz\nAjuda a enxergar através da névoa escura do clima.', color: '#fbbf24' },
+      'Tocha a Laser': { name: 'Tocha a Laser', desc: 'Iluminação: 9 SQMs | Peso: 5.0 oz\nLaser tecnológico que corta a escuridão.', color: '#ef4444' },
       'Helmet': { name: 'Elmo de Aço', desc: 'Defesa: +5 | Peso: 15.0 oz\nProteção básica reforçada para a cabeça.', color: '#94a3b8' },
       'Armor': { name: 'Armadura de Placas', desc: 'Defesa: +10 | Peso: 40.0 oz\nUma armadura pesada que reduz muito o dano físico.', color: '#3b82f6' },
       'Pants': { name: 'Calças de Couro', desc: 'Defesa: +2 | Peso: 20.0 oz\nCalças de couro curtido flexíveis.', color: '#a16207' },
@@ -166,7 +167,18 @@ export class GameScene extends Phaser.Scene {
       'Leather Backpack': { name: 'Mochila de Couro', desc: 'Capacidade: 16 slots | Peso: 10.0 oz\nUma mochila de couro costurada à mão.', color: '#a16207' },
       'Wooden Backpack': { name: 'Mochila de Madeira', desc: 'Capacidade: 24 slots | Peso: 15.0 oz\nUma caixa de madeira reforçada com alças.', color: '#b45309' },
       'Iron Backpack': { name: 'Mochila de Ferro', desc: 'Capacidade: 32 slots | Peso: 25.0 oz\nUma mala metálica ultra-resistente e pesada.', color: '#94a3b8' },
-      'Skull': { name: 'Caveira', desc: 'Troféu de combate.\nCarrega o nome do derrotado.', color: '#ffffff' }
+      'Skull': { name: 'Caveira', desc: 'Troféu de combate.\nEmpilhável, use no Altar do Rei das Caveiras.', color: '#ffffff' },
+      'Wooden Shield': { name: 'Escudo de Madeira', desc: 'DEF: 3 | Peso: 15.0 oz\nEscudo leve de madeira reforçada.', color: '#b45309' },
+      'Iron Shield': { name: 'Escudo de Ferro', desc: 'DEF: 6 | Peso: 25.0 oz\nEscudo de ferro forjado, proteção mediana.', color: '#94a3b8' },
+      'Steel Shield': { name: 'Escudo de Aço', desc: 'DEF: 10 | Peso: 35.0 oz\nEscudo pesado de aço, altamente resistente.', color: '#e2e8f0' },
+      'Bone Shield': { name: 'Escudo de Ossos', desc: 'DEF: 8 | Peso: 22.0 oz\nEscudo feito de ossos entrelaçados.', color: '#a855f7' },
+      'Skull Staff': { name: 'Cajado de Caveira', desc: 'ATK: 10 | MATK: 16 | Peso: 20.0 oz\nCajado arcano com uma caveira no topo.', color: '#a855f7' },
+      'Bone Armor': { name: 'Armadura de Ossos', desc: 'DEF: 14 | Peso: 45.0 oz\nArmadura robusta montada com ossadas.', color: '#a855f7' },
+      'Bone Boots': { name: 'Botas de Ossos', desc: 'DEF: 5 | Peso: 12.0 oz\nBotas reforçadas com placas ósseas.', color: '#a855f7' },
+      'Rage Potion': { name: 'Poção da Fúria', desc: 'ATK: +5 | 30 min | Peso: 4.0 oz\nPoção que desperta a ira dos ossos.', color: '#ef4444' },
+      'Bone Protection': { name: 'Proteção Óssea', desc: 'DEF: +5 | 30 min | Peso: 4.0 oz\nProteção extra de ossos encantados.', color: '#94a3b8' },
+      'Skull Lantern': { name: 'Lanterna de Caveira', desc: 'Luz: +2 níveis | 30 min | Peso: 5.0 oz\nLanterna espiritual ilumina a escuridão.', color: '#fbbf24' },
+      'Bone Gem': { name: 'Gema de Osso', desc: 'Peso: 2.0 oz\nGema sólida talhada de caveiras.', color: '#e2e8f0' }
   };
   
   constructor() {
@@ -335,6 +347,7 @@ export class GameScene extends Phaser.Scene {
         
         const ITEM_NAMES_PT: Record<string, string> = {
             'Torch': 'Tocha',
+            'Tocha a Laser': 'Tocha a Laser',
             'Apple': 'Maçã',
             'Cheese': 'Queijo',
             'Health Potion': 'Poção de Vida',
@@ -354,7 +367,15 @@ export class GameScene extends Phaser.Scene {
             'Leather Backpack': 'Mochila de Couro',
             'Wooden Backpack': 'Mochila de Madeira',
             'Iron Backpack': 'Mochila de Ferro',
-            'Skull': 'Caveira de PvP'
+            'Skull': 'Caveira',
+            'Bone Shield': 'Escudo de Ossos',
+            'Skull Staff': 'Cajado de Caveira',
+            'Bone Armor': 'Armadura de Ossos',
+            'Bone Boots': 'Botas de Ossos',
+            'Rage Potion': 'Poção da Fúria',
+            'Bone Protection': 'Proteção Óssea',
+            'Skull Lantern': 'Lanterna de Caveira',
+            'Bone Gem': 'Gema de Osso'
         };
         
         const QUALITY_NAMES_PT: Record<string, string> = {
@@ -545,7 +566,7 @@ export class GameScene extends Phaser.Scene {
     const container = document.getElementById('game-container');
     const nightOverlay = document.createElement('div');
     nightOverlay.id = 'night-overlay';
-    nightOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;opacity:0;transition:opacity 2s ease;background:radial-gradient(circle at 50% 50%, transparent 64px, rgba(0,0,0,0.85) 120px);';
+    nightOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;opacity:0;transition:opacity 2s ease;background:radial-gradient(circle at 50% 50%, transparent 64px, rgba(0,0,0,0.92) 120px);';
     if (container) container.appendChild(nightOverlay);
 
     // Ajusta o tamanho do mapa e câmera
@@ -754,9 +775,11 @@ export class GameScene extends Phaser.Scene {
       const attackBtn = menu.querySelector('[data-action="attack"]') as HTMLButtonElement;
       const inspectBtn = menu.querySelector('[data-action="inspect"]') as HTMLButtonElement;
       const targetBtn = menu.querySelector('[data-action="target"]') as HTMLButtonElement;
+      const partyInviteBtn = menu.querySelector('[data-action="partyInvite"]') as HTMLButtonElement;
       if (attackBtn) attackBtn.style.display = 'none';
       if (inspectBtn) inspectBtn.style.display = 'none';
       if (targetBtn) targetBtn.style.display = 'none';
+      if (partyInviteBtn) partyInviteBtn.style.display = 'none';
 
       // Cria botões específicos para item da bolsa
       let useBtn = menu.querySelector('[data-action="useItem"]') as HTMLButtonElement;
@@ -849,6 +872,9 @@ export class GameScene extends Phaser.Scene {
             { name: 'Vendor Orc', x: 174, y: 104 },
             { name: 'Vendor Rotworm', x: 106, y: 44 },
             { name: 'Vendor Demon', x: 106, y: 184 },
+            { name: 'Armeiro', x: 108, y: 115 },
+            { name: 'Armadura', x: 125, y: 115 },
+            { name: 'Mercador Geral', x: 115, y: 122 },
         ];
         const shopUI = document.getElementById('shop-ui');
         const bankUI = document.getElementById('modal-bank');
@@ -1447,29 +1473,16 @@ export class GameScene extends Phaser.Scene {
      const tDesc = document.getElementById('tooltip-desc')!;
      
      textObj.on('pointerover', (pointer: Phaser.Input.Pointer) => {
-         const isSkull = item.name === 'Skull' && item.metadata;
-         const victimName = isSkull ? (item.metadata.victimName || '???') : null;
-         const victimColor = isSkull ? (item.metadata.color || '#ef4444') : null;
-         const kindLabel = isSkull ? (item.metadata.kind === 'boss' ? 'Boss' : 'Jogador') : null;
+        const baseName = (window as any).translateItem
+            ? (window as any).translateItem(item.name)
+            : item.name;
 
-         const baseName = (window as any).translateItem
-             ? (window as any).translateItem(item.name)
-             : item.name;
+        const details = this.itemDetails[item.name] || { name: baseName, desc: 'Item caído no chão.', color: '#ffffff' };
+        tName.innerText = details.name;
+        tName.style.color = details.color;
 
-         if (isSkull) {
-             // Exibe "Caveira de <victim>" com a cor do tipo
-             tName.innerHTML = `${baseName} de <span style="color:${victimColor}; font-weight:bold;">${victimName}</span>`;
-             tName.style.color = '#ffffff';
-         } else {
-             const details = this.itemDetails[item.name] || { name: item.name, desc: 'Item caído no chão.', color: '#ffffff' };
-             tName.innerText = details.name;
-             tName.style.color = details.color;
-         }
-
-         const desc = isSkull
-             ? `Caveira de ${kindLabel} derrotado em combate.\n\nClique no chão para andar e pegá-la.`
-             : ((this.itemDetails[item.name]?.desc) || 'Item caído no chão.') + '\n\nClique no chão para andar e pegá-lo.';
-         tDesc.innerText = desc;
+        const desc = (details.desc || 'Item caído no chão.') + '\n\nClique no chão para andar e pegá-lo.';
+        tDesc.innerText = desc;
 
          const rect = this.game.canvas.getBoundingClientRect();
          this.positionTooltip(pointer.x + rect.left + window.scrollX, pointer.y + rect.top + window.scrollY);
@@ -1522,15 +1535,17 @@ export class GameScene extends Phaser.Scene {
                  } catch(e){}
              }
              if (name === 'Steel Sword' || name === 'Wood Sword') return '🗡️';
-             if (name === 'Torch') return '🔦';
+              if (name === 'Torch') return '🔦';
+              if (name === 'Tocha a Laser') return '💡';
              if (name === 'Helmet') return '👑';
              if (name === 'Armor') return '👕';
              if (name === 'Pants') return '👖';
              if (name === 'Leather Boots') return '🥾';
-             if (name === 'Leather Backpack') return '🎒';
-             if (name === 'Wooden Backpack') return '💼';
-             if (name === 'Iron Backpack') return '🧳';
-             return name;
+              if (name === 'Leather Backpack') return '🎒';
+              if (name === 'Wooden Backpack') return '💼';
+              if (name === 'Iron Backpack') return '🧳';
+              if (name === 'Wooden Shield' || name === 'Iron Shield' || name === 'Steel Shield') return '🛡️';
+              return name;
          };
 
          if (eq.head) {
@@ -1569,16 +1584,18 @@ export class GameScene extends Phaser.Scene {
              document.getElementById('slot-boots')!.onclick = null;
          }
          
-         if (eq.leftHand) {
-             const el = document.getElementById('slot-left')!;
-             el.innerText = getEmoji(eq.leftHand);
-             el.onclick = () => this.socketManager.sendUnequip('leftHand');
-             this.hasTorch = eq.leftHand === 'Torch';
-         } else {
-             document.getElementById('slot-left')!.innerText = 'L-Hand';
-             document.getElementById('slot-left')!.onclick = null;
-             this.hasTorch = false;
-         }
+          if (eq.leftHand) {
+              const el = document.getElementById('slot-left')!;
+              el.innerText = getEmoji(eq.leftHand);
+              el.onclick = () => this.socketManager.sendUnequip('leftHand');
+              let leftName = eq.leftHand;
+              if (leftName.startsWith('{')) { try { leftName = JSON.parse(leftName).name; } catch(e){} }
+              this.torchLevel = leftName === 'Tocha a Laser' ? 2 : (leftName === 'Torch' ? 1 : 0);
+          } else {
+              document.getElementById('slot-left')!.innerText = 'L-Hand';
+              document.getElementById('slot-left')!.onclick = null;
+              this.torchLevel = 0;
+          }
          
          if (eq.rightHand) {
              const el = document.getElementById('slot-right')!;
@@ -1590,15 +1607,15 @@ export class GameScene extends Phaser.Scene {
          }
 
          if (eq.backpack) {
-             const el = document.getElementById('slot-backpack')!;
-             el.innerText = getEmoji(eq.backpack);
-             el.onclick = () => this.socketManager.sendUnequip('backpack');
-         } else {
-             document.getElementById('slot-backpack')!.innerText = 'Bolsa';
-             document.getElementById('slot-backpack')!.onclick = null;
-         }
-         
-         const equipSlots = ['slot-head', 'slot-body', 'slot-legs', 'slot-boots', 'slot-left', 'slot-right', 'slot-backpack'];
+              const el = document.getElementById('slot-backpack')!;
+              el.innerText = getEmoji(eq.backpack);
+              el.onclick = () => this.socketManager.sendUnequip('backpack');
+          } else {
+              document.getElementById('slot-backpack')!.innerText = 'Bolsa';
+              document.getElementById('slot-backpack')!.onclick = null;
+          }
+
+          const equipSlots = ['slot-head', 'slot-body', 'slot-legs', 'slot-boots', 'slot-left', 'slot-right', 'slot-backpack'];
          equipSlots.forEach(id => {
              const el = document.getElementById(id);
              if (el) {
@@ -1615,8 +1632,8 @@ export class GameScene extends Phaser.Scene {
                      else if (id === 'slot-legs') name = eq.legs || '';
                      else if (id === 'slot-boots') name = eq.boots || '';
                      else if (id === 'slot-left') name = eq.leftHand || '';
-                     else if (id === 'slot-right') name = eq.rightHand || '';
-                     else if (id === 'slot-backpack') name = eq.backpack || '';
+                      else if (id === 'slot-right') name = eq.rightHand || '';
+                      else if (id === 'slot-backpack') name = eq.backpack || '';
                      
                      if (name.includes(':')) name = name.split(':')[0];
                      if (name.startsWith('{')) {
@@ -1700,15 +1717,17 @@ export class GameScene extends Phaser.Scene {
                  count = parseInt(countStr) || 1;
              }
              
-              const emojis: Record<string, string> = {
-                  'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪',
-                  'Mana Potion': '💙', 'Blueberry': '🍇',
-                  'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                  'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                   'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
-                  'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
-                  'Skull': '💀'
-              };
+                const emojis: Record<string, string> = {
+                    'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪',
+                    'Mana Potion': '💙', 'Blueberry': '🍇',
+                     'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦', 'Tocha a Laser': '💡',
+                     'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                     'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
+                    'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+                    'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+                    'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+                    'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
+                };
 
               const isEmojiChar = baseItemName.length <= 4;
               const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
@@ -1917,12 +1936,13 @@ export class GameScene extends Phaser.Scene {
                const emojis: Record<string, string> = {
                    'Cheese': '🧀', 'Gold Coin': '💰', 'Apple': '🍎', 'Health Potion': '🧪',
                    'Mana Potion': '💙', 'Blueberry': '🍇',
-                   'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦',
-                   'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
-                   'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
-                   'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
-                   'Skull': '💀'
-               };
+                    'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Torch': '🔦', 'Tocha a Laser': '💡',
+                    'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
+                    'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🥩',
+                    'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+                    'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+                    'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
+                };
 
                const isEmojiChar = baseItemName.length <= 4;
                const emoji = emojis[baseItemName] || (isEmojiChar ? baseItemName : '📦');
@@ -1962,15 +1982,17 @@ export class GameScene extends Phaser.Scene {
       const content = document.getElementById('shop-content');
       if (!content) return;
       
-      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
-      const emojis: Record<string, string> = {
-          'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️',
-          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-          'Skull': '💀'
-      };
-      
-      content.innerHTML = '';
+       const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1, 'Medicinal Herb': 4, 'Leather Hide': 7, 'Wooden Shield': 15, 'Iron Shield': 50, 'Steel Shield': 80, 'Tocha a Laser': 10, 'Torch': 2, 'Skull': 5, 'Bone Gem': 10, 'Rage Potion': 8, 'Bone Protection': 8, 'Skull Lantern': 10, 'Bone Shield': 15, 'Skull Staff': 20, 'Bone Armor': 25, 'Bone Boots': 10 };
+        const emojis: Record<string, string> = {
+            'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️',
+            'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦', 'Tocha a Laser': '💡',
+            'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+            'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+            'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+            'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
+        };
+
+       content.innerHTML = '';
       
       let hasItems = false;
       
@@ -2032,7 +2054,7 @@ export class GameScene extends Phaser.Scene {
                }
               
               div.querySelector('button')!.onclick = () => {
-                  this.socketManager.sendSell(index);
+                  this.showSellConfirm(index, baseItemName, 1, val);
               };
               
               content.appendChild(div);
@@ -2042,6 +2064,30 @@ export class GameScene extends Phaser.Scene {
       if (!hasItems) {
           content.innerHTML = '<div style="text-align: center; color: #888; padding: 10px;">Sua mochila está vazia.</div>';
       }
+  }
+
+  public showSellConfirm(index: number, itemName: string, count: number, value: number) {
+      const modal = document.getElementById('sell-confirm-modal');
+      const text = document.getElementById('sell-confirm-text');
+      if (!modal || !text) return;
+      text.innerHTML = `Vender <strong>${itemName} (x${count})</strong> por <strong style="color:#fbbf24;">+${value} Ouro</strong>?`;
+      modal.style.display = 'flex';
+      const confirmBtn = document.getElementById('btn-sell-confirm');
+      const cancelBtn = document.getElementById('btn-sell-cancel');
+      if (!confirmBtn || !cancelBtn) return;
+      const onConfirm = () => {
+          modal.style.display = 'none';
+          this.socketManager.sendSell(index);
+          confirmBtn.removeEventListener('click', onConfirm);
+          cancelBtn.removeEventListener('click', onCancel);
+      };
+      const onCancel = () => {
+          modal.style.display = 'none';
+          confirmBtn.removeEventListener('click', onConfirm);
+          cancelBtn.removeEventListener('click', onCancel);
+      };
+      confirmBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
   }
 
   public onStatsUpdate(data: any) {
@@ -2137,6 +2183,11 @@ export class GameScene extends Phaser.Scene {
           if (text) text.innerText = `${data.sp}/${data.maxSp}`;
       }
       
+      // Update torchLevel (de buffs)
+      if (data.torchLevel !== undefined) {
+          this.torchLevel = data.torchLevel;
+      }
+
       // Update Weight
       if (data.weight !== undefined && data.maxWeight !== undefined) {
           const pct = (data.weight / data.maxWeight) * 100;
@@ -2267,10 +2318,10 @@ export class GameScene extends Phaser.Scene {
       console.log(`[NPC] addOtherPlayer id=${data.id} name="${data.name}" isNPC=${isNpc} npcType=${npcType}`);
     }
     if (data.isMonster) {
-        if (data.name === 'Orc') texture = 'orc-sprite';
-        else if (data.name === 'Rotworm') texture = 'rotworm-sprite';
-        else if (data.name === 'Demon Skeleton') texture = 'demonskeleton-sprite';
-        else if (data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
+        if (data.name === 'Orc' || data.name === 'Orc Warlord') texture = 'orc-sprite';
+        else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') texture = 'rotworm-sprite';
+        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
+        else if (data.name === 'Rat King') texture = 'rat-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
         texture = 'merchant-sprite';
@@ -2309,9 +2360,15 @@ export class GameScene extends Phaser.Scene {
 
     if (isCharacterSprite) {
         sprite.setScale(2);
-    } else if (data.name === 'Nightmare Skeleton') {
-        sprite.setScale(2);
-        sprite.setTint(0xff00ff); // Roxo demoníaco
+    } else if (data.id === 'night_boss') {
+        sprite.setScale(3.5);
+        sprite.setTint(0xff00ff);
+    } else if (data.id.startsWith('city_boss_')) {
+        sprite.setScale(2.5);
+        if (data.name === 'Rat King') sprite.setTint(0xfbbf24);
+        else if (data.name === 'Orc Warlord') sprite.setTint(0xef4444);
+        else if (data.name === 'Ancient Rotworm') sprite.setTint(0x22c55e);
+        else if (data.name === 'Demon Lord') sprite.setTint(0xa855f7);
     } else if (npcType === 'teleporter') {
         // Mago teleportador: mantém cor natural (azul-royal)
     } else if (npcType === 'vendor') {
@@ -2326,10 +2383,11 @@ export class GameScene extends Phaser.Scene {
 
     // Nomes Coloridos de acordo com o nível/perigo
     let nameColor = '#ffffff';
-    if (data.name === 'Orc') nameColor = '#f97316';
-    else if (data.name === 'Rotworm') nameColor = '#ec4899';
-    else if (data.name === 'Demon Skeleton') nameColor = '#ef4444';
+    if (data.name === 'Orc' || data.name === 'Orc Warlord') nameColor = '#f97316';
+    else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') nameColor = '#ec4899';
+    else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord') nameColor = '#ef4444';
     else if (data.name === 'Nightmare Skeleton') nameColor = '#ff00ff';
+    else if (data.name === 'Rat King') nameColor = '#fbbf24';
     else if (data.name === 'Merchant') nameColor = '#fbbf24';
     else if (data.name === 'Banker') nameColor = '#10b981';
     else if (npcType === 'teleporter') nameColor = '#60a5fa';
@@ -2368,12 +2426,40 @@ export class GameScene extends Phaser.Scene {
             console.log(`[NPC] chegou no questgiver ${data.id}, emitindo npc:interact`);
             this.socketManager.interactNPC(data.id);
           });
+      } else if (npcType === 'skullking') {
+          this.startInteractionChase(data.x, data.y, () => {
+            console.log(`[NPC] chegou no skullking ${data.id}, emitindo npc:interact`);
+            this.socketManager.interactNPC(data.id);
+          });
       } else if (pointer.rightButtonDown()) {
           if (!isNpc) {
-              this.currentTargetId = data.id;
-              const sp = this.otherPlayers.get(data.id);
-              this.updateTargetSquare(sp || null);
-              this.startChase(data.id);
+              // Mostra menu de contexto para jogadores
+              if (!data.isMonster && !data.isNPC) {
+                  const menu = document.getElementById('context-menu');
+                  const header = document.getElementById('ctx-header');
+                  if (menu && header) {
+                      header.innerText = data.name;
+                      menu.setAttribute('data-ctx-type', 'entity');
+                      // Mostra botões de entidade
+                      const actions = ['attack', 'inspect', 'target', 'partyInvite'];
+                      actions.forEach(a => {
+                          const btn = menu.querySelector(`[data-action="${a}"]`) as HTMLElement;
+                          if (btn) btn.style.display = 'block';
+                      });
+                      const ev = pointer.event as MouseEvent;
+                      menu.style.left = ev.clientX + 'px';
+                      menu.style.top = ev.clientY + 'px';
+                      menu.style.display = 'block';
+                      this.contextMenuTargetId = data.id;
+                      (menu as any).__backpackSlot = undefined;
+                  }
+              } else {
+                  // Monstros/NPCs: ataque direto
+                  this.currentTargetId = data.id;
+                  const sp = this.otherPlayers.get(data.id);
+                  this.updateTargetSquare(sp || null);
+                  this.startChase(data.id);
+              }
           }
       } else {
           this.stopChase();
@@ -2425,15 +2511,16 @@ export class GameScene extends Phaser.Scene {
       const maxHealth = data.maxHealth || data.health || 1;
       const health = data.health || 0;
       
-      // Barra preta de fundo
-      hpBar.fillStyle(0x000000);
-      hpBar.fillRect(-14, -20, 28, 4);
+      const isBossEntity = data.id.startsWith('city_boss_') || data.id === 'night_boss';
+      const barW = isBossEntity ? (data.id === 'night_boss' ? 52 : 40) : 28;
 
-      // Barra verde de vida
+      hpBar.fillStyle(0x000000);
+      hpBar.fillRect(-barW / 2, -20, barW, 5);
+
       const pct = Math.max(0, health / maxHealth);
-      const color = pct > 0.5 ? 0x22c55e : (pct > 0.2 ? 0xeab308 : 0xef4444); // Verde -> Amarelo -> Vermelho
+      const color = pct > 0.5 ? 0x22c55e : (pct > 0.2 ? 0xeab308 : 0xef4444);
       hpBar.fillStyle(color);
-      hpBar.fillRect(-14, -20, 28 * pct, 4);
+      hpBar.fillRect(-barW / 2, -20, barW * pct, 5);
 
      // Atualiza a barra de vida do HUD (barra inferior direita) se for o jogador local
      if (data.id === this.socketManager.getId()) {
@@ -2497,6 +2584,10 @@ export class GameScene extends Phaser.Scene {
           this.updateTargetSquare(sprite || null);
       } else if (action === 'inspect') {
           this.socketManager.socket.emit('entity:query', targetId);
+      } else if (action === 'partyInvite') {
+          if (data && data.name) {
+              this.socketManager.sendPartyInvite(data.name);
+          }
       }
       this.closeContextMenu();
     });
@@ -2999,7 +3090,7 @@ export class GameScene extends Phaser.Scene {
               const slotMap: Record<string, string> = {
                   'head': 'head', 'left': 'leftHand', 'right': 'rightHand',
                   'body': 'body', 'legs': 'legs', 'boots': 'boots',
-                  'backpack': 'backpack'
+                  'backpack': 'backpack', 'shield': 'shield'
               };
               const key = slotMap[eqSlot];
               const itemString = this.equipmentData ? this.equipmentData[key] : null;
@@ -3093,21 +3184,19 @@ export class GameScene extends Phaser.Scene {
                        count = parseInt(countStr) || 1;
                    }
 
-                   // ===== Skull: exibe nome da vítima com cor (vermelha=player, roxa=boss) =====
-                   if (itemName === 'Skull' && itemString.startsWith('{')) {
-                       try {
-                           const parsed = JSON.parse(itemString);
-                           const victimName = parsed.victimName || '???';
-                           const victimColor = parsed.color || '#ef4444';
-                           const kindLabel = parsed.kind === 'boss' ? 'Boss' : 'Jogador';
-                           return {
-                               name: '',
-                               desc: `Troféu de combate contra ${kindLabel.toLowerCase()}.`,
-                               color: '#ffffff',
-                               html: `Caveira de <span style="color:${victimColor}; font-weight:bold;">${victimName}</span> <span style="color:#888; font-size:11px;">(${kindLabel})</span>`
-                           };
-                       } catch (e) {}
-                   }
+                    // ===== Skull (legado: JSON com metadados) =====
+                    if (itemName === 'Skull' && itemString.startsWith('{')) {
+                        try {
+                            const parsed = JSON.parse(itemString);
+                            const kindLabel = parsed.kind === 'boss' ? 'Boss' : 'Jogador';
+                            return {
+                                name: 'Caveira',
+                                desc: `Troféu de combate contra ${kindLabel.toLowerCase()}.`,
+                                color: '#ffffff',
+                                html: `Caveira <span style="color:#888; font-size:11px;">(${kindLabel})</span>`
+                            };
+                        } catch (e) {}
+                    }
 
                    const details = this.itemDetails[itemName];
                   if (details) {
@@ -3229,8 +3318,8 @@ export class GameScene extends Phaser.Scene {
           const rect = this.cameras.main;
           const px = (this.localPlayerSprite.x - rect.scrollX) / rect.width;
           const py = (this.localPlayerSprite.y - rect.scrollY) / rect.height;
-          const radius = (this.hasTorch ? 5 : 2) * this.TILE_SIZE;
-          overlay.style.background = `radial-gradient(circle at ${px * 100}% ${py * 100}%, transparent ${radius}px, rgba(0,0,0,0.85) ${radius + 40}px)`;
+          const radius = (3 + this.torchLevel * 3) * this.TILE_SIZE;
+          overlay.style.background = `radial-gradient(circle at ${px * 100}% ${py * 100}%, transparent ${radius}px, rgba(0,0,0,0.92) ${radius + 40}px)`;
       }
 
       // === Animação de andar: jogador local ===
@@ -4126,11 +4215,13 @@ export class GameScene extends Phaser.Scene {
 
       const emojis: Record<string, string> = {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
-          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦', 'Tocha a Laser': '💡',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
           'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🫘',
           'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
-          'Skull': '💀'
+          'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+          'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+          'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
       };
 
       const resultEmoji = emojis[recipe.resultItem] || '📦';
@@ -4218,11 +4309,13 @@ export class GameScene extends Phaser.Scene {
 
       const emojis: Record<string, string> = {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️', 'Wood Sword': '🗡️',
-          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
+          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦', 'Tocha a Laser': '💡',
           'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
           'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '🫘',
           'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
-          'Skull': '💀'
+          'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+          'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+          'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
       };
 
       let html = '<div style="display:flex; flex-direction:column; gap:10px; font-family:monospace;">';
