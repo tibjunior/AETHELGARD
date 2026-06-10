@@ -2340,7 +2340,7 @@ export class GameScene extends Phaser.Scene {
     if (data.isMonster) {
         if (data.name === 'Orc' || data.name === 'Orc Warlord') texture = 'orc-sprite';
         else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') texture = 'rotworm-sprite';
-        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'skeleton8';
+        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
         else if (data.name === 'Rat King') texture = 'rat-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
@@ -2365,11 +2365,6 @@ export class GameScene extends Phaser.Scene {
       texture,
       isCharacterSprite ? getFrameIndex((data.spriteId as SpriteId) || 'm1', (data.facing as Facing) || 'down', 0) : 0
     );
-
-    // Ajusta origem vertical para sprites mais altos (skeleton8 = 48px)
-    if (texture === 'skeleton8') {
-        sprite.setOrigin(0.5, 2/3);
-    }
 
     // Inicializa estado de animação de outros jogadores
     if (isCharacterSprite) {
