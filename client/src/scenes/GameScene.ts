@@ -3,7 +3,6 @@ import { SocketManager } from '../network/SocketManager';
 import { PlayerData, Position, ResourceNode, CraftingStation, SpriteId, SPRITE_IDS, Facing, FACINGS, getFrameIndex } from '../../../shared/types';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 import { SUBSKILLS } from '../../../shared/subskills';
-import { SkeletonMonster } from './SkeletonMonster';
 
 /**
  * Ícones de item baseados em imagens (URLs servidas pelo Vite a partir de /client/public).
@@ -145,9 +144,6 @@ export class GameScene extends Phaser.Scene {
   private localPlayerDead: boolean = false;
   private lootTargetId?: string;
   private lootTargetPos?: { x: number, y: number };
-
-  // Patrulha de esqueletos autônomos
-  private skeletonPatrols: SkeletonMonster[] = [];
 
   // Rastreia posição anterior dos monstros esqueletos para calcular facing
   private skeletonPrevPos: Map<string, { x: number; y: number }> = new Map();
@@ -632,10 +628,6 @@ export class GameScene extends Phaser.Scene {
   public onMapData(data: { walls: Position[], gates?: Position[], itemsOnFloor: any[], resourceNodes?: ResourceNode[], craftingStations?: CraftingStation[] }) {
     this.expandWorldBoundsFromData(data.walls, data.resourceNodes, data.craftingStations);
 
-    // Limpa patrulhas de esqueleto antigas
-    this.skeletonPatrols.forEach(s => s.destroy());
-    this.skeletonPatrols = [];
-
     // Limpa nós de recursos existentes se houver
     this.resourceNodesMap.forEach(n => {
         n.sprite.destroy();
@@ -688,9 +680,6 @@ export class GameScene extends Phaser.Scene {
     if (data.craftingStations) {
         data.craftingStations.forEach(station => this.drawCraftingStation(station));
     }
-
-    // Spawna esqueletos de patrulha autônoma em áreas livres do mapa
-    this.spawnSkeletonPatrols();
   }
 
   public onCitiesData(cities: any[]) {
@@ -3372,34 +3361,6 @@ export class GameScene extends Phaser.Scene {
       tooltip.style.top = top + 'px';
   }
 
-  // Spawna esqueletos de patrulha autônoma em posições aleatórias livres
-  private spawnSkeletonPatrols(): void {
-      const spawnCandidates: { x: number; y: number }[] = [];
-      // Demon City bounds: x 100-130, y 140-190
-      for (let tx = 95; tx <= 135; tx += 3) {
-          for (let ty = 135; ty <= 195; ty += 3) {
-              const key = `${tx},${ty}`;
-              if (!this.collisionMap.has(key)) {
-                  spawnCandidates.push({ x: tx, y: ty });
-              }
-          }
-      }
-      this.shuffleArray(spawnCandidates);
-      const count = Math.min(8, spawnCandidates.length);
-      for (let i = 0; i < count; i++) {
-          const pos = spawnCandidates[i];
-          const skel = new SkeletonMonster(this, pos.x, pos.y, this.collisionMap);
-          this.skeletonPatrols.push(skel);
-      }
-  }
-
-  private shuffleArray<T>(arr: T[]): void {
-      for (let i = arr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-  }
-
   update() {
       // Atualiza o overlay de noite para seguir o jogador (gradiente radial centrado)
       const overlay = document.getElementById('night-overlay');
@@ -3540,10 +3501,6 @@ export class GameScene extends Phaser.Scene {
               textObj.setVisible(dist <= maxDist);
           });
       }
-
-      // Atualiza patrulha autônoma dos esqueletos
-      const dt = this.game.loop.delta;
-      this.skeletonPatrols.forEach(s => s.tick(dt));
   }
 
   public toggleAutofarm() {
