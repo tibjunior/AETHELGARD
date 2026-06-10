@@ -4071,7 +4071,7 @@ export class GameScene extends Phaser.Scene {
       if (!panel) return;
 
       const profs = [
-          { id: 'mining', label: '🪨 Mineração', lvl: this.gatheringMiningLevel, xp: this.gatheringMiningXp },
+          { id: 'mining', label: '⛏️ Mineração', lvl: this.gatheringMiningLevel, xp: this.gatheringMiningXp },
           { id: 'herbalism', label: '🌿 Herbologia', lvl: this.gatheringHerbalismLevel, xp: this.gatheringHerbalismXp },
           { id: 'woodcutting', label: '🪵 Madeireiro', lvl: this.gatheringWoodcuttingLevel, xp: this.gatheringWoodcuttingXp },
           { id: 'smithing', label: '⚒️ Ferraria', lvl: this.professionSmithingLevel, xp: this.professionSmithingXp },
