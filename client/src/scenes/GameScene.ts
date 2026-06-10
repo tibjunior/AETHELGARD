@@ -2360,7 +2360,14 @@ export class GameScene extends Phaser.Scene {
     if (data.isMonster) {
         if (data.name === 'Orc' || data.name === 'Orc Warlord') texture = 'orc-sprite';
         else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') texture = 'rotworm-sprite';
-        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'skeleton8';
+        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') {
+            // Só usa spritesheet animada para os que estão dentro/na Cidade dos Demônios
+            if (data.id.startsWith('demon_city_') || data.id.startsWith('city_boss_demon') || data.id === 'night_boss') {
+                texture = 'skeleton8';
+            } else {
+                texture = 'demonskeleton-sprite';
+            }
+        }
         else if (data.name === 'Rat King') texture = 'rat-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
