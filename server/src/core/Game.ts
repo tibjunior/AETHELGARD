@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
-import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation } from '../../../shared/types';
-import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold, saveConfigToDB, loadConfigFromDB, loadAllConfigFromDB, getAccountFromDB, createAccountInDB, listCharactersForAccount, deleteCharacterFromAccount, countCharactersForAccount, setAccountPassword, AccountRow } from './database';
+import { PlayerData, Position, MapData, ItemData, ResourceNode, CraftingStation, PartyData, PartyMember, PARTY_MAX_SIZE, PARTY_CLASS_SYNERGY_BONUS, SpriteId } from '../../../shared/types';
+import { getPlayerFromDB, savePlayerToDB, getAllRegisteredPlayers, updatePlayerOffline, incrementGoldOffline, getAuctionsFromDB, createAuctionInDB, removeAuctionFromDB, getAuctionByIdFromDB, deletePlayerFromDB, deductOfflineBankGold, saveConfigToDB, loadConfigFromDB, loadAllConfigFromDB, getAccountFromDB, createAccountInDB, listCharactersForAccount, deleteCharacterFromAccount, countCharactersForAccount, setAccountPassword, createCharacterInDBTx, AccountRow } from './database';
 import { CRAFTING_RECIPES, Recipe } from '../../../shared/recipes';
 import { SUBSKILLS, SubskillDef } from '../../../shared/subskills';
 import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDefaults, MONSTER_CITIES, MonsterCity, PLAZA_BOUNDS, PLAZA_TELEPORTER, CAVERNA_TELEPORTER, CAVERNA_SAFE_ZONE_CENTER, CAVERNA_SAFE_ZONE_GATE, CITY_TELEPORTERS, CITY_VENDORS, QUESTS, VendorNpc, Quest, getCityAt, getTeleporterAt, getVendorAt, isInPlaza, isInSafeZone, getHubDestinations, getTeleporterDestination, getSafeZoneWallRing, SAFE_ZONE_RADIUS } from './serverConfig';
@@ -8,18 +8,24 @@ import { CONFIG, ServerConfig, rollDropTable, getStackableItems, resetConfigToDe
 export const ITEM_WEIGHTS: Record<string, number> = {
     'Steel Sword': 25, 'Wood Sword': 15, 'Helmet': 15, 'Armor': 40,
     'Pants': 20, 'Leather Boots': 10, 'Health Potion': 5, 'Mana Potion': 4,
-    'Torch': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1,
+    'Torch': 5, 'Tocha a Laser': 5, 'Apple': 2, 'Cheese': 2, 'Blueberry': 1,
     'Iron Ore': 8, 'Wood Log': 6, 'Medicinal Herb': 2, 'Gold Coin': 0.1,
     'Leather Hide': 4,
-    'Leather Backpack': 10, 'Wooden Backpack': 15, 'Iron Backpack': 25
+    'Leather Backpack': 10, 'Wooden Backpack': 15, 'Iron Backpack': 25,
+    'Wooden Shield': 18, 'Iron Shield': 30, 'Steel Shield': 40,
+    'Bone Shield': 22, 'Skull Staff': 20, 'Bone Armor': 45, 'Bone Boots': 12,
+    'Rage Potion': 4, 'Bone Protection': 4, 'Skull Lantern': 5, 'Bone Gem': 2
 };
 
 export const ITEM_EMOJIS: Record<string, string> = {
     'Steel Sword': '🗡️', 'Wood Sword': '🗡️', 'Health Potion': '🧪', 'Mana Potion': '💙',
-    'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Blueberry': '🍇',
+    'Apple': '🍎', 'Cheese': '🧀', 'Gold Coin': '💰', 'Torch': '🔦', 'Tocha a Laser': '💡', 'Blueberry': '🍇',
     'Helmet': '👑', 'Armor': '👕', 'Pants': '👖', 'Leather Boots': '🥾',
     'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿',
     'Leather Backpack': '🎒', 'Wooden Backpack': '💼', 'Iron Backpack': '🧳',
+    'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+    'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+    'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎',
     'Skull': '💀'
 };
 
@@ -37,6 +43,7 @@ export function getItemIcon(itemName: string): string {
 
 export const ITEM_NAMES_PT: Record<string, string> = {
     'Torch': 'Tocha',
+    'Tocha a Laser': 'Tocha a Laser',
     'Apple': 'Maçã',
     'Cheese': 'Queijo',
     'Health Potion': 'Poção de Vida',
@@ -55,7 +62,18 @@ export const ITEM_NAMES_PT: Record<string, string> = {
     'Gold Coin': 'Moeda de Ouro',
     'Leather Backpack': 'Mochila de Couro',
     'Wooden Backpack': 'Mochila de Madeira',
-    'Iron Backpack': 'Mochila de Ferro'
+    'Iron Backpack': 'Mochila de Ferro',
+    'Wooden Shield': 'Escudo de Madeira',
+    'Iron Shield': 'Escudo de Ferro',
+    'Steel Shield': 'Escudo de Aço',
+    'Bone Shield': 'Escudo de Ossos',
+    'Skull Staff': 'Cajado de Caveira',
+    'Bone Armor': 'Armadura de Ossos',
+    'Bone Boots': 'Botas de Ossos',
+    'Rage Potion': 'Poção da Fúria',
+    'Bone Protection': 'Proteção Óssea',
+    'Skull Lantern': 'Lanterna de Caveira',
+    'Bone Gem': 'Gema de Osso'
 };
 
 // Stats base dos monstros (usado pelas cidades de monstros - Fase 3)
@@ -86,6 +104,11 @@ export class Game {
   private monsterSpawnData: Map<string, { x: number; y: number; bounds?: { xMin: number; xMax: number; yMin: number; yMax: number } }> = new Map();
   private activeRecalls: Map<string, NodeJS.Timeout> = new Map();
   private craftingStations: Map<string, CraftingStation> = new Map();
+  private parties: Map<string, PartyData> = new Map(); // partyId -> PartyData
+  private playerParty: Map<string, string> = new Map(); // playerId -> partyId
+  private pendingPartyInvites: Map<string, { fromPlayerId: string; fromPlayerName: string; timer: NodeJS.Timeout }> = new Map(); // targetPlayerId -> invite info
+  private readonly TILE_SIZE = 32;
+  private worldBounds = { width: 150 * 32, height: 150 * 32 };
 
   constructor(io: Server) {
     this.io = io;
@@ -199,6 +222,78 @@ export class Game {
     (questgiver as any).npcType = 'questgiver';
     this.players.set(questgiver.id, questgiver);
     this.walls.add('115,120');
+
+    // NPC Ferreiro (para quests de ferraria)
+    const blacksmith: PlayerData = {
+        id: 'npc_blacksmith',
+        name: 'Ferreiro',
+        x: 118,
+        y: 108,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (blacksmith as any).isNPC = true;
+    (blacksmith as any).npcType = 'questgiver';
+    this.players.set(blacksmith.id, blacksmith);
+    this.walls.add('118,108');
+
+    // NPC Alquimista (para quests de alquimia)
+    const alchemist: PlayerData = {
+        id: 'npc_alchemist',
+        name: 'Alquimista',
+        x: 122,
+        y: 108,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (alchemist as any).isNPC = true;
+    (alchemist as any).npcType = 'questgiver';
+    this.players.set(alchemist.id, alchemist);
+    this.walls.add('122,108');
+
+    // NPC Alfaiate (para quests de alfaiataria)
+    const tailor: PlayerData = {
+        id: 'npc_tailor',
+        name: 'Alfaiate',
+        x: 120,
+        y: 106,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (tailor as any).isNPC = true;
+    (tailor as any).npcType = 'questgiver';
+    this.players.set(tailor.id, tailor);
+    this.walls.add('120,106');
+
+    // NPC Rei das Caveiras (troca caveiras por itens/buffs)
+    const skullKing: PlayerData = {
+        id: 'npc_skullking',
+        name: 'Rei das Caveiras',
+        x: 114,
+        y: 106,
+        health: 9999,
+        maxHealth: 9999,
+        speed: 0,
+        isMonster: false,
+        level: 100,
+        experience: 0
+    };
+    (skullKing as any).isNPC = true;
+    (skullKing as any).npcType = 'skullking';
+    this.players.set(skullKing.id, skullKing);
+    this.walls.add('114,106');
 
     // Spawna múltiplos monstros
     for (let i = 1; i <= 8; i++) {
@@ -447,6 +542,31 @@ export class Game {
     for (const city of MONSTER_CITIES) {
         this.walls.delete(`${city.gate.x},${city.gate.y}`);
     }
+
+    // Calcula bounds do mundo baseado em todas as paredes conhecidas
+    let maxX = 0, maxY = 0;
+    this.walls.forEach(w => {
+        const [x, y] = w.split(',').map(Number);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+    });
+    this.resourceNodes.forEach(n => {
+        maxX = Math.max(maxX, n.x);
+        maxY = Math.max(maxY, n.y);
+    });
+    this.craftingStations.forEach(s => {
+        maxX = Math.max(maxX, s.x);
+        maxY = Math.max(maxY, s.y);
+    });
+    for (const city of MONSTER_CITIES) {
+        maxX = Math.max(maxX, city.bounds.xMax);
+        maxY = Math.max(maxY, city.bounds.yMax);
+    }
+    maxX = Math.max(maxX, PLAZA_BOUNDS.xMax);
+    maxY = Math.max(maxY, PLAZA_BOUNDS.yMax);
+    // Margem extra
+    this.worldBounds.width = (maxX + 5) * this.TILE_SIZE;
+    this.worldBounds.height = (maxY + 5) * this.TILE_SIZE;
   }
 
   private setupNetwork() {
@@ -542,12 +662,6 @@ export class Game {
       const spriteId = data.spriteId || 'm1';
       if (!name || name.length < 3 || name.length > 20) return { ok: false, reason: 'Nome deve ter 3-20 caracteres.' };
       if (!/^[a-zA-Z0-9_]+$/.test(name)) return { ok: false, reason: 'Use apenas letras, números e underscore.' };
-      const count = await countCharactersForAccount(accountName);
-      const account = await getAccountFromDB(accountName);
-      if (!account) return { ok: false, reason: 'Conta não encontrada.' };
-      if (count >= account.maxCharacters) return { ok: false, reason: `Limite de ${account.maxCharacters} personagens atingido.` };
-      const existing = await getPlayerFromDB(name);
-      if (existing) return { ok: false, reason: 'Já existe um personagem com esse nome.' };
 
       const newPlayer: PlayerData = {
           id: 'tmp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
@@ -583,13 +697,10 @@ export class Game {
       newPlayer.bankGold = 0;
       newPlayer.bankDebtDays = 0;
       newPlayer.bankItems = Array(50).fill('');
-      try {
-          await savePlayerToDB(newPlayer);
-      } catch (e) {
-          console.error('Erro ao salvar novo personagem:', e);
-          return { ok: false, reason: 'Erro ao salvar personagem.' };
-      }
-      return { ok: true, character: { slot: count + 1, name, level: 1, spriteId } };
+
+      const result = await createCharacterInDBTx(accountName, newPlayer);
+      if (!result.ok) return { ok: false, reason: result.reason };
+      return { ok: true, character: { slot: result.slot!, name, level: 1, spriteId } };
   }
 
   private registerCharacterHandlers(socket: Socket, account: AccountRow): void {
@@ -896,6 +1007,75 @@ export class Game {
         const player = this.players.get(socket.id);
         if (!player) return;
 
+        // Comandos de chat
+        const lowerMsg = msg.toLowerCase().trim();
+
+        // /party <name> ou /p <name> — convida para party
+        if (lowerMsg.startsWith('/party ') || lowerMsg.startsWith('/p ')) {
+            const targetName = msg.substring(msg.indexOf(' ') + 1).trim();
+            if (targetName) {
+                // Reusa lógica de party:invite manualmente
+                const partyId = this.playerParty.get(socket.id);
+                if (partyId) {
+                    const party = this.parties.get(partyId);
+                    if (party && party.members.length >= PARTY_MAX_SIZE) {
+                        this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Party cheia!' });
+                        return;
+                    }
+                }
+
+                const targetPlayer = Array.from(this.players.values()).find(p => !p.isMonster && p.name.toLowerCase() === targetName.toLowerCase());
+                if (!targetPlayer) {
+                    this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Jogador não encontrado!' });
+                    return;
+                }
+
+                if (targetPlayer.id === socket.id) {
+                    this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Não pode convidar a si mesmo!' });
+                    return;
+                }
+
+                if (this.playerParty.has(targetPlayer.id)) {
+                    this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Jogador já está em uma party!' });
+                    return;
+                }
+
+                if (this.pendingPartyInvites.has(targetPlayer.id)) {
+                    this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Jogador já tem um convite pendente!' });
+                    return;
+                }
+
+                const dx = Math.abs(player.x - targetPlayer.x);
+                const dy = Math.abs(player.y - targetPlayer.y);
+                if (dx > 10 * this.TILE_SIZE || dy > 10 * this.TILE_SIZE) {
+                    this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Jogador muito distante!' });
+                    return;
+                }
+
+                const timer = setTimeout(() => {
+                    this.pendingPartyInvites.delete(targetPlayer.id);
+                    this.io.to(targetPlayer.id).emit('party:inviteExpired', { fromPlayerName: player.name });
+                }, 30000);
+
+                this.pendingPartyInvites.set(targetPlayer.id, { fromPlayerId: socket.id, fromPlayerName: player.name, timer });
+                this.io.to(targetPlayer.id).emit('party:invited', { fromPlayerId: socket.id, fromPlayerName: player.name });
+                this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: `Convite enviado para ${targetPlayer.name}!` });
+            }
+            return;
+        }
+
+        // /leave — sai da party
+        if (lowerMsg === '/leave') {
+            const pid = this.playerParty.get(socket.id);
+            if (pid) {
+                this.removeFromParty(socket.id, pid);
+                this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Você saiu da party.' });
+            } else {
+                this.io.to(player.id).emit('playerSpoke', { id: '__system__', message: 'Você não está em uma party.' });
+            }
+            return;
+        }
+
         // Verifica se é uma magia
         if (msg.toLowerCase() === 'exori vis') {
            if (player.targetId) {
@@ -1123,7 +1303,7 @@ export class Game {
               let consumed = false;
 
               // Garante durabilidade em itens equipáveis que não têm (plain string)
-              const equipableItems = ['Steel Sword', 'Wood Sword', 'Torch', 'Helmet', 'Armor', 'Pants', 'Leather Boots', 'Leather Backpack', 'Wooden Backpack', 'Iron Backpack'];
+              const equipableItems = ['Steel Sword', 'Wood Sword', 'Torch', 'Tocha a Laser', 'Helmet', 'Armor', 'Pants', 'Leather Boots', 'Leather Backpack', 'Wooden Backpack', 'Iron Backpack', 'Wooden Shield', 'Iron Shield', 'Steel Shield', 'Bone Shield', 'Skull Staff', 'Bone Armor', 'Bone Boots'];
               let itemToEquip = item;
               if (equipableItems.includes(itemName) && !item.startsWith('{')) {
                   itemToEquip = JSON.stringify({ name: itemName, durability: 100, maxDurability: 100, quality: parsed.quality || 'common' });
@@ -1182,7 +1362,7 @@ export class Game {
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
-              } else if (itemName === 'Wood Sword') {
+              } else if (itemName === 'Wood Sword' || itemName === 'Skull Staff') {
                   if (!player.equipment) player.equipment = {};
                   if (player.equipment.rightHand) {
                       const currentParsed = this.parseItem(player.equipment.rightHand);
@@ -1195,13 +1375,15 @@ export class Game {
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
-              } else if (itemName === 'Torch') {
+              } else if (itemName === 'Torch' || itemName === 'Tocha a Laser' || itemName === 'Wooden Shield' || itemName === 'Iron Shield' || itemName === 'Steel Shield' || itemName === 'Bone Shield') {
                   if (player.equipment && player.equipment.leftHand) {
                       this.addItemToBackpack(player, player.equipment.leftHand);
                   }
                   player.equipment.leftHand = itemToEquip;
                   this.recalculateStats(player);
-                  this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Luz!', color: '#ffaa00' });
+                  if (itemName === 'Torch') {
+                      this.io.emit('textEffect', { x: player.x, y: player.y, message: 'Luz!', color: '#ffaa00' });
+                  }
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
               } else if (itemName === 'Helmet') {
@@ -1216,7 +1398,7 @@ export class Game {
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
-              } else if (itemName === 'Armor') {
+              } else if (itemName === 'Armor' || itemName === 'Bone Armor') {
                   if (player.equipment && player.equipment.body) {
                       const currentParsed = this.parseItem(player.equipment.body);
                       if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
@@ -1240,7 +1422,7 @@ export class Game {
                   this.recalculateStats(player);
                   socket.emit('equipmentUpdate', player.equipment);
                   consumed = true;
-              } else if (itemName === 'Leather Boots') {
+              } else if (itemName === 'Leather Boots' || itemName === 'Bone Boots') {
                   if (player.equipment && player.equipment.boots) {
                       const currentParsed = this.parseItem(player.equipment.boots);
                       if (currentParsed && this.getItemPower(currentParsed.name) > this.getItemPower(itemName)) {
@@ -1266,10 +1448,53 @@ export class Game {
                   socket.emit('statsUpdate', { id: player.id, level: player.level, experience: player.experience, gold: player.gold, health: player.health, maxHealth: player.maxHealth });
                   this.io.emit('textEffect', { x: player.x, y: player.y, message: '+1 Ouro', color: '#fbbf24' });
                   consumed = true;
+              } else if (itemName === 'Rage Potion') {
+                  if (!player.buffs) player.buffs = {};
+                  player.buffs.attack = (player.buffs.attack || 0) + 5;
+                  const duration = 30 * 60 * 1000;
+                  if (!player.buffTimers) player.buffTimers = {};
+                  clearTimeout(player.buffTimers.attack);
+                  player.buffTimers.attack = setTimeout(() => {
+                      if (player.buffs) player.buffs.attack = Math.max(0, (player.buffs.attack || 0) - 5);
+                      this.recalculateStats(player);
+                      socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  }, duration);
+                  this.recalculateStats(player);
+                  socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: '🔥 Ira dos Ossos!', color: '#ef4444' });
+                  consumed = true;
+              } else if (itemName === 'Bone Protection') {
+                  if (!player.buffs) player.buffs = {};
+                  player.buffs.defense = (player.buffs.defense || 0) + 5;
+                  const duration = 30 * 60 * 1000;
+                  if (!player.buffTimers) player.buffTimers = {};
+                  clearTimeout(player.buffTimers.defense);
+                  player.buffTimers.defense = setTimeout(() => {
+                      if (player.buffs) player.buffs.defense = Math.max(0, (player.buffs.defense || 0) - 5);
+                      this.recalculateStats(player);
+                      socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  }, duration);
+                  this.recalculateStats(player);
+                  socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: '🛡️ Pele de Pedra!', color: '#94a3b8' });
+                  consumed = true;
+              } else if (itemName === 'Skull Lantern') {
+                  if (!player.buffs) player.buffs = {};
+                  player.buffs.torchLevel = (player.buffs.torchLevel || 0) + 2;
+                  const duration = 30 * 60 * 1000;
+                  if (!player.buffTimers) player.buffTimers = {};
+                  clearTimeout(player.buffTimers.torchLevel);
+                  player.buffTimers.torchLevel = setTimeout(() => {
+                      if (player.buffs) player.buffs.torchLevel = Math.max(0, (player.buffs.torchLevel || 0) - 2);
+                      socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  }, duration);
+                  socket.emit('statsUpdate', this.buildStatsPayload(player));
+                  this.io.emit('textEffect', { x: player.x, y: player.y, message: '🏮 Lanterna Espiritual!', color: '#fbbf24' });
+                  consumed = true;
               }
 
               if (consumed) {
-                  const isConsumable = ['Cheese', 'Apple', 'Health Potion', 'Mana Potion', 'Blueberry', 'Gold Coin'].includes(itemName);
+                  const isConsumable = ['Cheese', 'Apple', 'Health Potion', 'Mana Potion', 'Blueberry', 'Gold Coin', 'Rage Potion', 'Bone Protection', 'Skull Lantern'].includes(itemName);
                   if (isConsumable && count > 1) {
                       player.backpack[index] = `${itemName}:${count - 1}`;
                   } else {
@@ -1398,7 +1623,7 @@ export class Game {
           // Determina preço: usa o preço do vendor específico, ou fallback hardcoded
           let cost = 0;
           const fallbackPrices: Record<string, number> = {
-              'Torch': 5, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100,
+              'Torch': 5, 'Tocha a Laser': 50, 'Health Potion': 15, 'Mana Potion': 20, 'Steel Sword': 100,
               'Leather Backpack': 500, 'Wooden Backpack': 1500, 'Iron Backpack': 4000,
               'Apple': 3, 'Cheese': 5, 'Blueberry': 4, 'Medicinal Herb': 8, 'Leather Hide': 15,
           };
@@ -1484,10 +1709,15 @@ export class Game {
               return;
           }
 
-          const [itemName, countStr] = itemString.split(':');
-          const count = parseInt(countStr) || 1;
+          let itemName = baseName;
+          let count = 1;
+          if (!itemString.startsWith('{') && itemString.includes(':')) {
+              const [n, c] = itemString.split(':');
+              itemName = n;
+              count = parseInt(c) || 1;
+          }
 
-          const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1, 'Medicinal Herb': 4, 'Leather Hide': 7 };
+          const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1, 'Medicinal Herb': 4, 'Leather Hide': 7, 'Wooden Shield': 15, 'Iron Shield': 50, 'Steel Shield': 80, 'Tocha a Laser': 10, 'Torch': 2, 'Skull': 5, 'Bone Gem': 10, 'Rage Potion': 8, 'Bone Protection': 8, 'Skull Lantern': 10, 'Bone Shield': 15, 'Skull Staff': 20, 'Bone Armor': 25, 'Bone Boots': 10 };
           const sellValue = sellPrices[itemName] || 1;
           
           if (count > 1) {
@@ -1648,7 +1878,7 @@ export class Game {
           if (!bpItem) return;
 
           // Parse do item: pode ser "Nome:count" ou "Nome" (count=1) ou JSON (não-stackable)
-          const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin'];
+          const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin', 'Skull'];
           let itemName = bpItem;
           let bpCount = 1;
           let isJsonItem = false;
@@ -1800,7 +2030,8 @@ export class Game {
           if (backpackIndex === -1) {
               // Retira para o primeiro slot livre da mochila
               const maxSlots = this.getMaxBackpackSlots(player);
-              if (player.backpack.length >= maxSlots) {
+              const usedSlots = player.backpack.filter(s => s && s !== '').length;
+              if (usedSlots >= maxSlots) {
                   socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila Cheia!', color: '#ff5555' });
                   return;
               }
@@ -1808,7 +2039,7 @@ export class Game {
               // Se o item for empilhável, tenta empilhar
               const [itemName, countStr] = bankItem.split(':');
               const count = parseInt(countStr) || 1;
-              const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide'];
+              const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Skull'];
               let stacked = false;
 
               if (stackableItems.includes(itemName)) {
@@ -1818,6 +2049,11 @@ export class Game {
                       const bpCount = parseInt(bpCountStr) || 1;
                       
                       if (bpName === itemName && bpCount < 99) {
+                          const itemWeight = ITEM_WEIGHTS[itemName] || 5;
+                          if (player.weight + itemWeight > (player.maxWeight || 250)) {
+                              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Muito Pesado!', color: '#ff5555' });
+                              return;
+                          }
                           player.backpack[i] = `${bpName}:${bpCount + 1}`;
                           stacked = true;
                           break;
@@ -2295,7 +2531,7 @@ export class Game {
           if (dist > CONFIG.bankDistanceCheck) return;
           
           let totalCost = 0;
-          const slots = ['head', 'body', 'legs', 'boots', 'rightHand', 'leftHand'] as const;
+          const slots = ['head', 'body', 'legs', 'boots', 'rightHand', 'leftHand', 'shield'] as const;
           const itemsToRepair: { slot: typeof slots[number], parsed: any }[] = [];
           
           slots.forEach(slot => {
@@ -2377,11 +2613,12 @@ export class Game {
       });
 
       // 5. Comprar do Leilão
-      socket.on('buyAuction', (auctionId: number) => {
+      socket.on('buyAuction', async (auctionId: number) => {
           const buyer = this.players.get(socket.id);
           if (!buyer || buyer.isDead || !buyer.backpack) return;
           
-          getAuctionByIdFromDB(auctionId).then((auc) => {
+          try {
+              const auc = await getAuctionByIdFromDB(auctionId);
               if (!auc) {
                   socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Não encontrado!', color: '#ff5555' });
                   return;
@@ -2400,12 +2637,23 @@ export class Game {
                   return;
               }
               
+              // Verifica espaço na mochila ANTES de deduzir gold
+              const maxSlots = this.getMaxBackpackSlots(buyer);
+              if (buyer.backpack.filter(s => s && s !== '').length >= maxSlots) {
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Mochila Cheia!', color: '#ff5555' });
+                  return;
+              }
+              
+              // Reserva o gold (rollback se falhar)
+              const buyerGoldBefore = buyer.gold;
               buyer.gold = (buyer.gold || 0) - auc.price;
               buyer.backpack.push(itemStr);
               this.recalculateWeight(buyer);
               this.recalculateStats(buyer);
               
-              removeAuctionFromDB(auctionId).then(() => {
+              try {
+                  await removeAuctionFromDB(auctionId);
+                  
                   let sellerPlayer: PlayerData | null = null;
                   for (const p of this.players.values()) {
                       if (p.name === auc.sellerName) {
@@ -2422,7 +2670,7 @@ export class Game {
                           sellerSocket.emit('textEffect', { x: sellerPlayer.x, y: sellerPlayer.y, message: `Vendido! +${auc.price} Ouro`, color: '#00ff00' });
                       }
                   } else {
-                      incrementGoldOffline(auc.sellerName, auc.price).catch(console.error);
+                      await incrementGoldOffline(auc.sellerName, auc.price);
                   }
                   
                   socket.emit('statsUpdate', { 
@@ -2435,12 +2683,21 @@ export class Game {
                   socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Comprado!', color: '#00ff00' });
                   
                   this.broadcastAuctions();
-              }).catch(err => {
-                  console.error(err);
-              });
-          }).catch(err => {
-              console.error(err);
-          });
+              } catch (err) {
+                  // Rollback: devolve gold e item
+                  buyer.gold = buyerGoldBefore;
+                  buyer.backpack.pop();
+                  this.recalculateWeight(buyer);
+                  this.recalculateStats(buyer);
+                  socket.emit('statsUpdate', { id: buyer.id, gold: buyer.gold, weight: buyer.weight, maxWeight: buyer.maxWeight });
+                  socket.emit('inventoryUpdate', buyer.backpack);
+                  socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Falha na compra!', color: '#ff5555' });
+                  console.error('buyAuction error:', err);
+              }
+          } catch (err) {
+              console.error('buyAuction fetch error:', err);
+              socket.emit('textEffect', { x: buyer.x, y: buyer.y, message: 'Erro no servidor!', color: '#ff5555' });
+          }
       });
 
       // 6. Listar Leilões
@@ -2448,6 +2705,192 @@ export class Game {
           getAuctionsFromDB().then((list) => {
               socket.emit('auctionList', list);
           }).catch(console.error);
+      });
+
+      // ============================================================
+      // Party System
+      // ============================================================
+
+      // Troca de chat atual
+      let currentChat: 'global' | 'party' = 'global';
+
+      socket.on('chat:setMode', (mode: 'global' | 'party') => {
+          currentChat = mode;
+      });
+
+      socket.on('party:invite', (targetName: string) => {
+          const player = this.players.get(socket.id);
+          if (!player || player.isDead) return;
+
+          const partyId = this.playerParty.get(socket.id);
+          if (partyId) {
+              const party = this.parties.get(partyId);
+              if (party && party.members.length >= PARTY_MAX_SIZE) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Party cheia!', color: '#ff5555' });
+                  return;
+              }
+          }
+
+          const targetPlayer = Array.from(this.players.values()).find(p => !p.isMonster && p.name.toLowerCase() === targetName.toLowerCase());
+          if (!targetPlayer) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Jogador não encontrado!', color: '#ff5555' });
+              return;
+          }
+
+          if (targetPlayer.id === socket.id) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Não pode convidar a si mesmo!', color: '#ff5555' });
+              return;
+          }
+
+          if (this.playerParty.has(targetPlayer.id)) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Jogador já está em uma party!', color: '#ff5555' });
+              return;
+          }
+
+          if (this.pendingPartyInvites.has(targetPlayer.id)) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Jogador já tem um convite pendente!', color: '#ff5555' });
+              return;
+          }
+
+          const dx = Math.abs(player.x - targetPlayer.x);
+          const dy = Math.abs(player.y - targetPlayer.y);
+          if (dx > 10 * this.TILE_SIZE || dy > 10 * this.TILE_SIZE) {
+              socket.emit('textEffect', { x: player.x, y: player.y, message: 'Jogador muito distante!', color: '#ff5555' });
+              return;
+          }
+
+          const timer = setTimeout(() => {
+              this.pendingPartyInvites.delete(targetPlayer.id);
+              this.io.to(targetPlayer.id).emit('party:inviteExpired', { fromPlayerName: player.name });
+          }, 30000);
+
+          this.pendingPartyInvites.set(targetPlayer.id, { fromPlayerId: socket.id, fromPlayerName: player.name, timer });
+          this.io.to(targetPlayer.id).emit('party:invited', { fromPlayerId: socket.id, fromPlayerName: player.name });
+          socket.emit('textEffect', { x: player.x, y: player.y, message: `Convite enviado para ${targetPlayer.name}!`, color: '#44ff44' });
+      });
+
+      socket.on('party:accept', (fromPlayerId: string) => {
+          const invite = this.pendingPartyInvites.get(socket.id);
+          if (!invite || invite.fromPlayerId !== fromPlayerId) {
+              socket.emit('textEffect', { x: 0, y: 0, message: 'Convite não encontrado!', color: '#ff5555' });
+              return;
+          }
+
+          clearTimeout(invite.timer);
+          this.pendingPartyInvites.delete(socket.id);
+
+          const player = this.players.get(socket.id);
+          const inviter = this.players.get(fromPlayerId);
+          if (!player || !inviter) return;
+
+          const inviterPartyId = this.playerParty.get(fromPlayerId);
+          let party: PartyData;
+
+          if (inviterPartyId) {
+              party = this.parties.get(inviterPartyId)!;
+              if (party.members.length >= PARTY_MAX_SIZE) {
+                  socket.emit('textEffect', { x: player.x, y: player.y, message: 'Party do convidante está cheia!', color: '#ff5555' });
+                  return;
+              }
+          } else {
+              party = {
+                  id: `party_${Math.random().toString(36).substring(2, 9)}`,
+                  leaderId: fromPlayerId,
+                  members: [],
+                  createdAt: Date.now()
+              };
+              this.parties.set(party.id, party);
+              this.playerParty.set(fromPlayerId, party.id);
+              const inviterMember: PartyMember = {
+                  id: inviter.id,
+                  name: inviter.name,
+                  spriteId: (inviter.spriteId as SpriteId) || 'm1',
+                  level: inviter.level,
+                  health: inviter.health,
+                  maxHealth: inviter.maxHealth,
+                  x: inviter.x,
+                  y: inviter.y
+              };
+              party.members.push(inviterMember);
+          }
+
+          const newMember: PartyMember = {
+              id: player.id,
+              name: player.name,
+              spriteId: (player.spriteId as SpriteId) || 'm1',
+              level: player.level,
+              health: player.health,
+              maxHealth: player.maxHealth,
+              x: player.x,
+              y: player.y
+          };
+          party.members.push(newMember);
+          this.playerParty.set(socket.id, party.id);
+
+          this.syncParty(party);
+          this.io.to(player.id).emit('textEffect', { x: player.x, y: player.y, message: 'Você entrou na party!', color: '#44ff44' });
+      });
+
+      socket.on('party:decline', (fromPlayerId: string) => {
+          const invite = this.pendingPartyInvites.get(socket.id);
+          if (!invite || invite.fromPlayerId !== fromPlayerId) return;
+
+          clearTimeout(invite.timer);
+          this.pendingPartyInvites.delete(socket.id);
+          this.io.to(fromPlayerId).emit('party:declined', { playerName: invite.fromPlayerName });
+      });
+
+      socket.on('party:leave', () => {
+          const partyId = this.playerParty.get(socket.id);
+          if (!partyId) return;
+          this.removeFromParty(socket.id, partyId);
+      });
+
+      socket.on('party:kick', (memberId: string) => {
+          const partyId = this.playerParty.get(socket.id);
+          if (!partyId) return;
+          const party = this.parties.get(partyId);
+          if (!party || party.leaderId !== socket.id) return;
+          if (memberId === socket.id) return;
+
+          this.removeFromParty(memberId, partyId);
+          this.io.to(memberId).emit('party:kicked');
+          this.io.to(memberId).emit('textEffect', { x: 0, y: 0, message: 'Você foi removido da party!', color: '#ff5555' });
+      });
+
+      socket.on('party:disband', () => {
+          const partyId = this.playerParty.get(socket.id);
+          if (!partyId) return;
+          const party = this.parties.get(partyId);
+          if (!party || party.leaderId !== socket.id) return;
+
+          for (const member of party.members) {
+              this.playerParty.delete(member.id);
+              this.io.to(member.id).emit('party:disbanded');
+              this.io.to(member.id).emit('textEffect', { x: 0, y: 0, message: 'Party foi desfeita!', color: '#ff5555' });
+          }
+          this.parties.delete(partyId);
+      });
+
+      socket.on('party:chat', (msg: string) => {
+          const partyId = this.playerParty.get(socket.id);
+          if (!partyId) return;
+          const player = this.players.get(socket.id);
+          if (!player) return;
+
+          const party = this.parties.get(partyId);
+          if (!party) return;
+
+          const chatMsg = {
+              playerId: player.id,
+              playerName: player.name,
+              message: msg,
+              timestamp: Date.now()
+          };
+
+          for (const member of party.members) {
+              this.io.to(member.id).emit('party:chat', chatMsg);
+          }
       });
 
       socket.on('disconnect', async () => {
@@ -2462,6 +2905,26 @@ export class Game {
                 await savePlayerToDB(p); // Salva o progresso no Banco
             } catch (e) {
                 console.error(`Erro ao salvar DB do disconnect:`, e);
+            }
+        }
+        // Limpa projéteis do jogador que desconectou
+        this.projectiles = this.projectiles.filter(proj => proj.casterId !== socket.id);
+        // Remove de party se estiver em uma
+        const partyId = this.playerParty.get(socket.id);
+        if (partyId) {
+            this.removeFromParty(socket.id, partyId);
+        }
+        // Limpa convites pendentes
+        const invite = this.pendingPartyInvites.get(socket.id);
+        if (invite) {
+            clearTimeout(invite.timer);
+            this.pendingPartyInvites.delete(socket.id);
+        }
+        // Remove convites enviados por este jogador
+        for (const [targetId, inv] of this.pendingPartyInvites.entries()) {
+            if (inv.fromPlayerId === socket.id) {
+                clearTimeout(inv.timer);
+                this.pendingPartyInvites.delete(targetId);
             }
         }
         this.players.delete(socket.id);
@@ -2736,12 +3199,11 @@ export class Game {
             if (!entity.isMonster && !entity.isDead && !(entity as any).isNPC) {
                 let updated = false;
 
-                // Safe Zone da Cidade: regenera HP e Mana a 100% (segue bounds do CONFIG)
-                const cb = CONFIG.cityBounds;
-                const inCity = entity.x >= cb.xMin && entity.x <= cb.xMax && entity.y >= cb.yMin && entity.y <= cb.yMax;
+                // Safe Zone (Praça + cidades): regenera HP e Mana a 100%
+                const inSafeZone = isInSafeZone(entity.x, entity.y);
                 const maxSp = entity.maxSp || 50;
 
-                if (inCity) {
+                if (inSafeZone) {
                     if (entity.health < entity.maxHealth) {
                         const healed = entity.maxHealth - entity.health;
                         entity.health = entity.maxHealth;
@@ -2797,7 +3259,9 @@ export class Game {
             let hit = false;
             
             // Colisão com parede
-            if (this.walls.has(`${p.x},${p.y}`) || p.x < 0 || p.x > 40 || p.y < 0 || p.y > 40) {
+            const maxTileX = Math.floor(this.worldBounds.width / this.TILE_SIZE) - 1;
+            const maxTileY = Math.floor(this.worldBounds.height / this.TILE_SIZE) - 1;
+            if (this.walls.has(`${p.x},${p.y}`) || p.x < 0 || p.x > maxTileX || p.y < 0 || p.y > maxTileY) {
                 hit = true;
             } else {
                 // Colisão com entidades (monstros ou players) — NPCs são imunes
@@ -2980,13 +3444,83 @@ export class Game {
                 });
                 this.io.emit('playerSpoke', { id: '__system__', message: `🔥 ${msg}` });
             }
-            attacker.experience += expReward;
+            // Party share: distribui EXP e Ouro para membros da party próximos
+            const partyDist = 15 * this.TILE_SIZE; // 15 tiles de alcance
+            const attackerPartyId = this.playerParty.get(attacker.id);
+            let partyMembers: PlayerData[] = [];
+            let partySynergyBonus = { expMultiplier: 1.0, dropMultiplier: 1.0 };
+
+            if (attackerPartyId) {
+                const party = this.parties.get(attackerPartyId);
+                if (party) {
+                    partySynergyBonus = this.getPartySynergyBonus(party);
+                    for (const member of party.members) {
+                        const p = this.players.get(member.id);
+                        if (p && !p.isMonster && !p.isDead && p.id !== attacker.id) {
+                            const dx = Math.abs(p.x - target.x);
+                            const dy = Math.abs(p.y - target.y);
+                            if (dx <= partyDist && dy <= partyDist) {
+                                partyMembers.push(p);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Aplica bônus de sinergia na EXP base
+            const expWithBonus = Math.floor(expReward * partySynergyBonus.expMultiplier);
+            const totalMembers = 1 + partyMembers.length;
+            const expShare = Math.floor(expWithBonus / totalMembers);
+
+            // Atacante recebe sua parte
+            attacker.experience += expShare;
+            this.io.emit('textEffect', { x: target.x, y: target.y, text: `+${expShare} EXP (party)`, color: '#fbbf24' });
 
             // Ouro direto = nível do monstro * multiplicador (não dropa Gold Coin)
             const goldReward = (target.level || 1) * CONFIG.goldByLevel;
-            attacker.gold = (attacker.gold || 0) + goldReward;
-            this.io.emit('textEffect', { x: target.x, y: target.y, message: `+${goldReward} Ouro`, color: '#fbbf24' });
+            const goldShare = Math.floor(goldReward / totalMembers);
+            attacker.gold = (attacker.gold || 0) + goldShare;
             this.io.to(attacker.id).emit('statsUpdate', { id: attacker.id, gold: attacker.gold });
+
+            // Party members recebem EXP e Ouro
+            for (const p of partyMembers) {
+                p.experience = (p.experience || 0) + expShare;
+                p.gold = (p.gold || 0) + goldShare;
+                this.io.to(p.id).emit('statsUpdate', { id: p.id, gold: p.gold });
+                this.io.emit('textEffect', { x: p.x, y: p.y, text: `+${expShare} EXP (party)`, color: '#fbbf24' });
+                this.io.emit('textEffect', { x: p.x, y: p.y, message: `+${goldShare} Ouro (party)`, color: '#fbbf24' });
+
+                // Level up check for party members
+                while (p.experience >= p.level * 100) {
+                    p.experience -= p.level * 100;
+                    p.level += 1;
+                    p.maxHealth += 10;
+                    p.statPoints = (p.statPoints || 0) + 5;
+                    this.recalculateStats(p);
+                    p.health = p.maxHealth;
+                    this.io.emit('levelUp', { id: p.id, level: p.level });
+                    this.io.emit('textEffect', { x: p.x, y: p.y, message: 'Subiu de Nível!', color: '#ffff00' });
+                }
+
+                // Atualiza quests de kill para party members
+                if (target.name) {
+                    this.updateQuestProgress(p, 'kill', target.name);
+                }
+
+                this.io.emit('statsUpdate', {
+                    id: p.id, level: p.level, experience: p.experience, gold: p.gold,
+                    stats: p.stats, statPoints: p.statPoints,
+                    attack: p.attack, matk: p.matk, def: p.def, mdef: p.mdef,
+                    hit: p.hit, dodge: p.dodge, crit: p.crit, aspd: p.aspd,
+                    sp: p.sp, maxSp: p.maxSp, weight: p.weight, maxWeight: p.maxWeight
+                });
+
+                // Sincroniza party
+                if (attackerPartyId) {
+                    const party = this.parties.get(attackerPartyId);
+                    if (party) this.syncParty(party);
+                }
+            }
 
             let leveledUp = false;
             while (attacker.experience >= attacker.level * 100) {
@@ -3014,13 +3548,10 @@ export class Game {
                 sp: attacker.sp, maxSp: attacker.maxSp, weight: attacker.weight, maxWeight: attacker.maxWeight
             });
 
-            // Atualiza progresso de quests (kill)
+            // Atualiza progresso de quests (kill) para o atacante
             if (target.name) {
                 this.updateQuestProgress(attacker, 'kill', target.name);
             }
-
-            // Texto visual de XP ganha em cima do corpo do monstro
-            this.io.emit('textEffect', { x: target.x, y: target.y, text: `+${expReward} EXP`, color: '#fbbf24' });
 
             // Loot via drop table configurável
             const itemName = rollDropTable(target.name);
@@ -3078,15 +3609,14 @@ export class Game {
             this.io.to(attacker.id).emit('statsUpdate', { id: attacker.id, gold: attacker.gold });
             this.io.emit('textEffect', { x: attacker.x, y: attacker.y, message: `+${pvpGold} Ouro (PvP)`, color: '#fbbf24' });
 
-            // PvP: Skull com nome do derrotado no chão
+            // Skull ao derrotar jogador (empilhável)
             const skullId = `item_${Math.random().toString(36).substring(2, 9)}`;
             const skullItem = {
                 id: skullId,
                 name: 'Skull',
                 x: target.x,
                 y: target.y,
-                emoji: '💀',
-                metadata: { ofPlayer: target.name }
+                emoji: '💀'
             };
             this.itemsOnFloor.set(skullId, skullItem);
             this.io.emit('itemDropped', skullItem);
@@ -3127,6 +3657,78 @@ export class Game {
         // Remove o target do atacante atual porque o alvo morreu
         attacker.targetId = undefined;
      }
+  }
+
+  private getPartySynergyBonus(party: PartyData): { expMultiplier: number; dropMultiplier: number } {
+      const classesInParty = new Set<string>();
+      for (const member of party.members) {
+          const p = this.players.get(member.id);
+          if (p) classesInParty.add(p.spriteId || 'm1');
+      }
+      const synergy = PARTY_CLASS_SYNERGY_BONUS;
+      const hasAllClasses = synergy.requiredClasses.every(c => classesInParty.has(c));
+      if (hasAllClasses) {
+          return { expMultiplier: synergy.expMultiplier, dropMultiplier: synergy.dropMultiplier };
+      }
+      return { expMultiplier: 1.0, dropMultiplier: 1.0 };
+  }
+
+  private syncParty(party: PartyData): void {
+      // Atualiza dados dos membros vivos
+      for (let i = party.members.length - 1; i >= 0; i--) {
+          const member = party.members[i];
+          const player = this.players.get(member.id);
+          if (!player || player.isMonster) {
+              party.members.splice(i, 1);
+              this.playerParty.delete(member.id);
+              continue;
+          }
+          member.name = player.name;
+          member.level = player.level;
+          member.health = player.health;
+          member.maxHealth = player.maxHealth;
+          member.x = player.x;
+          member.y = player.y;
+          member.spriteId = (player.spriteId as SpriteId) || 'm1';
+      }
+
+      if (party.members.length === 0) {
+          this.parties.delete(party.id);
+          return;
+      }
+
+      // Se o líder saiu, elege o mais antigo como novo líder
+      if (!party.members.find(m => m.id === party.leaderId)) {
+          party.leaderId = party.members[0].id;
+      }
+
+      const synergy = this.getPartySynergyBonus(party);
+      const partyUpdate = {
+          id: party.id,
+          leaderId: party.leaderId,
+          members: party.members,
+          synergy
+      };
+
+      for (const member of party.members) {
+          this.io.to(member.id).emit('party:update', partyUpdate);
+      }
+  }
+
+  private removeFromParty(playerId: string, partyId: string): void {
+      const party = this.parties.get(partyId);
+      if (!party) return;
+
+      this.playerParty.delete(playerId);
+      party.members = party.members.filter(m => m.id !== playerId);
+
+      this.io.to(playerId).emit('party:removed');
+
+      if (party.members.length === 0) {
+          this.parties.delete(partyId);
+      } else {
+          this.syncParty(party);
+      }
   }
 
   private sendQuestData(socket: any, player: PlayerData) {
@@ -3228,12 +3830,13 @@ export class Game {
       if (!player.backpack) player.backpack = [];
       
       // Define quais itens são empilháveis (até 99 stacks, exceto armas, roupas, tochas)
-      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide'];
+      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin', 'Skull'];
       
       if (stackableItems.includes(itemName)) {
           // Procura por um slot existente do mesmo item com espaço (menor que 99)
           for (let i = 0; i < player.backpack.length; i++) {
               const slot = player.backpack[i];
+              if (!slot) continue;
               const [name, countStr] = slot.split(':');
               const count = parseInt(countStr) || 1;
               
@@ -3246,7 +3849,8 @@ export class Game {
       
       // Se não empilhou, tenta adicionar em um novo slot
       const maxSlots = this.getMaxBackpackSlots(player);
-      if (player.backpack.length < maxSlots) {
+      const usedSlots = player.backpack.filter(s => s && s !== '').length;
+      if (usedSlots < maxSlots) {
           if (stackableItems.includes(itemName)) {
               player.backpack.push(`${itemName}:1`);
           } else {
@@ -3264,11 +3868,35 @@ export class Game {
           return;
       }
       const currentWeight = player.backpack.reduce((sum, slot) => {
+          if (!slot) return sum;
           const [name, countStr] = slot.split(':');
           const count = parseInt(countStr) || 1;
           return sum + (ITEM_WEIGHTS[name] || 5) * count;
       }, 0);
       player.weight = currentWeight;
+  }
+
+  private countFreeSlots(player: PlayerData): number {
+      if (!player.backpack) return this.getMaxBackpackSlots(player);
+      const max = this.getMaxBackpackSlots(player);
+      let used = 0;
+      for (const s of player.backpack) {
+          if (s) used++;
+      }
+      return max - used;
+  }
+
+  private getSkullKingQuests(player: PlayerData): Array<{ id: string; started: boolean; objectivesComplete: boolean; rewarded: boolean; }> {
+      const skullKingQuests = QUESTS.filter(q => q.npcId === 'npc_skullking');
+      return skullKingQuests.map(q => {
+          const p = player.quests?.[q.id];
+          return {
+              id: q.id,
+              started: p?.started || false,
+              objectivesComplete: p?.objectivesComplete || (p as any)?.completed || false,
+              rewarded: p?.rewarded || false,
+          };
+      });
   }
 
   /**
@@ -3277,7 +3905,7 @@ export class Game {
    * Preenche o restante com strings vazias até o maxSlots.
    */
   private sortItemList(items: string[], maxSlots: number): string[] {
-      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin'];
+      const stackableItems = ['Apple', 'Cheese', 'Health Potion', 'Mana Potion', 'Blueberry', 'Iron Ore', 'Wood Log', 'Medicinal Herb', 'Leather Hide', 'Gold Coin', 'Skull'];
 
       type Entry = { name: string; count: number; isJson: boolean; jsonStr?: string };
       const stackMap = new Map<string, number>();
@@ -3373,14 +4001,22 @@ export class Game {
           if (slot === 'rightHand') {
               if (itemName === 'Steel Sword') baseWeaponAtk = 15;
               else if (itemName === 'Wood Sword') baseWeaponAtk = 8;
+              else if (itemName === 'Skull Staff') { baseWeaponAtk = 10; baseWeaponMAtk = 16; }
           } else if (slot === 'body') {
               if (itemName === 'Armor') baseArmorDef += 10;
+              else if (itemName === 'Bone Armor') baseArmorDef += 14;
           } else if (slot === 'head') {
               if (itemName === 'Helmet') baseArmorDef += 5;
           } else if (slot === 'legs') {
               if (itemName === 'Pants') baseArmorDef += 4;
           } else if (slot === 'boots') {
               if (itemName === 'Leather Boots') baseArmorDef += 2;
+              else if (itemName === 'Bone Boots') baseArmorDef += 5;
+          } else if (slot === 'leftHand') {
+              if (itemName === 'Wooden Shield') baseArmorDef += 3;
+              else if (itemName === 'Iron Shield') baseArmorDef += 6;
+              else if (itemName === 'Steel Shield') baseArmorDef += 10;
+              else if (itemName === 'Bone Shield') baseArmorDef += 8;
           }
       });
       
@@ -3402,13 +4038,19 @@ export class Game {
       // Velocidade de Movimento (Speed invertida, menor = mais rápido)
       player.speed = Math.max(50, 200 - (totalAGI * 3));
       
-      // Dano Físico e Mágico
-      player.attack = baseWeaponAtk + (totalFOR * 2) + Math.floor(totalDES / 5) + Math.floor(totalSOR / 3);
-      player.matk = baseWeaponMAtk + (totalINT * 2) + Math.floor(totalSOR / 3);
+      // Dano Físico e Mágico (Rebalanceado: FOR 1.0 -> 1.2; DES contribui mais)
+      player.attack = baseWeaponAtk + Math.floor(totalFOR * 1.2) + Math.floor(totalDES / 3) + Math.floor(totalSOR / 4);
+      player.matk = baseWeaponMAtk + Math.floor(totalINT * 1.5) + Math.floor(totalSOR / 4);
       
       // Defesas
       player.def = baseArmorDef + Math.floor(totalVIT / 2) + Math.floor(totalAGI / 5);
       player.mdef = baseArmorMDef + Math.floor(totalINT / 2);
+      
+      // Aplica buffs
+      if (player.buffs) {
+          if (player.buffs.attack) player.attack += player.buffs.attack;
+          if (player.buffs.defense) player.def += player.buffs.defense;
+      }
       
       // Precisão, Esquiva e Crítico
       player.hit = 100 + totalDES + Math.floor(totalSOR / 3) + level;
@@ -3420,6 +4062,19 @@ export class Game {
       
       // Capacidade de Carga (Max Weight)
       player.maxWeight = 100 + (totalFOR * 30);
+  }
+
+  private buildStatsPayload(player: PlayerData) {
+      return {
+          id: player.id, level: player.level, experience: player.experience, gold: player.gold,
+          stats: player.stats, statPoints: player.statPoints,
+          attack: player.attack, matk: player.matk, def: player.def, mdef: player.mdef,
+          hit: player.hit, dodge: player.dodge, crit: player.crit, aspd: player.aspd,
+          sp: player.sp, maxSp: player.maxSp, weight: player.weight, maxWeight: player.maxWeight,
+          health: player.health, maxHealth: player.maxHealth,
+          torchLevel: (player.equipment?.leftHand && this.parseItem(player.equipment.leftHand)?.name === 'Tocha a Laser') ? 2
+              : (player.equipment?.leftHand && this.parseItem(player.equipment.leftHand)?.name === 'Torch') ? 1 : 0
+      };
   }
 
   private registerAdminEvents(socket: any) {
@@ -3780,6 +4435,33 @@ export class Game {
             }
         });
 
+        // ============ Admin: Item Database ============
+        socket.on('admin:getItems', () => {
+            const { loadItems } = require('./itemDatabase');
+            const items = loadItems();
+            socket.emit('admin:itemsData', items);
+        });
+
+        socket.on('admin:saveItem', (data: { originalName: string; item: any }) => {
+            const { loadItems, saveItems, addItem, updateItem } = require('./itemDatabase');
+            const items = loadItems();
+            const existing = items.find(i => i.name === data.originalName);
+            if (existing) {
+                updateItem(data.originalName, data.item);
+            } else {
+                addItem(data.item);
+            }
+            socket.emit('admin:itemsData', loadItems());
+            socket.emit('textEffect', { x: 0, y: 0, message: `✅ Item "${data.item.name}" salvo!`, color: '#10b981' });
+        });
+
+        socket.on('admin:deleteItem', (data: { name: string }) => {
+            const { loadItems, deleteItem } = require('./itemDatabase');
+            deleteItem(data.name);
+            socket.emit('admin:itemsData', loadItems());
+            socket.emit('textEffect', { x: 0, y: 0, message: `✅ Item "${data.name}" removido!`, color: '#ef4444' });
+        });
+
         // ============ Player: Quest Progress ============
         socket.on('quest:accept', (data: { questId: string }) => {
             const player = this.players.get(socket.id);
@@ -3810,9 +4492,7 @@ export class Game {
             if (!player) return;
             if (!player.quests || !player.quests[data.questId]) return;
             const progress = player.quests[data.questId];
-            // Aceita tanto o novo campo objectivesComplete quanto o antigo completed
-            const isReady = progress.objectivesComplete || (progress as any).completed;
-            if (!isReady || progress.rewarded) return;
+            if (progress.rewarded) return;
             const quest = QUESTS.find(q => q.id === data.questId);
             if (!quest) return;
             // Valida proximidade do NPC
@@ -3823,6 +4503,25 @@ export class Game {
                     socket.emit('textEffect', { x: player.x, y: player.y, message: 'Chegue mais perto do NPC!', color: '#ff5555' });
                     return;
                 }
+            }
+            // Para quests de coleta: valida e remove itens da mochila
+            const hasCollect = quest.objectives.some(o => o.type === 'collect');
+            if (hasCollect) {
+                for (const obj of quest.objectives) {
+                    if (obj.type !== 'collect') continue;
+                    const count = this.countItemInBackpack(player, obj.target);
+                    if (count < obj.count) {
+                        socket.emit('textEffect', { x: player.x, y: player.y, message: `Precisa de ${obj.count}x ${obj.target} na mochila!`, color: '#ff5555' });
+                        return;
+                    }
+                    this.removeItemFromBackpack(player, obj.target, obj.count);
+                }
+                socket.emit('inventoryUpdate', player.backpack);
+                this.recalculateWeight(player);
+            } else {
+                // Aceita tanto o novo campo objectivesComplete quanto o antigo completed
+                const isReady = progress.objectivesComplete || (progress as any).completed;
+                if (!isReady) return;
             }
             // Dá as recompensas
             if (quest.rewards.xp) {
@@ -3989,7 +4688,105 @@ export class Game {
                     name: vendor.name,
                     stock: stockWithAvailability,
                 });
+             } else if (npcType === 'skullking') {
+                const skullCount = this.countItemInBackpack(player, 'Skull');
+                const questProgress = this.getSkullKingQuests(player);
+                socket.emit('skullking:open', {
+                    npcName: npc.name,
+                    skullCount,
+                    quests: questProgress,
+                });
             }
+        });
+
+        // ============ Rei das Caveiras: Comprar com Caveiras ============
+        socket.on('skullking:buy', (data: { itemName: string }) => {
+            const player = this.players.get(socket.id);
+            if (!player || player.isDead) return;
+            const skullCosts: Record<string, number> = {
+                'Bone Shield': 10, 'Skull Staff': 15, 'Bone Armor': 20, 'Bone Boots': 8,
+                'Rage Potion': 3, 'Bone Protection': 3, 'Skull Lantern': 8, 'Bone Gem': 5,
+            };
+            const cost = skullCosts[data.itemName];
+            if (!cost) return;
+            const skulls = this.countItemInBackpack(player, 'Skull');
+            if (skulls < cost) {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: `Precisa de ${cost} Caveiras!`, color: '#ff5555' });
+                return;
+            }
+            // Valida peso e espaço
+            const weight = ITEM_WEIGHTS[data.itemName] ?? 5;
+            if ((player.weight || 0) + weight > (player.maxWeight || 100)) {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila muito pesada!', color: '#ff5555' });
+                return;
+            }
+            if (!player.backpack) player.backpack = [];
+            if (this.countFreeSlots(player) <= 0) {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: 'Mochila cheia!', color: '#ff5555' });
+                return;
+            }
+            this.removeItemFromBackpack(player, 'Skull', cost);
+            this.addItemToBackpack(player, data.itemName);
+            this.recalculateWeight(player);
+            socket.emit('inventoryUpdate', player.backpack);
+            socket.emit('skullking:update', { skullCount: this.countItemInBackpack(player, 'Skull') });
+            this.io.emit('textEffect', { x: player.x, y: player.y, message: `🛒 ${ITEM_NAMES_PT[data.itemName] || data.itemName} adquirido!`, color: '#a855f7' });
+        });
+
+        // ============ Rei das Caveiras: Altar de Buffs ============
+        socket.on('skullking:buff', (data: { buffId: string }) => {
+            const player = this.players.get(socket.id);
+            if (!player || player.isDead) return;
+            const buffCosts: Record<string, { cost: number; label: string }> = {
+                'attack': { cost: 3, label: 'Ira dos Ossos (+8 ATK, 20min)' },
+                'defense': { cost: 3, label: 'Pele de Pedra (+8 DEF, 20min)' },
+                'torch': { cost: 5, label: 'Visão Noturna (luz máxima, 30min)' },
+            };
+            const buff = buffCosts[data.buffId];
+            if (!buff) return;
+            const skulls = this.countItemInBackpack(player, 'Skull');
+            if (skulls < buff.cost) {
+                socket.emit('textEffect', { x: player.x, y: player.y, message: `Precisa de ${buff.cost} Caveiras!`, color: '#ff5555' });
+                return;
+            }
+            this.removeItemFromBackpack(player, 'Skull', buff.cost);
+            this.recalculateWeight(player);
+            socket.emit('inventoryUpdate', player.backpack);
+
+            if (!player.buffs) player.buffs = {};
+            if (!player.buffTimers) player.buffTimers = {};
+            const duration = data.buffId === 'torch' ? 30 * 60 * 1000 : 20 * 60 * 1000;
+
+            if (data.buffId === 'attack') {
+                player.buffs.attack = (player.buffs.attack || 0) + 8;
+                clearTimeout(player.buffTimers.attack);
+                player.buffTimers.attack = setTimeout(() => {
+                    if (player.buffs) player.buffs.attack = Math.max(0, (player.buffs.attack || 0) - 8);
+                    this.recalculateStats(player);
+                    socket.emit('statsUpdate', this.buildStatsPayload(player));
+                }, duration);
+                this.io.emit('textEffect', { x: player.x, y: player.y, message: '🔥 Ira dos Ossos!', color: '#ef4444' });
+            } else if (data.buffId === 'defense') {
+                player.buffs.defense = (player.buffs.defense || 0) + 8;
+                clearTimeout(player.buffTimers.defense);
+                player.buffTimers.defense = setTimeout(() => {
+                    if (player.buffs) player.buffs.defense = Math.max(0, (player.buffs.defense || 0) - 8);
+                    this.recalculateStats(player);
+                    socket.emit('statsUpdate', this.buildStatsPayload(player));
+                }, duration);
+                this.io.emit('textEffect', { x: player.x, y: player.y, message: '🛡️ Pele de Pedra!', color: '#94a3b8' });
+            } else if (data.buffId === 'torch') {
+                player.buffs.torchLevel = (player.buffs.torchLevel || 0) + 3;
+                clearTimeout(player.buffTimers.torchLevel);
+                player.buffTimers.torchLevel = setTimeout(() => {
+                    if (player.buffs) player.buffs.torchLevel = Math.max(0, (player.buffs.torchLevel || 0) - 3);
+                    socket.emit('statsUpdate', this.buildStatsPayload(player));
+                }, duration);
+                this.io.emit('textEffect', { x: player.x, y: player.y, message: '🏮 Visão Noturna!', color: '#fbbf24' });
+            }
+            this.recalculateStats(player);
+            socket.emit('statsUpdate', this.buildStatsPayload(player));
+            socket.emit('skullking:update', { skullCount: this.countItemInBackpack(player, 'Skull') });
         });
 
          // Cliente escolheu um destino no menu do teleporter hub
@@ -4276,8 +5073,10 @@ export class Game {
       const powerMap: Record<string, number> = {
           'Wood Sword': 8, 'Steel Sword': 15,
           'Helmet': 5, 'Armor': 10, 'Pants': 2, 'Leather Boots': 1,
-          'Torch': 1,
-          'Leather Backpack': 16, 'Wooden Backpack': 24, 'Iron Backpack': 32
+          'Torch': 1, 'Tocha a Laser': 1,
+          'Leather Backpack': 16, 'Wooden Backpack': 24, 'Iron Backpack': 32,
+          'Wooden Shield': 3, 'Iron Shield': 6, 'Steel Shield': 10,
+          'Bone Shield': 8, 'Skull Staff': 12, 'Bone Armor': 14, 'Bone Boots': 5
       };
       return powerMap[itemName] || 0;
   }
