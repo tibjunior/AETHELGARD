@@ -149,6 +149,15 @@ export class GameScene extends Phaser.Scene {
   // Patrulha de esqueletos autônomos
   private skeletonPatrols: SkeletonMonster[] = [];
 
+  // Rastreia posição anterior dos monstros esqueletos para calcular facing
+  private skeletonPrevPos: Map<string, { x: number; y: number }> = new Map();
+
+  /** Retorna o frame da skeleton8 spritesheet baseado em facing + frame de andar */
+  private static getSkeletonFrame(facing: Facing, walkFrame: number): number {
+      const rowStart = facing === 'down' ? 0 : facing === 'left' ? 3 : facing === 'right' ? 6 : 9;
+      return rowStart + walkFrame;
+  }
+
   public itemDetails: Record<string, { name: string, desc: string, color: string }> = {
       'Steel Sword': { name: 'Espada de Aço', desc: 'Dano: +15 | Peso: 25.0 oz\nUma espada pesada forjada com liga de metal resistente.', color: '#e2e8f0' },
       'Wood Sword': { name: 'Espada de Madeira', desc: 'Dano: +8 | Peso: 15.0 oz\nUma espada simples ideal para iniciantes.', color: '#854d0e' },
@@ -958,6 +967,17 @@ export class GameScene extends Phaser.Scene {
           }
           if (data.spriteId && SPRITE_IDS.includes(data.spriteId as SpriteId)) {
             anim.spriteId = data.spriteId as SpriteId;
+          }
+          // Para monstros esqueletos: deriva facing da posição anterior
+          if (sprite.texture && sprite.texture.key === 'skeleton8') {
+              const prev = this.skeletonPrevPos.get(data.id);
+              if (prev && (prev.x !== data.x || prev.y !== data.y)) {
+                  if (data.x > prev.x) anim.facing = 'right';
+                  else if (data.x < prev.x) anim.facing = 'left';
+                  else if (data.y > prev.y) anim.facing = 'down';
+                  else if (data.y < prev.y) anim.facing = 'up';
+              }
+              this.skeletonPrevPos.set(data.id, { x: data.x, y: data.y });
           }
           anim.lastMoveTime = this.time.now;
         }
@@ -2340,7 +2360,7 @@ export class GameScene extends Phaser.Scene {
     if (data.isMonster) {
         if (data.name === 'Orc' || data.name === 'Orc Warlord') texture = 'orc-sprite';
         else if (data.name === 'Rotworm' || data.name === 'Ancient Rotworm') texture = 'rotworm-sprite';
-        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'demonskeleton-sprite';
+        else if (data.name === 'Demon Skeleton' || data.name === 'Demon Lord' || data.name === 'Nightmare Skeleton') texture = 'skeleton8';
         else if (data.name === 'Rat King') texture = 'rat-sprite';
         else texture = 'rat-sprite';
     } else if (data.name === 'Merchant') {
@@ -2376,6 +2396,19 @@ export class GameScene extends Phaser.Scene {
         spriteId: (data.spriteId as SpriteId) || 'm1'
       });
       sprite.flipX = ((data.facing as Facing) || 'down') === 'right';
+    }
+
+    // Esqueletos (Demon Skeleton / Demon Lord / Nightmare Skeleton) usam spritesheet animada
+    if (texture === 'skeleton8') {
+        sprite.setOrigin(0.5, 2/3);
+        this.skeletonPrevPos.set(data.id, { x: data.x, y: data.y });
+        this.otherPlayerAnim.set(data.id, {
+            walkFrame: 0,
+            walkTimer: 0,
+            lastMoveTime: 0,
+            facing: (data.facing as Facing) || 'down',
+            spriteId: 'm1'
+        });
     }
 
     if (isCharacterSprite) {
@@ -3407,7 +3440,11 @@ export class GameScene extends Phaser.Scene {
               anim.walkFrame = 0;
               anim.walkTimer = 0;
           }
-          sprite.setFrame(getFrameIndex(anim.spriteId, anim.facing, anim.walkFrame));
+          if (sprite.texture && sprite.texture.key === 'skeleton8') {
+              sprite.setFrame(GameScene.getSkeletonFrame(anim.facing, anim.walkFrame));
+          } else {
+              sprite.setFrame(getFrameIndex(anim.spriteId, anim.facing, anim.walkFrame));
+          }
           sprite.flipX = (anim.facing === 'right');
       });
 
