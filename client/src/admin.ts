@@ -145,7 +145,261 @@ socket.on('admin:questsData', (data: any[]) => {
   currentQuests = data;
   renderQuestsAdmin();
 });
+
+socket.on('admin:itemsData', (items: any[]) => {
+  currentItems = items;
+  renderItemsDB();
+});
+
+socket.on('timeSync', (data: { isNight: boolean, secondsLeft: number }) => {
+    const icon = document.getElementById('admin-clock-icon');
+    const time = document.getElementById('admin-clock-time');
+    if (icon && time) {
+        icon.innerText = data.isNight ? '🌙' : '☀️';
+        const sec = data.secondsLeft;
+        const min = Math.floor(sec / 60);
+        const remSec = sec % 60;
+        time.innerText = `0${min}:${remSec < 10 ? '0' : ''}${remSec}`;
+        time.style.color = sec <= 10 ? '#ff4444' : '#fbbf24';
+    }
+});
 }
+
+// ===== Item Database =====
+let currentItems: any[] = [];
+let currentDbTab: string = 'consumable';
+
+const escapeHtml = (str: string): string => {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+};
+
+const collectItemData = (card: HTMLElement, type: string): any => {
+  const val = (sel: string) => (card.querySelector(sel) as HTMLInputElement)?.value ?? '';
+  const num = (sel: string) => parseFloat((card.querySelector(sel) as HTMLInputElement)?.value ?? '0') || 0;
+  const chk = (sel: string) => (card.querySelector(sel) as HTMLInputElement)?.checked ?? false;
+
+  const item: any = {
+    name: val('.db-name'),
+    namePt: val('.db-namept'),
+    emoji: val('.db-emoji') || '📦',
+    type,
+    weight: num('.db-weight'),
+    droppable: chk('.db-droppable'),
+    sellPrice: num('.db-sellprice'),
+  };
+
+  if (type === 'consumable') {
+    item.stackable = chk('.db-stackable');
+    item.maxStack = num('.db-maxstack');
+    item.property = val('.db-property') || 'hp';
+    item.value = num('.db-value');
+  } else if (type === 'equippable') {
+    item.stackable = false;
+    item.maxStack = 1;
+    item.slot = val('.db-slot') || 'rightHand';
+    item.attack = num('.db-attack');
+    item.matk = num('.db-matk');
+    item.defense = num('.db-defense');
+    item.mdef = num('.db-mdef');
+    item.itemPower = num('.db-itempower');
+    item.maxDurability = num('.db-durability');
+    item.backpackSlots = num('.db-backpackslots');
+  } else if (type === 'material') {
+    item.stackable = chk('.db-stackable');
+    item.maxStack = num('.db-maxstack');
+  }
+
+  return item;
+};
+
+const createItemCard = (item: any): HTMLElement => {
+  const card = document.createElement('div');
+  card.className = 'db-item-card';
+
+  const originalName = item.name;
+
+  const common = `
+    <div class="dbfield"><label>🔤 Nome EN</label><input class="db-name" value="${escapeHtml(item.name || '')}" /></div>
+    <div class="dbfield"><label>🇧🇷 Nome PT</label><input class="db-namept" value="${escapeHtml(item.namePt || '')}" /></div>
+    <div class="dbfield"><label>😀 Emoji</label><div style="position:relative;display:inline-block;"><input class="db-emoji" value="${escapeHtml(item.emoji || '📦')}" style="width:50px!important;font-size:16px;cursor:pointer;" readonly /></div></div>
+    <div class="dbfield"><label>⚖️ Peso</label><input type="number" class="db-weight" value="${item.weight ?? 1}" step="0.1" /></div>
+    <div class="dbfield"><label>💰 Preço Venda</label><input type="number" class="db-sellprice" value="${item.sellPrice ?? 1}" /></div>
+    <div class="dbfield"><label>📥 Dropável</label><input type="checkbox" class="db-droppable" ${item.droppable !== false ? 'checked' : ''} /></div>
+  `;
+
+  let extra = '';
+
+  if (item.type === 'consumable') {
+    extra = `
+      <div class="dbfield"><label>📦 Empilhável</label><input type="checkbox" class="db-stackable" ${item.stackable ? 'checked' : ''} /></div>
+      <div class="dbfield"><label>🔢 Max Pilha</label><input type="number" class="db-maxstack" value="${item.maxStack ?? 99}" /></div>
+      <div class="dbfield"><label>⚗️ Propriedade</label>
+        <select class="db-property">
+          <option value="hp" ${item.property === 'hp' ? 'selected' : ''}>HP (Vida)</option>
+          <option value="sp" ${item.property === 'sp' ? 'selected' : ''}>SP (Mana)</option>
+          <option value="buff_atk" ${item.property === 'buff_atk' ? 'selected' : ''}>Buff ATK</option>
+          <option value="buff_def" ${item.property === 'buff_def' ? 'selected' : ''}>Buff DEF</option>
+          <option value="buff_light" ${item.property === 'buff_light' ? 'selected' : ''}>Buff Luz</option>
+        </select>
+      </div>
+      <div class="dbfield"><label>📊 Valor</label><input type="number" class="db-value" value="${item.value ?? 10}" /></div>
+    `;
+  } else if (item.type === 'equippable') {
+    extra = `
+      <div class="dbfield"><label>🔧 Slot</label>
+        <select class="db-slot">
+          <option value="rightHand" ${item.slot === 'rightHand' ? 'selected' : ''}>Mão Direita</option>
+          <option value="leftHand" ${item.slot === 'leftHand' ? 'selected' : ''}>Mão Esquerda</option>
+          <option value="head" ${item.slot === 'head' ? 'selected' : ''}>Cabeça</option>
+          <option value="body" ${item.slot === 'body' ? 'selected' : ''}>Corpo</option>
+          <option value="legs" ${item.slot === 'legs' ? 'selected' : ''}>Pernas</option>
+          <option value="boots" ${item.slot === 'boots' ? 'selected' : ''}>Botas</option>
+          <option value="backpack" ${item.slot === 'backpack' ? 'selected' : ''}>Mochila</option>
+        </select>
+      </div>
+      <div class="dbfield"><label>⚔️ Ataque</label><input type="number" class="db-attack" value="${item.attack ?? 0}" /></div>
+      <div class="dbfield"><label>🔮 MATK</label><input type="number" class="db-matk" value="${item.matk ?? 0}" /></div>
+      <div class="dbfield"><label>🛡️ Defesa</label><input type="number" class="db-defense" value="${item.defense ?? 0}" /></div>
+      <div class="dbfield"><label>🔮 MDEF</label><input type="number" class="db-mdef" value="${item.mdef ?? 0}" /></div>
+      <div class="dbfield"><label>⚡ Item Power</label><input type="number" class="db-itempower" value="${item.itemPower ?? 0}" /></div>
+      <div class="dbfield"><label>🔧 Durabilidade</label><input type="number" class="db-durability" value="${item.maxDurability ?? 100}" /></div>
+      <div class="dbfield"><label>🎒 Slots Mochila</label><input type="number" class="db-backpackslots" value="${item.backpackSlots ?? 0}" /></div>
+    `;
+  } else if (item.type === 'material') {
+    extra = `
+      <div class="dbfield"><label>📦 Empilhável</label><input type="checkbox" class="db-stackable" ${item.stackable ? 'checked' : ''} /></div>
+      <div class="dbfield"><label>🔢 Max Pilha</label><input type="number" class="db-maxstack" value="${item.maxStack ?? 99}" /></div>
+    `;
+  }
+
+  card.innerHTML = `
+    ${common}
+    ${extra}
+    <div class="db-card-actions">
+      <button class="btn-save-item">💾 Salvar</button>
+      <button class="btn-del-item">🗑️ Excluir</button>
+    </div>
+  `;
+
+  // Save handler
+  card.querySelector('.btn-save-item')?.addEventListener('click', () => {
+    const updated = collectItemData(card, item.type);
+    if (!updated.name) { showToast('❌ Nome do item é obrigatório!', 'error'); return; }
+    socket?.emit('admin:saveItem', { originalName, item: updated });
+  });
+
+  // Delete handler
+  card.querySelector('.btn-del-item')?.addEventListener('click', () => {
+    if (!confirm(`Excluir "${item.name || 'novo item'}" permanentemente?`)) return;
+    if (!originalName) {
+      const idx = currentItems.indexOf(item);
+      if (idx >= 0) currentItems.splice(idx, 1);
+      renderItemsDB();
+      return;
+    }
+    socket?.emit('admin:deleteItem', { name: originalName });
+  });
+
+  return card;
+};
+
+const renderItemsDB = () => {
+  const grid = document.getElementById('db-grid');
+  const loading = document.getElementById('db-loading');
+  if (!grid) return;
+  loading!.style.display = 'none';
+
+  const filtered = currentItems.filter(i => i.type === currentDbTab);
+  grid.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'db-section-header';
+  header.innerHTML = `<span style="color:var(--text-muted);font-size:13px;">${filtered.length} itens</span>
+    <button id="btn-db-add">+ Novo Item</button>`;
+  grid.appendChild(header);
+
+  filtered.forEach(item => {
+    const card = createItemCard(item);
+    grid.appendChild(card);
+  });
+
+  document.getElementById('btn-db-add')?.addEventListener('click', () => {
+    const emptyItem: any = { name: '', emoji: '📦', namePt: '', type: currentDbTab, weight: 1, droppable: true, stackable: false, maxStack: 1, sellPrice: 1 };
+    if (currentDbTab === 'consumable') {
+      emptyItem.property = 'hp'; emptyItem.value = 10; emptyItem.stackable = true; emptyItem.maxStack = 99;
+    }
+    if (currentDbTab === 'equippable') {
+      emptyItem.slot = 'rightHand'; emptyItem.attack = 0; emptyItem.matk = 0; emptyItem.defense = 0; emptyItem.mdef = 0; emptyItem.itemPower = 0; emptyItem.maxDurability = 100;
+    }
+    if (currentDbTab === 'material') {
+      emptyItem.stackable = true; emptyItem.maxStack = 99;
+    }
+    currentItems.push(emptyItem);
+    renderItemsDB();
+    const cards = grid.querySelectorAll('.db-item-card');
+    if (cards.length > 0) {
+      const lastCard = cards[cards.length - 1];
+      const firstInput = lastCard.querySelector('input');
+      if (firstInput) { (firstInput as HTMLInputElement).focus(); }
+      lastCard.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+};
+
+const loadItemsDB = () => {
+  document.getElementById('db-loading')!.style.display = 'block';
+  document.getElementById('db-grid')!.innerHTML = '';
+  socket?.emit('admin:getItems');
+};
+
+// DB sub-tab switching
+document.querySelectorAll('.db-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.db-tab-btn').forEach(b => {
+      (b as HTMLElement).style.color = '#94a3b8';
+      (b as HTMLElement).style.borderBottomColor = 'transparent';
+    });
+    (btn as HTMLElement).style.color = '#f8fafc';
+    (btn as HTMLElement).style.borderBottomColor = '#a78bfa';
+
+    currentDbTab = (btn as HTMLElement).dataset.dbtab || 'consumable';
+    renderItemsDB();
+  });
+});
+
+// Emoji picker
+function closeEmojiGrid() {
+  document.querySelectorAll('.emoji-grid').forEach(el => el.remove());
+}
+
+function openEmojiGrid(input: HTMLInputElement) {
+  closeEmojiGrid();
+  const grid = document.createElement('div');
+  grid.className = 'emoji-grid';
+  (window as any).ALL_EMOJIS.forEach((emoji: string) => {
+    const btn = document.createElement('button');
+    btn.textContent = emoji;
+    btn.type = 'button';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      input.value = emoji;
+      closeEmojiGrid();
+    });
+    grid.appendChild(btn);
+  });
+  input.parentElement!.appendChild(grid);
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (target.classList.contains('db-emoji')) {
+    openEmojiGrid(target as HTMLInputElement);
+  } else if (!target.closest('.emoji-grid')) {
+    closeEmojiGrid();
+  }
+});
 
 btnLogin.addEventListener('click', () => {
   const pass = loginPass.value.trim();
@@ -272,7 +526,7 @@ document.getElementById('btn-edit-save')?.addEventListener('click', () => {
 });
 
 // Navigation
-const tabs = ['players', 'server', 'spawner', 'map'];
+const tabs = ['players', 'server', 'spawner', 'map', 'database'];
 tabs.forEach(t => {
   document.getElementById(`nav-${t}`)?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -285,12 +539,14 @@ tabs.forEach(t => {
     const tabEl = document.getElementById(`tab-${t}`);
     if (tabEl) tabEl.style.display = 'flex';
 
-    const titles: Record<string, string> = { players: 'Gerenciamento de Contas', server: 'Comandos do Servidor', spawner: 'Gerador de Entidades e Itens', map: 'Editor de Cidades' };
+    const titles: Record<string, string> = { players: 'Gerenciamento de Contas', server: 'Comandos do Servidor', spawner: 'Gerador de Entidades e Itens', map: 'Editor de Cidades', database: 'Database de Itens' };
     const titleEl = document.getElementById('page-title');
     if (titleEl) titleEl.innerText = titles[t];
 
     if (t === 'map') { loadCitiesAdmin(); }
     else { stopCitiesPolling(); if (currentDetailCityId) closeCityDetail(); }
+
+    if (t === 'database') { loadItemsDB(); }
   });
 });
 
@@ -781,7 +1037,7 @@ document.head.appendChild(style);
 
 // ===== NPC Vendors Admin =====
 const ALL_VENDOR_ITEMS: { name: string; emoji: string }[] = [
-  { name: 'Torch', emoji: '🔦' }, { name: 'Health Potion', emoji: '🧪' }, { name: 'Mana Potion', emoji: '💙' },
+  { name: 'Torch', emoji: '🔦' }, { name: 'Tocha a Laser', emoji: '💡' }, { name: 'Health Potion', emoji: '🧪' }, { name: 'Mana Potion', emoji: '💙' },
   { name: 'Steel Sword', emoji: '🗡️' }, { name: 'Wood Sword', emoji: '🗡️' }, { name: 'Helmet', emoji: '👑' },
   { name: 'Armor', emoji: '👕' }, { name: 'Pants', emoji: '👖' }, { name: 'Leather Boots', emoji: '🥾' },
   { name: 'Apple', emoji: '🍎' }, { name: 'Cheese', emoji: '🧀' }, { name: 'Blueberry', emoji: '🍇' },
@@ -789,6 +1045,8 @@ const ALL_VENDOR_ITEMS: { name: string; emoji: string }[] = [
   { name: 'Leather Hide', emoji: '📦' }, { name: 'Gold Coin', emoji: '💰' },
   { name: 'Leather Backpack', emoji: '🎒' }, { name: 'Wooden Backpack', emoji: '💼' }, { name: 'Iron Backpack', emoji: '🧳' },
   { name: 'Skull', emoji: '💀' },
+  { name: 'Bone Shield', emoji: '🦴' }, { name: 'Skull Staff', emoji: '🔮' }, { name: 'Bone Armor', emoji: '🦴' }, { name: 'Bone Boots', emoji: '🦴' },
+  { name: 'Rage Potion', emoji: '🔴' }, { name: 'Bone Protection', emoji: '🛡️' }, { name: 'Skull Lantern', emoji: '🏮' }, { name: 'Bone Gem', emoji: '💎' },
 ];
 const ALL_EMOJIS: readonly string[] = [
   // Comida
@@ -1203,7 +1461,7 @@ function renderQuestsAdmin() {
         ${quest.objectives.map((o: any) => `<div style="margin-left:12px;">• ${o.type === 'kill' ? 'Derrote' : o.type === 'craft' ? 'Crie' : 'Colete'} ${o.count}x ${o.target}</div>`).join('')}
       </div>
       <div style="font-size:12px;color:#10b981;margin-bottom:12px;">
-        <b>Recompensas:</b> ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([p, a]) => `+${a} ${p}`).join(' ') : ''}
+        <b>Recompensas:</b> ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([p, a]) => `+${a} ${p}`).join(' ') : ''}${quest.rewards.items && quest.rewards.items.length > 0 ? quest.rewards.items.map((i: any) => ` ${i.count || 1}x ${i.name}`).join('') : ''}
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-edit quest-edit-btn" data-quest-id="${quest.id}" style="background:#a855f7;font-size:12px;">✏️ Editar</button>
@@ -1331,6 +1589,19 @@ function openQuestEditor(quest?: any) {
           <div><label style="font-size:11px;">Tanning XP</label><input type="number" id="qe-r-tan" value="${quest?.rewards?.professionXp?.tanning || 0}" min="0" style="width:80px;" /></div>
         </div>
       </div>
+      <div class="form-group">
+        <label>Itens de Recompensa</label>
+        <div id="qe-reward-items">
+          ${(quest?.rewards?.items || []).map((ri: any) => `
+            <div class="qe-ritem-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">
+              <input type="text" class="qe-ritem-name" value="${ri.name}" placeholder="Nome do item" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+              <input type="number" class="qe-ritem-count" value="${ri.count || 1}" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+              <button class="qe-ritem-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
+            </div>
+          `).join('')}
+        </div>
+        <button id="qe-ritem-add" style="margin-top:4px;background:#334155;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;">+ Item</button>
+      </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button id="qe-save" style="flex:1;background:#a855f7;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600;">💾 Salvar Missão</button>
         <button id="qe-cancel" style="flex:1;background:#334155;color:white;border:none;padding:10px;border-radius:6px;cursor:pointer;font-family:inherit;">Cancelar</button>
@@ -1387,6 +1658,24 @@ function openQuestEditor(quest?: any) {
     btn.addEventListener('click', () => (btn as HTMLElement).closest('.qe-obj-row')?.remove());
   });
 
+  // Reward items dynamic add/remove
+  const ritemContainer = form.querySelector('#qe-reward-items')!;
+  form.querySelector('#qe-ritem-add')!.addEventListener('click', () => {
+    const row = document.createElement('div');
+    row.className = 'qe-ritem-row';
+    row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:center;';
+    row.innerHTML = `
+      <input type="text" class="qe-ritem-name" placeholder="Nome do item" style="flex:1;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+      <input type="number" class="qe-ritem-count" value="1" min="1" style="width:60px;background:rgba(0,0,0,0.4);border:1px solid var(--glass-border);color:white;padding:6px;border-radius:4px;font-size:12px;" />
+      <button class="qe-ritem-del" style="background:#991b1b;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">✕</button>
+    `;
+    row.querySelector('.qe-ritem-del')!.addEventListener('click', () => row.remove());
+    ritemContainer.appendChild(row);
+  });
+  ritemContainer.querySelectorAll('.qe-ritem-del').forEach(btn => {
+    btn.addEventListener('click', () => (btn as HTMLElement).closest('.qe-ritem-row')?.remove());
+  });
+
   form.querySelector('#qe-cancel')!.addEventListener('click', () => form.remove());
   form.querySelector('#qe-save')!.addEventListener('click', () => {
     const id = (form.querySelector('#qe-id') as HTMLInputElement).value.trim();
@@ -1415,6 +1704,13 @@ function openQuestEditor(quest?: any) {
       if (alch) rewards.professionXp.alchemy = alch;
       if (tan) rewards.professionXp.tanning = tan;
     }
+    const rewardItems: Array<{ name: string; count: number }> = [];
+    form.querySelectorAll('.qe-ritem-row').forEach(row => {
+      const name = (row.querySelector('.qe-ritem-name') as HTMLInputElement).value.trim();
+      const count = parseInt((row.querySelector('.qe-ritem-count') as HTMLInputElement).value) || 1;
+      if (name) rewardItems.push({ name, count });
+    });
+    if (rewardItems.length > 0) rewards.items = rewardItems;
     if (!id || !title) { showToast('❌ ID e Título são obrigatórios!'); return; }
     const questData = { id, title, description: desc, npcId, levelRequired: level, objectives, rewards };
     socket?.emit('admin:setQuest', { quest: questData });

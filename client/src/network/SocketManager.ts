@@ -214,21 +214,35 @@ export class SocketManager {
       this.renderQuestJournal(data.quests);
     });
 
+    this.socket.on('skullking:open', (data: { npcName: string; skullCount: number; quests: any[] }) => {
+      this.openSkullKingUI(data);
+    });
+
+    this.socket.on('skullking:update', (data: { skullCount: number }) => {
+      const skullLabel = document.getElementById('skullking-skull-count');
+      if (skullLabel) skullLabel.textContent = `${data.skullCount} 💀`;
+    });
+
     this.socket.on('subskillsUpdate', (data: Record<string, { rank: number; xp: number }>) => {
       this.scene.onSubskillsUpdate(data);
     });
 
     this.socket.on('quest:reward', (data: { questId: string; rewards: any }) => {
       // Feedback visual da recompensa
-      if (data.rewards) {
-          let msg = '🎁 Recompensas:';
-          if (data.rewards.xp) msg += ` +${data.rewards.xp} XP`;
-          if (data.rewards.gold) msg += ` +${data.rewards.gold} Ouro`;
-          if (data.rewards.professionXp) {
-              for (const [prof, amt] of Object.entries(data.rewards.professionXp)) {
-                  msg += ` +${amt} ${prof}`;
+          if (data.rewards) {
+              let msg = '🎁 Recompensas:';
+              if (data.rewards.xp) msg += ` +${data.rewards.xp} XP`;
+              if (data.rewards.gold) msg += ` +${data.rewards.gold} Ouro`;
+              if (data.rewards.professionXp) {
+                  for (const [prof, amt] of Object.entries(data.rewards.professionXp)) {
+                      msg += ` +${amt} ${prof}`;
+                  }
               }
-          }
+              if (data.rewards.items && data.rewards.items.length > 0) {
+                  for (const item of data.rewards.items) {
+                      msg += ` +${item.count || 1}x ${item.name}`;
+                  }
+              }
           const toast = document.getElementById('toast');
           if (toast) {
               toast.textContent = msg;
@@ -238,6 +252,185 @@ export class SocketManager {
           }
       }
     });
+
+    // ============================================================
+    // Party System Listeners
+    // ============================================================
+
+    this.socket.on('party:invited', (data: { fromPlayerId: string, fromPlayerName: string }) => {
+      this.showPartyInvite(data);
+    });
+
+    this.socket.on('party:inviteExpired', (data: { fromPlayerName: string }) => {
+      const popup = document.getElementById('party-invite-popup');
+      if (popup) popup.style.display = 'none';
+      this.addPartyChatMessage('Sistema', `Convite de ${data.fromPlayerName} expirou.`, '#94a3b8');
+    });
+
+    this.socket.on('party:declined', (data: { playerName: string }) => {
+      this.addPartyChatMessage('Sistema', `${data.playerName} recusou o convite.`, '#ef4444');
+    });
+
+    this.socket.on('party:update', (data: { id: string, leaderId: string, members: any[], synergy: { expMultiplier: number, dropMultiplier: number } }) => {
+      this.updatePartyFrame(data);
+    });
+
+    this.socket.on('party:removed', () => {
+      this.clearPartyFrame();
+      this.addPartyChatMessage('Sistema', 'Você saiu da party.', '#94a3b8');
+    });
+
+    this.socket.on('party:kicked', () => {
+      this.clearPartyFrame();
+      this.addPartyChatMessage('Sistema', 'Você foi removido da party.', '#ef4444');
+    });
+
+    this.socket.on('party:disbanded', () => {
+      this.clearPartyFrame();
+      this.addPartyChatMessage('Sistema', 'A party foi desfeita.', '#ef4444');
+    });
+
+    this.socket.on('party:chat', (data: { playerId: string, playerName: string, message: string, timestamp: number }) => {
+      this.addPartyChatMessage(data.playerName, data.message, '#60a5fa');
+    });
+  }
+
+  // ============================================================
+  // Party UI Methods
+  // ============================================================
+
+  private showPartyInvite(data: { fromPlayerId: string, fromPlayerName: string }) {
+    const popup = document.getElementById('party-invite-popup');
+    const nameEl = document.getElementById('party-invite-name');
+    if (!popup || !nameEl) return;
+
+    nameEl.textContent = data.fromPlayerName;
+    popup.style.display = 'block';
+
+    const acceptBtn = document.getElementById('party-invite-accept');
+    const declineBtn = document.getElementById('party-invite-decline');
+
+    if (acceptBtn) {
+      acceptBtn.onclick = () => {
+        this.socket.emit('party:accept', data.fromPlayerId);
+        popup.style.display = 'none';
+      };
+    }
+
+    if (declineBtn) {
+      declineBtn.onclick = () => {
+        this.socket.emit('party:decline', data.fromPlayerId);
+        popup.style.display = 'none';
+      };
+    }
+  }
+
+  private updatePartyFrame(data: { id: string, leaderId: string, members: any[], synergy: { expMultiplier: number, dropMultiplier: number } }) {
+    const frame = document.getElementById('party-frame');
+    const membersEl = document.getElementById('party-members');
+    const synergyBadge = document.getElementById('party-synergy-badge');
+    if (!frame || !membersEl) return;
+
+    frame.style.display = 'block';
+
+    // Show synergy badge if bonus is active
+    if (synergyBadge) {
+      const hasSynergy = data.synergy.expMultiplier > 1.0;
+      synergyBadge.style.display = hasSynergy ? 'inline' : 'none';
+      if (hasSynergy) {
+        synergyBadge.textContent = `⚡ ${data.synergy.expMultiplier}x EXP`;
+      }
+    }
+
+    membersEl.innerHTML = '';
+    for (const member of data.members) {
+      const isLeader = member.id === data.leaderId;
+      const isLocal = member.id === this.socket.id;
+      const hpPct = member.maxHealth > 0 ? Math.floor((member.health / member.maxHealth) * 100) : 0;
+
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; background: rgba(0,0,0,0.2);';
+
+      const spriteEmoji: Record<string, string> = { m1: '⚔️', m2: '🔵', f1: '🌿', f2: '🗡️' };
+      const spriteIcon = spriteEmoji[member.spriteId] || '👤';
+
+      const hpColor = hpPct > 50 ? '#4ade80' : hpPct > 25 ? '#fbbf24' : '#ef4444';
+
+      row.innerHTML = `
+        <span style="font-size: 14px;">${spriteIcon}</span>
+        <div style="flex: 1; min-width: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 11px; font-weight: ${isLocal ? '700' : '500'}; color: ${isLocal ? '#fbbf24' : '#e2e8f0'};">
+              ${member.name}${isLeader ? ' 👑' : ''}${isLocal ? ' (Você)' : ''}
+            </span>
+            <span style="font-size: 10px; color: #94a3b8;">Lv.${member.level}</span>
+          </div>
+          <div style="background: rgba(0,0,0,0.4); height: 4px; border-radius: 2px; margin-top: 2px; overflow: hidden;">
+            <div style="width: ${hpPct}%; height: 100%; background: ${hpColor}; border-radius: 2px; transition: width 0.3s;"></div>
+          </div>
+        </div>
+      `;
+
+      membersEl.appendChild(row);
+    }
+  }
+
+  private clearPartyFrame() {
+    const frame = document.getElementById('party-frame');
+    const membersEl = document.getElementById('party-members');
+    const synergyBadge = document.getElementById('party-synergy-badge');
+    if (frame) frame.style.display = 'none';
+    if (membersEl) membersEl.innerHTML = '';
+    if (synergyBadge) synergyBadge.style.display = 'none';
+  }
+
+  private addPartyChatMessage(playerName: string, message: string, color: string = '#60a5fa') {
+    const partyChat = document.getElementById('chat-party');
+    if (!partyChat) return;
+
+    const msgEl = document.createElement('div');
+    msgEl.className = 'chat-message';
+    const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    msgEl.innerHTML = `<span class="msg-time">[${time}]</span><span class="msg-name" style="color:${color};">${playerName}</span><span class="msg-text">: ${message}</span>`;
+    partyChat.appendChild(msgEl);
+    partyChat.scrollTop = partyChat.scrollHeight;
+
+    // Also add to batepapo tab for visibility
+    const batepapo = document.getElementById('chat-batepapo');
+    if (batepapo) {
+      const globalMsg = msgEl.cloneNode(true) as HTMLElement;
+      globalMsg.innerHTML = `<span class="msg-time">[${time}]</span><span class="msg-name" style="color:${color};">[Party] ${playerName}</span><span class="msg-text">: ${message}</span>`;
+      batepapo.appendChild(globalMsg);
+      batepapo.scrollTop = batepapo.scrollHeight;
+    }
+  }
+
+  // ============================================================
+  // Party Commands
+  // ============================================================
+
+  public sendPartyInvite(targetName: string) {
+    this.socket.emit('party:invite', targetName);
+  }
+
+  public sendPartyLeave() {
+    this.socket.emit('party:leave');
+  }
+
+  public sendPartyKick(memberId: string) {
+    this.socket.emit('party:kick', memberId);
+  }
+
+  public sendPartyDisband() {
+    this.socket.emit('party:disband');
+  }
+
+  public sendPartyChat(msg: string) {
+    this.socket.emit('party:chat', msg);
+  }
+
+  public sendChatMode(mode: 'global' | 'party') {
+    this.socket.emit('chat:setMode', mode);
   }
 
   public sendMove(targetPosition: Position, facing: string) {
@@ -401,6 +594,204 @@ export class SocketManager {
       this.renderVendorBuy();
   }
 
+  public openSkullKingUI(data: { npcName: string; skullCount: number; quests: any[] }) {
+      const ui = document.getElementById('skull-king-ui');
+      if (!ui) return;
+      ui.style.display = 'flex';
+      const titleEl = document.getElementById('skullking-title');
+      if (titleEl) titleEl.textContent = `💀 ${data.npcName}`;
+      document.getElementById('skullking-skull-count')!.textContent = `${data.skullCount}`;
+      const quests = data.quests || [];
+      const closeBtn = document.getElementById('close-skullking');
+      if (closeBtn) closeBtn.onclick = () => { ui.style.display = 'none'; };
+
+      const switchTab = (tabId: string) => {
+          ['skullking-shop', 'skullking-transmute', 'skullking-quests', 'skullking-altar'].forEach(id => {
+              const el = document.getElementById(id);
+              if (el) el.style.display = 'none';
+          });
+          const active = document.getElementById(tabId);
+          if (active) active.style.display = 'flex';
+          document.querySelectorAll('#skull-king-ui .sk-tab').forEach(t => {
+              const btn = t as HTMLElement;
+              btn.style.background = 'rgba(30,30,60,0.6)';
+              btn.style.border = '1px solid rgba(168,85,247,0.15)';
+              btn.style.color = '#a78bfa';
+          });
+          const tabBtn = document.querySelector(`#skull-king-ui .sk-tab[data-tab="${tabId}"]`) as HTMLElement;
+          if (tabBtn) {
+              tabBtn.style.background = 'linear-gradient(135deg,#7e22ce,#6b21a8)';
+              tabBtn.style.border = 'none';
+              tabBtn.style.color = 'white';
+          }
+      };
+
+      document.getElementById('sk-tab-shop')!.onclick = () => { switchTab('skullking-shop'); this.renderSkullKingShop(); };
+      document.getElementById('sk-tab-transmute')!.onclick = () => { switchTab('skullking-transmute'); this.renderSkullKingTransmute(); };
+      document.getElementById('sk-tab-quests')!.onclick = () => { switchTab('skullking-quests'); this.renderSkullKingQuests(quests); };
+      document.getElementById('sk-tab-altar')!.onclick = () => { switchTab('skullking-altar'); this.renderSkullKingAltar(); };
+
+      switchTab('skullking-shop');
+      this.renderSkullKingShop();
+  }
+
+  private renderSkullKingShop() {
+      const content = document.getElementById('skullking-shop');
+      if (!content) return;
+      const shopItems = [
+          { name: 'Bone Shield', emoji: '🦴', cost: 10, desc: 'DEF 8 · Escudo ósseo' },
+          { name: 'Skull Staff', emoji: '🔮', cost: 15, desc: 'ATK 10 · MATK 16' },
+          { name: 'Bone Armor', emoji: '🦴', cost: 20, desc: 'DEF 14 · Armadura resistente' },
+          { name: 'Bone Boots', emoji: '🦴', cost: 8, desc: 'DEF 5 · Botas leves' },
+          { name: 'Rage Potion', emoji: '🔴', cost: 3, desc: '+5 ATK 30min' },
+          { name: 'Bone Protection', emoji: '🛡️', cost: 3, desc: '+5 DEF 30min' },
+          { name: 'Skull Lantern', emoji: '🏮', cost: 8, desc: '+2 luz 30min' },
+          { name: 'Bone Gem', emoji: '💎', cost: 5, desc: 'Material raro' },
+      ];
+      let html = '';
+      shopItems.forEach(item => {
+          const displayName = (window as any).translateItem ? (window as any).translateItem(item.name) : item.name;
+          html += `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(168,85,247,0.1);border-radius:6px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:18px;line-height:1;">${item.emoji}</span>
+                      <div>
+                          <div style="color:#e2e8f0;font-weight:bold;font-size:12px;">${displayName}</div>
+                          <div style="color:#94a3b8;font-size:10px;">${item.desc}</div>
+                      </div>
+                  </div>
+                  <button class="sk-buy-btn" data-item="${item.name}" style="background:linear-gradient(135deg,#7e22ce,#6b21a8);color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${item.cost} 💀</button>
+              </div>
+          `;
+      });
+      content.innerHTML = html;
+      content.querySelectorAll('.sk-buy-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const itemName = (btn as HTMLElement).getAttribute('data-item');
+              if (itemName) this.socket.emit('skullking:buy', { itemName });
+          });
+      });
+  }
+
+  private renderSkullKingTransmute() {
+      const content = document.getElementById('skullking-transmute');
+      if (!content) return;
+      const recipes = [
+          { cost: 1, label: 'Poção da Fúria', itemName: 'Rage Potion', emoji: '🔴', desc: '+5 ATK 30min' },
+          { cost: 1, label: 'Proteção Óssea', itemName: 'Bone Protection', emoji: '🛡️', desc: '+5 DEF 30min' },
+          { cost: 2, label: 'Lanterna de Caveira', itemName: 'Skull Lantern', emoji: '🏮', desc: '+2 luz 30min' },
+          { cost: 3, label: 'Gema de Osso', itemName: 'Bone Gem', emoji: '💎', desc: 'Material raro' },
+      ];
+      let html = '<div style="color:#a78bfa;font-size:10px;text-align:center;padding:6px;border-bottom:1px solid rgba(168,85,247,0.1);margin-bottom:4px;">Transforme caveiras em itens poderosos</div>';
+      recipes.forEach(r => {
+          html += `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(168,85,247,0.1);border-radius:6px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:18px;line-height:1;">${r.emoji}</span>
+                      <div>
+                          <div style="color:#e2e8f0;font-weight:bold;font-size:12px;">${r.label}</div>
+                          <div style="color:#94a3b8;font-size:10px;">${r.desc}</div>
+                      </div>
+                  </div>
+                  <button class="sk-transmute-btn" data-item="${r.itemName}" style="background:linear-gradient(135deg,#7e22ce,#6b21a8);color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${r.cost} 💀</button>
+              </div>
+          `;
+      });
+      content.innerHTML = html;
+      content.querySelectorAll('.sk-transmute-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const itemName = (btn as HTMLElement).getAttribute('data-item');
+              if (itemName) this.socket.emit('skullking:buy', { itemName });
+          });
+      });
+  }
+
+  private renderSkullKingQuests(quests: any[]) {
+      const content = document.getElementById('skullking-quests');
+      if (!content) return;
+      const rawQuests = quests || [];
+      let html = '';
+      if (rawQuests.length === 0) {
+          html = '<div style="text-align:center;color:#64748b;padding:20px 0;font-size:12px;">Nenhuma missão disponível hoje.</div>';
+      } else {
+          rawQuests.forEach((q: any) => {
+              const started = q.started;
+              const done = q.objectivesComplete;
+              const rewarded = q.rewarded;
+              let btnHtml = '';
+              let btnStyle = '';
+              if (rewarded) {
+                  btnHtml = '✅ Concluída';
+                  btnStyle = 'color:#10b981;font-size:11px;font-weight:bold;';
+              } else if (done) {
+                  btnHtml = 'Entregar';
+                  btnStyle = `background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,0.3);`;
+                  btnHtml = `<button class="sk-quest-turnin" data-quest="${q.id}" style="${btnStyle}">${btnHtml}</button>`;
+              } else if (started) {
+                  btnHtml = '<span style="color:#fbbf24;font-size:11px;">⏳ Em andamento</span>';
+              } else {
+                  btnHtml = 'Aceitar';
+                  btnStyle = `background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;box-shadow:0 1px 3px rgba(0,0,0,0.3);`;
+                  btnHtml = `<button class="sk-quest-accept" data-quest="${q.id}" style="${btnStyle}">${btnHtml}</button>`;
+              }
+              html += `
+                  <div style="padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(168,85,247,0.1);border-radius:6px;">
+                      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+                          <div style="color:#e2e8f0;font-weight:bold;font-size:12px;">${q.title}</div>
+                          <div style="flex-shrink:0;margin-left:8px;">${btnHtml}</div>
+                      </div>
+                      <div style="color:#94a3b8;font-size:10px;line-height:1.4;">${q.description}</div>
+                  </div>
+              `;
+          });
+      }
+      content.innerHTML = html;
+      content.querySelectorAll('.sk-quest-accept').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const questId = (btn as HTMLElement).getAttribute('data-quest');
+              if (questId) this.socket.emit('quest:accept', { questId });
+          });
+      });
+      content.querySelectorAll('.sk-quest-turnin').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const questId = (btn as HTMLElement).getAttribute('data-quest');
+              if (questId) this.socket.emit('quest:turnin', { questId });
+          });
+      });
+  }
+
+  private renderSkullKingAltar() {
+      const content = document.getElementById('skullking-altar');
+      if (!content) return;
+      const buffs = [
+          { id: 'attack', label: 'Ira dos Ossos', desc: '+8 ATK · 20min', cost: 3, icon: '⚔️' },
+          { id: 'defense', label: 'Pele de Pedra', desc: '+8 DEF · 20min', cost: 3, icon: '🛡️' },
+          { id: 'torch', label: 'Visão Noturna', desc: 'Luz máxima · 30min', cost: 5, icon: '👁️' },
+      ];
+      let html = '<div style="color:#a78bfa;font-size:10px;text-align:center;padding:6px;border-bottom:1px solid rgba(168,85,247,0.1);margin-bottom:4px;">Ofereça caveiras ao altar para receber bênçãos temporárias</div>';
+      buffs.forEach(b => {
+          html += `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:rgba(0,0,0,0.25);border:1px solid rgba(168,85,247,0.1);border-radius:6px;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:18px;line-height:1;">${b.icon}</span>
+                      <div>
+                          <div style="color:#e2e8f0;font-weight:bold;font-size:12px;">${b.label}</div>
+                          <div style="color:#94a3b8;font-size:10px;">${b.desc}</div>
+                      </div>
+                  </div>
+                  <button class="sk-altar-btn" data-buff="${b.id}" style="background:linear-gradient(135deg,#7e22ce,#6b21a8);color:white;border:none;padding:6px 12px;border-radius:5px;cursor:pointer;font-weight:bold;font-size:11px;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${b.cost} 💀</button>
+              </div>
+          `;
+      });
+      content.innerHTML = html;
+      content.querySelectorAll('.sk-altar-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const buffId = (btn as HTMLElement).getAttribute('data-buff');
+              if (buffId) this.socket.emit('skullking:buff', { buffId });
+          });
+      });
+  }
+
   private renderVendorBuy() {
       const content = document.getElementById('vendor-content');
       if (!content) return;
@@ -434,12 +825,14 @@ export class SocketManager {
       const content = document.getElementById('vendor-content');
       if (!content) return;
       content.innerHTML = '';
-      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1 };
+      const sellPrices: Record<string, number> = { 'Cheese': 2, 'Apple': 3, 'Steel Sword': 25, 'Mana Potion': 5, 'Blueberry': 1, 'Medicinal Herb': 4, 'Leather Hide': 7, 'Wooden Shield': 15, 'Iron Shield': 50, 'Steel Shield': 80, 'Tocha a Laser': 10, 'Torch': 2, 'Skull': 5, 'Bone Gem': 10, 'Rage Potion': 8, 'Bone Protection': 8, 'Skull Lantern': 10, 'Bone Shield': 15, 'Skull Staff': 20, 'Bone Armor': 25, 'Bone Boots': 10 };
       const emojis: Record<string, string> = {
           'Cheese': '🧀', 'Apple': '🍎', 'Steel Sword': '🗡️',
-          'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦',
-          'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
-          'Skull': '💀'
+           'Health Potion': '🧪', 'Mana Potion': '💙', 'Blueberry': '🍇', 'Torch': '🔦', 'Tocha a Laser': '💡',
+           'Iron Ore': '🌑', 'Wood Log': '🌲', 'Medicinal Herb': '🌿', 'Leather Hide': '📦',
+          'Wooden Shield': '🛡️', 'Iron Shield': '🛡️', 'Steel Shield': '🛡️',
+          'Skull': '💀', 'Bone Shield': '🦴', 'Skull Staff': '🔮', 'Bone Armor': '🦴', 'Bone Boots': '🦴',
+          'Rage Potion': '🔴', 'Bone Protection': '🛡️', 'Skull Lantern': '🏮', 'Bone Gem': '💎'
       };
       let hasItems = false;
       this.scene.backpackData.forEach((itemString, index) => {
@@ -466,7 +859,7 @@ export class SocketManager {
               <button style="background:#ef4444;color:white;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:11px;">Vender (+${val} Ouro)</button>
           `;
           content.appendChild(row);
-          row.querySelector('button')!.onclick = () => { this.sendSell(index); };
+          row.querySelector('button')!.onclick = () => { this.scene.showSellConfirm(index, baseItemName, 1, val); };
       });
       if (!hasItems) {
           content.innerHTML = '<div style="text-align:center;color:#888;padding:10px;font-size:12px;">Sua mochila está vazia.</div>';
@@ -498,6 +891,7 @@ export class SocketManager {
       
       const items = [
           { name: 'Torch', emoji: '🔦', price: 5 },
+          { name: 'Tocha a Laser', emoji: '💡', price: 50 },
           { name: 'Health Potion', emoji: '🧪', price: 15 },
           { name: 'Mana Potion', emoji: '💙', price: 20 },
           { name: 'Steel Sword', emoji: '🗡️', price: 100 },
@@ -586,7 +980,7 @@ export class SocketManager {
                   }).join('')}
               </div>
               <div style="font-size:10px;color:#10b981;margin-top:4px;">
-                  Recompensas: ${q.rewards.gold ? `${q.rewards.gold} Ouro ` : ''}${q.rewards.xp ? `${q.rewards.xp} XP ` : ''}${q.rewards.professionXp ? Object.entries(q.rewards.professionXp).map(([prof, amt]: [string, any]) => `+${amt} ${prof}`).join(' ') : ''}
+                  Recompensas: ${q.rewards.gold ? `${q.rewards.gold} Ouro ` : ''}${q.rewards.xp ? `${q.rewards.xp} XP ` : ''}${q.rewards.professionXp ? Object.entries(q.rewards.professionXp).map(([prof, amt]: [string, any]) => `+${amt} ${prof}`).join(' ') : ''}${q.rewards.items && q.rewards.items.length > 0 ? q.rewards.items.map((i: any) => ` ${i.count || 1}x ${i.name}`).join('') : ''}
               </div>
               ${statusText ? `<div style="margin-top:4px;color:${rewarded ? '#94a3b8' : expired ? '#ef4444' : '#10b981'};font-weight:bold;font-size:11px;">${statusText}</div>` : ''}
           `;
@@ -671,7 +1065,7 @@ export class SocketManager {
                   <p style="margin:0 0 8px;color:#94a3b8;font-size:11px;">${quest.description}</p>
                   ${objHtml}
                   <div style="font-size:11px;color:#10b981;margin-bottom:8px;">
-                      Recompensas: ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([prof, amt]) => `+${amt} ${prof}`).join(' ') : ''}
+                      Recompensas: ${quest.rewards.gold ? `${quest.rewards.gold} Ouro ` : ''}${quest.rewards.xp ? `${quest.rewards.xp} XP ` : ''}${quest.rewards.professionXp ? Object.entries(quest.rewards.professionXp).map(([prof, amt]) => `+${amt} ${prof}`).join(' ') : ''}${quest.rewards.items && quest.rewards.items.length > 0 ? quest.rewards.items.map((i: any) => ` ${i.count || 1}x ${i.name}`).join('') : ''}
                   </div>
                   <button data-quest-id="${quest.id}" style="background:${btnBg};color:white;border:none;padding:6px 12px;border-radius:4px;cursor:${btnDisabled ? 'not-allowed' : 'pointer'};font-size:11px;font-family:monospace;" ${btnDisabled ? 'disabled' : ''}>${btnLabel}</button>
               `;

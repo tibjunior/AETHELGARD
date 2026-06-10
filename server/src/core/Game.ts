@@ -4545,6 +4545,15 @@ export class Game {
                 player.gold = (player.gold || 0) + quest.rewards.gold;
                 this.io.to(player.id).emit('statsUpdate', { id: player.id, gold: player.gold });
             }
+            if (quest.rewards.items && quest.rewards.items.length > 0) {
+                for (const itemReward of quest.rewards.items) {
+                    for (let i = 0; i < (itemReward.count || 1); i++) {
+                        this.addItemToBackpack(player, itemReward.name);
+                    }
+                }
+                socket.emit('inventoryUpdate', player.backpack);
+                this.recalculateWeight(player);
+            }
             if (quest.rewards.professionXp) {
                 for (const [prof, amt] of Object.entries(quest.rewards.professionXp)) {
                     const xpField = `profession${prof.charAt(0).toUpperCase() + prof.slice(1)}Xp` as keyof PlayerData;
