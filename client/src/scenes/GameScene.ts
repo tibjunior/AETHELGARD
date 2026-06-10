@@ -3160,7 +3160,8 @@ export class GameScene extends Phaser.Scene {
           const indexAttr = slotEl.getAttribute('data-index');
           if (indexAttr !== null) {
               const index = parseInt(indexAttr);
-              const itemString = this.backpackData[index];
+              const isBank = slotEl.closest('#bank-grid') !== null;
+              const itemString = isBank ? this.bankItems[index] : this.backpackData[index];
               if (itemString) {
                   let itemName = itemString;
                   let count = 1;
